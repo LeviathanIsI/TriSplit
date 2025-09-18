@@ -98,19 +98,36 @@ public class GenericProcessor : BaseProcessor
     {
         var phoneList = new List<PhoneRecord>();
 
-        // Process phone mappings
-        foreach (var mapping in _profile.PhoneMappings)
+        // Process phone mappings - multiple source columns can map to "Phone Number"
+        foreach (var mapping in _profile.PhoneMappings.Where(m => m.HubSpotProperty == "Phone Number"))
         {
             if (!string.IsNullOrEmpty(mapping.SourceColumn) && row.ContainsKey(mapping.SourceColumn))
             {
                 var phoneValue = row.GetValueOrDefault(mapping.SourceColumn)?.ToString() ?? string.Empty;
                 if (!string.IsNullOrWhiteSpace(phoneValue))
                 {
+                    // Try to find corresponding phone type mapping
+                    var phoneType = "Primary"; // Default
+
+                    // Look for a Phone Type mapping that might correspond to this phone number
+                    var typeMapping = _profile.PhoneMappings.FirstOrDefault(m =>
+                        m.HubSpotProperty == "Phone Type" &&
+                        m.SourceColumn != null &&
+                        (m.SourceColumn.Contains("Type") || m.SourceColumn.Contains("type")) &&
+                        mapping.SourceColumn != null &&
+                        m.SourceColumn.Replace("Type", "").Replace("type", "") ==
+                        mapping.SourceColumn.Replace("Number", "").Replace("Phone", ""));
+
+                    if (typeMapping != null && row.ContainsKey(typeMapping.SourceColumn))
+                    {
+                        phoneType = row.GetValueOrDefault(typeMapping.SourceColumn)?.ToString() ?? "Primary";
+                    }
+
                     phoneList.Add(new PhoneRecord
                     {
                         ImportId = importId, // Link to contact
                         PhoneNumber = phoneValue,
-                        PhoneType = mapping.HubSpotProperty ?? "Primary"
+                        PhoneType = phoneType
                     });
                 }
             }

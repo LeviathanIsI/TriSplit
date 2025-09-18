@@ -174,21 +174,30 @@ public class TloProcessor : BaseProcessor
     {
         var phoneNumbers = new List<PhoneRecord>();
 
-        // Check for multiple phone columns
-        var phoneColumns = new[] { "Phone", "Phone Number", "Mobile", "Home Phone", "Work Phone", "Cell Phone" };
-
-        foreach (var column in phoneColumns)
+        // First, check for phone mappings in the profile
+        // Multiple source columns can map to "Phone Number" field
+        foreach (var mapping in _profile.PhoneMappings.Where(m => m.HubSpotProperty == "Phone Number"))
         {
-            if (row.ContainsKey(column))
+            if (!string.IsNullOrEmpty(mapping.SourceColumn) && row.ContainsKey(mapping.SourceColumn))
             {
-                var phone = row.GetValueOrDefault(column)?.ToString() ?? string.Empty;
+                var phone = row.GetValueOrDefault(mapping.SourceColumn)?.ToString() ?? string.Empty;
                 phone = CleanPhoneNumber(phone);
 
                 if (!string.IsNullOrWhiteSpace(phone) && phone.Length >= 10)
                 {
-                    var phoneType = column.Contains("Mobile") || column.Contains("Cell") ? "Mobile" :
-                                  column.Contains("Home") ? "Home" :
-                                  column.Contains("Work") ? "Work" : "Primary";
+                    // Try to find corresponding phone type mapping
+                    var phoneType = "Primary"; // Default
+
+                    // Look for a Phone Type mapping with similar source column name
+                    var typeMapping = _profile.PhoneMappings.FirstOrDefault(m =>
+                        m.HubSpotProperty == "Phone Type" &&
+                        m.SourceColumn?.Replace("Number", "Type")?.Replace("Phone", "PhoneType") ==
+                        mapping.SourceColumn?.Replace("Number", "Type")?.Replace("Phone", "PhoneType"));
+
+                    if (typeMapping != null && row.ContainsKey(typeMapping.SourceColumn))
+                    {
+                        phoneType = row.GetValueOrDefault(typeMapping.SourceColumn)?.ToString() ?? "Primary";
+                    }
 
                     phoneNumbers.Add(new PhoneRecord
                     {
@@ -196,6 +205,35 @@ public class TloProcessor : BaseProcessor
                         PhoneNumber = FormatPhoneNumber(phone),
                         PhoneType = phoneType
                     });
+                }
+            }
+        }
+
+        // Fallback: Check for standard phone columns if no mappings found
+        if (!phoneNumbers.Any())
+        {
+            var phoneColumns = new[] { "Phone", "Phone Number", "Mobile", "Home Phone", "Work Phone", "Cell Phone" };
+
+            foreach (var column in phoneColumns)
+            {
+                if (row.ContainsKey(column))
+                {
+                    var phone = row.GetValueOrDefault(column)?.ToString() ?? string.Empty;
+                    phone = CleanPhoneNumber(phone);
+
+                    if (!string.IsNullOrWhiteSpace(phone) && phone.Length >= 10)
+                    {
+                        var phoneType = column.Contains("Mobile") || column.Contains("Cell") ? "Mobile" :
+                                      column.Contains("Home") ? "Home" :
+                                      column.Contains("Work") ? "Work" : "Primary";
+
+                        phoneNumbers.Add(new PhoneRecord
+                        {
+                            ImportId = importId, // Same Import ID links phone to contact
+                            PhoneNumber = FormatPhoneNumber(phone),
+                            PhoneType = phoneType
+                        });
+                    }
                 }
             }
         }
