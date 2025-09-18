@@ -136,7 +136,7 @@ public partial class ProcessingViewModel : ViewModelBase
         }
         catch (Exception ex)
         {
-            AddLogEntry($"Error loading profiles: {ex.Message}", LogLevel.Error);
+            AddLogEntry($"Error loading data profiles: {ex.Message}", LogLevel.Error);
         }
     }
 
@@ -161,7 +161,7 @@ public partial class ProcessingViewModel : ViewModelBase
     {
         if (string.IsNullOrEmpty(InputFilePath) || InputFilePath == "No file selected" || SelectedProfile == null)
         {
-            await _dialogService.ShowMessageAsync("Error", "Please select a file and profile first");
+            await _dialogService.ShowMessageAsync("Error", "Please select a file and data profile first");
             return;
         }
 
@@ -214,13 +214,13 @@ public partial class ProcessingViewModel : ViewModelBase
                 throw new NotSupportedException($"File type {extension} is not supported");
             }
 
-            // Create processor using factory
-            var processor = ProcessorFactory.CreateProcessor(
-                SelectedProfile,
-                inputReader,
-                progress,
-                "tlo" // Force TLO processor for now
-            );
+            if (SelectedProfile is null)
+            {
+                throw new InvalidOperationException("A data profile must be selected before processing.");
+            }
+
+            // Create processor driven entirely by the selected data profile
+            var processor = new UnifiedProcessor(SelectedProfile, inputReader, progress);
 
             // Process the file and generate three output files with Import ID linking
             var result = await processor.ProcessAsync(InputFilePath, _outputDirectory, token);
@@ -330,7 +330,7 @@ public partial class ProcessingViewModel : ViewModelBase
         if (!_updatingFromSession && value != null)
         {
             _appSession.SelectedProfile = value;
-            AddLogEntry($"Selected profile: {value.Name}", LogLevel.Info);
+            AddLogEntry($"Selected data profile: {value.Name}", LogLevel.Info);
         }
     }
 
@@ -377,3 +377,6 @@ public enum LogLevel
     Warning,
     Error
 }
+
+
+

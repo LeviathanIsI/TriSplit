@@ -22,7 +22,7 @@
       </Grid.ColumnDefinitions>
 
       <StackPanel Grid.Column="0">
-        <TextBlock Text="Profile Configuration"
+        <TextBlock Text="Data Profile Configuration"
                    Style="{StaticResource HeaderTextBlock}"
                    Foreground="{StaticResource AccentBrush}"/>
         <TextBlock Text="Map source data fields to HubSpot properties"
@@ -37,16 +37,16 @@
                  Margin="0,0,10,0">
           <TextBox.Resources>
             <Style TargetType="TextBox" BasedOn="{StaticResource {x:Type TextBox}}">
-              <Setter Property="Tag" Value="Profile Name"/>
+              <Setter Property="Tag" Value="Data Profile Name"/>
             </Style>
           </TextBox.Resources>
         </TextBox>
-        <Button Content="Save Profile"
+        <Button Content="Save Data Profile"
                 Command="{Binding SaveProfileCommand}"
                 Style="{StaticResource PrimaryButton}"
                 Margin="0,0,10,0"
                 Padding="15,8"/>
-        <Button Content="Load Profile"
+        <Button Content="Load Data Profile"
                 Command="{Binding LoadProfileCommand}"
                 Style="{StaticResource SecondaryButton}"
                 Padding="15,8"/>
@@ -79,7 +79,7 @@
                   BorderBrush="{StaticResource BorderBrush}"
                   BorderThickness="0,0,0,1"
                   CornerRadius="4,4,0,0">
-            <TextBlock Text="SAVED PROFILES"
+            <TextBlock Text="SAVED DATA PROFILES"
                        Foreground="{StaticResource AccentBrush}"
                        FontWeight="SemiBold"
                        FontSize="12"
@@ -127,12 +127,12 @@
 
           <StackPanel Grid.Row="2"
                       Margin="10">
-            <Button Content="New Profile"
+            <Button Content="New Data Profile"
                     Command="{Binding NewProfileCommand}"
                     Style="{StaticResource SecondaryButton}"
                     HorizontalAlignment="Stretch"
                     Margin="0,0,0,5"/>
-            <Button Content="Delete Selected"
+            <Button Content="Delete Selected Data Profile"
                     Command="{Binding DeleteSelectedProfileCommand}"
                     Style="{StaticResource SecondaryButton}"
                     HorizontalAlignment="Stretch"
@@ -308,7 +308,7 @@
         </Grid.ColumnDefinitions>
 
         <StackPanel Grid.Column="0" Orientation="Horizontal">
-          <TextBlock Text="Profile Status:"
+          <TextBlock Text="Data Profile Status:"
                      Foreground="{StaticResource SecondaryTextBrush}"
                      VerticalAlignment="Center"
                      Margin="0,0,10,0"/>
@@ -323,11 +323,11 @@
                   Command="{Binding ImportHeadersCommand}"
                   Style="{StaticResource SecondaryButton}"
                   Margin="0,0,10,0"/>
-          <Button Content="Export Profile"
+          <Button Content="Export Data Profile"
                   Command="{Binding ExportProfileCommand}"
                   Style="{StaticResource SecondaryButton}"
                   Margin="0,0,10,0"/>
-          <Button Content="Apply Profile"
+          <Button Content="Apply Data Profile"
                   Command="{Binding ApplyProfileCommand}"
                   Style="{StaticResource PrimaryButton}"/>
         </StackPanel>

@@ -1,3 +1,5 @@
+using System;
+using System.Collections.Generic;
 using Newtonsoft.Json;
 
 namespace TriSplit.Core.Models;
@@ -15,6 +17,7 @@ public class Profile
 
     public DedupeSettings DedupeSettings { get; set; } = new();
     public List<Transform> Transforms { get; set; } = new();
+    public Dictionary<string, bool> ProcessingRules { get; set; } = new Dictionary<string, bool>(StringComparer.OrdinalIgnoreCase);
 
     [JsonIgnore]
     public string FilePath { get; set; } = string.Empty;

@@ -1,0 +1,59 @@
+{
+  "Id": "test-phone-profile",
+  "Name": "Test Phone Profile",
+  "ContactMappings": [
+    {
+      "SourceColumn": "First Name",
+      "HubSpotProperty": "First Name",
+      "AssociationType": "Owner"
+    },
+    {
+      "SourceColumn": "Last Name",
+      "HubSpotProperty": "Last Name",
+      "AssociationType": "Owner"
+    },
+    {
+      "SourceColumn": "TloPhone1",
+      "HubSpotProperty": "Phone Number",
+      "AssociationType": "Owner"
+    },
+    {
+      "SourceColumn": "TloPhone1Type",
+      "HubSpotProperty": "Phone Type",
+      "AssociationType": "Owner"
+    },
+    {
+      "SourceColumn": "TloPhone2",
+      "HubSpotProperty": "Phone Number",
+      "AssociationType": "Owner"
+    },
+    {
+      "SourceColumn": "TloPhone2Type",
+      "HubSpotProperty": "Phone Type",
+      "AssociationType": "Owner"
+    }
+  ],
+  "PropertyMappings": [
+    {
+      "SourceColumn": "Property Address",
+      "HubSpotProperty": "Address",
+      "AssociationType": "Mailing Address"
+    },
+    {
+      "SourceColumn": "Property City",
+      "HubSpotProperty": "City",
+      "AssociationType": "Mailing Address"
+    },
+    {
+      "SourceColumn": "Property State",
+      "HubSpotProperty": "State",
+      "AssociationType": "Mailing Address"
+    },
+    {
+      "SourceColumn": "Property Zip",
+      "HubSpotProperty": "Zip",
+      "AssociationType": "Mailing Address"
+    }
+  ],
+  "PhoneMappings": []
+}

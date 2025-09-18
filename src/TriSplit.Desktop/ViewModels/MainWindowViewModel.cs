@@ -17,7 +17,7 @@ public partial class MainWindowViewModel : ViewModelBase
     private int _selectedTabIndex;
 
     [ObservableProperty]
-    private string _activeProfileName = "No profile selected";
+    private string _activeProfileName = "No data profile selected";
 
     [ObservableProperty]
     private string _statusMessage = "Ready";
@@ -51,7 +51,7 @@ public partial class MainWindowViewModel : ViewModelBase
         {
             if (e.PropertyName == nameof(IAppSession.SelectedProfile))
             {
-                ActiveProfileName = _appSession.SelectedProfile?.Name ?? "No profile selected";
+                ActiveProfileName = _appSession.SelectedProfile?.Name ?? "No data profile selected";
             }
         };
     }
@@ -60,9 +60,9 @@ public partial class MainWindowViewModel : ViewModelBase
     {
         StatusMessage = value switch
         {
-            0 => "Configure data mappings and save profiles",
-            1 => "Test your profile with sample data",
-            2 => "Process full files with selected profile",
+            0 => "Configure data mappings and save data profiles",
+            1 => "Test your data profile with sample data",
+            2 => "Process full files with selected data profile",
             _ => "Ready"
         };
     }

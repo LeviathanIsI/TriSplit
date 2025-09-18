@@ -20,7 +20,7 @@
       <TextBlock Text="Full File Processing"
                  Style="{StaticResource HeaderTextBlock}"
                  Foreground="{StaticResource AccentBrush}"/>
-      <TextBlock Text="Process complete files with the selected profile and export results"
+      <TextBlock Text="Process complete files with the selected data profile and export results"
                  Foreground="{StaticResource SecondaryTextBrush}"
                  FontSize="14"/>
     </StackPanel>
@@ -83,7 +83,7 @@
           </Grid.ColumnDefinitions>
 
           <TextBlock Grid.Column="0"
-                     Text="Profile:"
+                     Text="Data Profile:"
                      Foreground="{StaticResource TextBrush}"
                      VerticalAlignment="Center"/>
 

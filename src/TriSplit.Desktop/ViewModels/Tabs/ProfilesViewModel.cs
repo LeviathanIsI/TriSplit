@@ -20,7 +20,7 @@ public partial class ProfilesViewModel : ViewModelBase
     public ObservableCollection<string> HubSpotHeaders { get; }
 
     [ObservableProperty]
-    private string _profileName = "New Profile";
+    private string _profileName = "New Data Profile";
 
     [ObservableProperty]
     private ObservableCollection<ProfileViewModel> _savedProfiles = new();
@@ -32,7 +32,7 @@ public partial class ProfilesViewModel : ViewModelBase
     private ObservableCollection<FieldMappingViewModel> _fieldMappings = new();
 
     [ObservableProperty]
-    private string _profileStatus = "No profile loaded";
+    private string _profileStatus = "No data profile loaded";
 
     [ObservableProperty]
     private string _mappingCount = "0 mappings configured";
@@ -149,11 +149,11 @@ public partial class ProfilesViewModel : ViewModelBase
                 });
             }
 
-            ProfileStatus = SavedProfiles.Any() ? $"{SavedProfiles.Count} profiles available" : "No profiles saved";
+            ProfileStatus = SavedProfiles.Any() ? $"{SavedProfiles.Count} data profiles available" : "No data profiles saved";
         }
         catch (Exception ex)
         {
-            ProfileStatus = $"Error loading profiles: {ex.Message}";
+            ProfileStatus = $"Error loading data profiles: {ex.Message}";
         }
     }
 
@@ -162,7 +162,7 @@ public partial class ProfilesViewModel : ViewModelBase
     {
         if (string.IsNullOrWhiteSpace(ProfileName))
         {
-            await _dialogService.ShowMessageAsync("Error", "Please enter a profile name");
+            await _dialogService.ShowMessageAsync("Error", "Please enter a data profile name");
             return;
         }
 
@@ -206,8 +206,8 @@ public partial class ProfilesViewModel : ViewModelBase
                 if (existingProfile != null)
                 {
                     var result = await _dialogService.ShowConfirmationDialogAsync(
-                        "Overwrite Profile",
-                        $"A profile named '{ProfileName}' already exists. Do you want to overwrite it?");
+                        "Overwrite Data Profile",
+                        $"A data profile named '{ProfileName}' already exists. Do you want to overwrite it?");
 
                     if (!result)
                         return;
@@ -270,13 +270,13 @@ public partial class ProfilesViewModel : ViewModelBase
             SelectedProfile = SavedProfiles.FirstOrDefault(p => p.Id == profile.Id);
 
             ProfileStatus = isUpdate
-                ? $"Profile '{ProfileName}' updated with {totalMappings} mappings"
-                : $"Profile '{ProfileName}' saved with {totalMappings} mappings";
+                ? $"Data profile '{ProfileName}' updated with {totalMappings} mappings"
+                : $"Data profile '{ProfileName}' saved with {totalMappings} mappings";
             _appSession.SelectedProfile = profile;
         }
         catch (Exception ex)
         {
-            ProfileStatus = $"Error saving profile: {ex.Message}";
+            ProfileStatus = $"Error saving data profile: {ex.Message}";
         }
     }
 
@@ -285,7 +285,7 @@ public partial class ProfilesViewModel : ViewModelBase
     {
         if (SelectedProfile == null)
         {
-            await _dialogService.ShowMessageAsync("Error", "Please select a profile to load");
+            await _dialogService.ShowMessageAsync("Error", "Please select a data profile to load");
             return;
         }
 
@@ -328,12 +328,12 @@ public partial class ProfilesViewModel : ViewModelBase
             }
 
             UpdateMappingCount();
-            ProfileStatus = $"Profile '{profile.Name}' loaded";
+            ProfileStatus = $"Data profile '{profile.Name}' loaded";
             _appSession.SelectedProfile = profile;
         }
         catch (Exception ex)
         {
-            ProfileStatus = $"Error loading profile: {ex.Message}";
+            ProfileStatus = $"Error loading data profile: {ex.Message}";
         }
     }
 
@@ -364,10 +364,10 @@ public partial class ProfilesViewModel : ViewModelBase
     [RelayCommand]
     private void NewProfile()
     {
-        ProfileName = "New Profile";
+        ProfileName = "New Data Profile";
         SelectedProfile = null;
         ClearMappings();
-        ProfileStatus = "Creating new profile";
+        ProfileStatus = "Creating new data profile";
     }
 
     [RelayCommand]
@@ -378,14 +378,14 @@ public partial class ProfilesViewModel : ViewModelBase
 
         if (profile == null)
         {
-            await _dialogService.ShowMessageAsync("Error", "Please select a profile to delete");
+            await _dialogService.ShowMessageAsync("Error", "Please select a data profile to delete");
             return;
         }
 
         var profileName = profile.Name;
         var result = await _dialogService.ShowConfirmationDialogAsync(
-            "Delete Profile",
-            $"Are you sure you want to delete profile '{profileName}'?");
+            "Delete Data Profile",
+            $"Are you sure you want to delete data profile '{profileName}'?");
 
         if (result)
         {
@@ -393,7 +393,7 @@ public partial class ProfilesViewModel : ViewModelBase
             {
                 await _profileStore.DeleteProfileAsync(profile.Id);
                 await LoadProfilesAsync();
-                ProfileStatus = $"Profile '{profileName}' deleted";
+                ProfileStatus = $"Data profile '{profileName}' deleted";
 
                 // Clear selection if we deleted the selected profile
                 if (SelectedProfile?.Id == profile.Id)
@@ -403,7 +403,7 @@ public partial class ProfilesViewModel : ViewModelBase
             }
             catch (Exception ex)
             {
-                ProfileStatus = $"Error deleting profile: {ex.Message}";
+                ProfileStatus = $"Error deleting data profile: {ex.Message}";
             }
         }
     }
@@ -434,12 +434,12 @@ public partial class ProfilesViewModel : ViewModelBase
     {
         if (SelectedProfile == null)
         {
-            await _dialogService.ShowMessageAsync("Error", "Please select a profile to export");
+            await _dialogService.ShowMessageAsync("Error", "Please select a data profile to export");
             return;
         }
 
         var filePath = await _dialogService.ShowSaveFileDialogAsync(
-            "Export Profile",
+            "Export Data Profile",
             $"{SelectedProfile.Name}.json",
             "JSON Files|*.json|All Files|*.*");
 
@@ -453,7 +453,7 @@ public partial class ProfilesViewModel : ViewModelBase
         }
         catch (Exception ex)
         {
-            ProfileStatus = $"Error exporting profile: {ex.Message}";
+            ProfileStatus = $"Error exporting data profile: {ex.Message}";
         }
     }
 
@@ -462,7 +462,7 @@ public partial class ProfilesViewModel : ViewModelBase
     {
         if (SelectedProfile == null)
         {
-            await _dialogService.ShowMessageAsync("Error", "Please select a profile to apply");
+            await _dialogService.ShowMessageAsync("Error", "Please select a data profile to apply");
             return;
         }
 
@@ -531,13 +531,13 @@ public partial class ProfilesViewModel : ViewModelBase
             }
 
             UpdateMappingCount();
-            ProfileStatus = $"Profile '{profile.Name}' loaded with {loadedMappings} mappings";
+            ProfileStatus = $"Data profile '{profile.Name}' loaded with {loadedMappings} mappings";
             _appSession.SelectedProfile = profile;
         }
         catch (Exception ex)
         {
-            ProfileStatus = $"Error applying profile: {ex.Message}";
-            await _dialogService.ShowMessageAsync("Error", $"Failed to apply profile: {ex.Message}");
+            ProfileStatus = $"Error applying data profile: {ex.Message}";
+            await _dialogService.ShowMessageAsync("Error", $"Failed to apply data profile: {ex.Message}");
         }
     }
 

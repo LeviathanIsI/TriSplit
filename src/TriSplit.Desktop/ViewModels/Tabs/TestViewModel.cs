@@ -68,7 +68,7 @@ public partial class TestViewModel : ViewModelBase
     private int _unmappedColumnsCount;
 
     [ObservableProperty]
-    private string _activeProfileName = "No profile selected";
+    private string _activeProfileName = "No data profile selected";
 
     [ObservableProperty]
     private bool _showOriginalData = true;
@@ -124,7 +124,7 @@ public partial class TestViewModel : ViewModelBase
 
     private void UpdateActiveProfile()
     {
-        ActiveProfileName = _appSession.SelectedProfile?.Name ?? "No profile selected";
+        ActiveProfileName = _appSession.SelectedProfile?.Name ?? "No data profile selected";
         if (IsFileLoaded && _appSession.SelectedProfile != null)
         {
             _ = ApplyTransformationAsync();
@@ -380,7 +380,7 @@ public partial class TestViewModel : ViewModelBase
             }
             else
             {
-                TestStatus = "Please select a profile to view transformed data";
+                TestStatus = "Please select a data profile to view transformed data";
                 ShowOriginalData = true;
             }
         }
@@ -431,13 +431,13 @@ public partial class TestViewModel : ViewModelBase
     {
         if (_currentFilePath == null || _appSession.SelectedProfile == null)
         {
-            await _dialogService.ShowMessageAsync("Error", "Please select a file and profile first");
+            await _dialogService.ShowMessageAsync("Error", "Please select a file and data profile first");
             return;
         }
 
         var result = await _dialogService.ShowConfirmationDialogAsync(
             "Run Full Processing",
-            $"This will process the entire file '{Path.GetFileName(_currentFilePath)}' using profile '{_appSession.SelectedProfile.Name}'.\n\nContinue?");
+            $"This will process the entire file '{Path.GetFileName(_currentFilePath)}' using data profile '{_appSession.SelectedProfile.Name}'.\n\nContinue?");
 
         if (result)
         {

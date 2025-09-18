@@ -27,7 +27,7 @@
         <TextBlock Text="Test Data Transformation"
                    Style="{StaticResource HeaderTextBlock}"
                    Foreground="{StaticResource AccentBrush}"/>
-        <TextBlock Text="Upload a sample file and preview how it will be transformed using the selected profile"
+        <TextBlock Text="Upload a sample file and preview how it will be transformed using the selected data profile"
                    Foreground="{StaticResource SecondaryTextBrush}"
                    FontSize="14"/>
       </StackPanel>
@@ -124,7 +124,7 @@
                        Margin="0,0,20,0"/>
 
             <TextBlock Grid.Column="4"
-                       Text="Profile:"
+                       Text="Data Profile:"
                        Foreground="{StaticResource SecondaryTextBrush}"
                        Margin="0,0,5,0"/>
             <TextBlock Grid.Column="5"
