@@ -3,9 +3,10 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:views="clr-namespace:TriSplit.Desktop.Views.Tabs"
         mc:Ignorable="d"
         Title="{Binding Title}"
-        Height="800" Width="1400"
+        Height="900" Width="1600"
         WindowStartupLocation="CenterScreen"
         Background="{StaticResource BackgroundBrush}">
 
@@ -17,37 +18,90 @@
     </Grid.RowDefinitions>
 
     <!-- Header -->
-    <Border Grid.Row="0" Style="{StaticResource GlassPanel}"
-            CornerRadius="0" Margin="0" Padding="16,12">
-      <Grid>
+    <Border Grid.Row="0"
+            Background="{StaticResource SurfaceBrush}"
+            BorderBrush="{StaticResource BorderBrush}"
+            BorderThickness="0,0,0,1">
+      <Grid Height="60">
         <Grid.ColumnDefinitions>
           <ColumnDefinition Width="Auto"/>
           <ColumnDefinition Width="*"/>
           <ColumnDefinition Width="Auto"/>
         </Grid.ColumnDefinitions>
 
-        <TextBlock Grid.Column="0"
-                   Text="TriSplit"
-                   FontSize="24"
-                   FontWeight="Bold"
-                   Foreground="{StaticResource AccentBrush}"
-                   VerticalAlignment="Center"/>
+        <StackPanel Grid.Column="0" Orientation="Horizontal" Margin="20,0">
+          <TextBlock Text="TriSplit"
+                     FontSize="28"
+                     FontWeight="Bold"
+                     Foreground="{StaticResource AccentBrush}"
+                     VerticalAlignment="Center"/>
+          <TextBlock Text="Data Mapping &amp; HubSpot Integration"
+                     FontSize="14"
+                     Foreground="{StaticResource SecondaryTextBrush}"
+                     VerticalAlignment="Center"
+                     Margin="20,0,0,0"/>
+        </StackPanel>
 
-        <TextBlock Grid.Column="1"
-                   Text="Data Mapping &amp; HubSpot Integration"
-                   FontSize="14"
-                   Foreground="{StaticResource SecondaryTextBrush}"
-                   VerticalAlignment="Center"
-                   Margin="20,0,0,0"/>
+        <StackPanel Grid.Column="2" Orientation="Horizontal" Margin="20,0" VerticalAlignment="Center">
+          <TextBlock Text="Profile:"
+                     Foreground="{StaticResource SecondaryTextBrush}"
+                     VerticalAlignment="Center"
+                     Margin="0,0,10,0"/>
+          <TextBlock Text="{Binding ActiveProfileName}"
+                     Foreground="{StaticResource AccentBrush}"
+                     FontWeight="Medium"
+                     VerticalAlignment="Center"/>
+        </StackPanel>
       </Grid>
     </Border>
 
-    <!-- Main Content -->
+    <!-- Main TabControl -->
     <TabControl Grid.Row="1"
                 SelectedIndex="{Binding SelectedTabIndex}"
-                Margin="8">
-      <TabItem Header="Profiles">
-        <ContentControl Content="{Binding CurrentViewModel}"/>
+                Background="{StaticResource BackgroundBrush}"
+                BorderThickness="0">
+
+      <TabControl.Template>
+        <ControlTemplate TargetType="TabControl">
+          <Grid>
+            <Grid.RowDefinitions>
+              <RowDefinition Height="Auto"/>
+              <RowDefinition Height="*"/>
+            </Grid.RowDefinitions>
+
+            <!-- Tab Headers -->
+            <Border Grid.Row="0"
+                    Background="{StaticResource SurfaceBrush}"
+                    BorderBrush="{StaticResource BorderBrush}"
+                    BorderThickness="0,0,0,1">
+              <TabPanel IsItemsHost="True"
+                        Background="Transparent"
+                        Margin="10,0"/>
+            </Border>
+
+            <!-- Tab Content -->
+            <Border Grid.Row="1"
+                    Background="{StaticResource BackgroundBrush}">
+              <ContentPresenter x:Name="PART_SelectedContentHost"
+                                ContentSource="SelectedContent"/>
+            </Border>
+          </Grid>
+        </ControlTemplate>
+      </TabControl.Template>
+
+      <!-- Profiles Tab -->
+      <TabItem Header="PROFILES">
+        <views:ProfilesView DataContext="{Binding ProfilesViewModel}"/>
+      </TabItem>
+
+      <!-- Test Tab -->
+      <TabItem Header="TEST">
+        <views:TestView DataContext="{Binding TestViewModel}"/>
+      </TabItem>
+
+      <!-- Processing Tab -->
+      <TabItem Header="PROCESSING">
+        <views:ProcessingView DataContext="{Binding ProcessingViewModel}"/>
       </TabItem>
     </TabControl>
 
@@ -56,23 +110,39 @@
             Background="{StaticResource SurfaceBrush}"
             BorderBrush="{StaticResource BorderBrush}"
             BorderThickness="0,1,0,0">
-      <Grid Height="24">
+      <Grid Height="28">
         <Grid.ColumnDefinitions>
+          <ColumnDefinition Width="Auto"/>
           <ColumnDefinition Width="*"/>
+          <ColumnDefinition Width="Auto"/>
           <ColumnDefinition Width="Auto"/>
         </Grid.ColumnDefinitions>
 
         <TextBlock Grid.Column="0"
-                   Text="Ready"
+                   Text="{Binding StatusMessage}"
                    Foreground="{StaticResource SecondaryTextBrush}"
                    VerticalAlignment="Center"
-                   Margin="8,0"/>
+                   Margin="12,0"/>
 
-        <TextBlock Grid.Column="1"
+        <ProgressBar Grid.Column="1"
+                     Value="{Binding ProgressValue}"
+                     Maximum="100"
+                     Height="4"
+                     Visibility="{Binding IsProgressVisible, Converter={StaticResource BoolToVisibilityConverter}}"
+                     Margin="10,0"
+                     VerticalAlignment="Center"/>
+
+        <TextBlock Grid.Column="2"
+                   Text="{Binding ProcessingStatus}"
+                   Foreground="{StaticResource AccentBrush}"
+                   VerticalAlignment="Center"
+                   Margin="12,0"/>
+
+        <TextBlock Grid.Column="3"
                    Text="v1.0.0"
                    Foreground="{StaticResource SecondaryTextBrush}"
                    VerticalAlignment="Center"
-                   Margin="8,0"/>
+                   Margin="12,0"/>
       </Grid>
     </Border>
   </Grid>

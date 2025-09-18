@@ -1,57 +1,50 @@
-using ClosedXML.Excel;
+using System.Text;
 using TriSplit.Core.Interfaces;
+using ExcelDataReader;
 
 namespace TriSplit.Core.Services;
 
 public class ExcelInputReader : IInputReader
 {
-    public string[] SupportedExtensions => new[] { ".xlsx", ".xls", ".xlsm" };
+    public string[] SupportedExtensions => new[] { ".xlsx", ".xls" };
 
     public async Task<SampleData> ReadAsync(string filePath, int? limit = null)
     {
         return await Task.Run(() =>
         {
-            var result = new SampleData
+            // Encoding provider registered at app startup
+
+            using var fs = File.OpenRead(filePath);
+            using var reader = ExcelReaderFactory.CreateReader(fs); // streaming, forward-only
+
+            var result = new SampleData { SourceFile = filePath };
+            var max = Math.Max(1, limit ?? 100);
+
+            // Read first sheet only (preview semantics)
+            if (!reader.Read()) return result; // first row (header?) or empty
+
+            // Build headers from first non-empty row
+            var headers = new List<string>();
+            for (int i = 0; i < reader.FieldCount; i++)
             {
-                SourceFile = filePath
-            };
+                var name = (reader.GetValue(i)?.ToString() ?? "").Trim();
+                headers.Add(string.IsNullOrWhiteSpace(name) ? $"Column {i + 1}" : name);
+            }
+            result.Headers = headers;
 
-            using var workbook = new XLWorkbook(filePath);
-            var worksheet = workbook.Worksheet(1);
-            var rows = worksheet.RowsUsed();
-
-            if (!rows.Any())
-                return result;
-
-            // Get headers from first row
-            var headerRow = rows.First();
-            foreach (var cell in headerRow.CellsUsed())
+            int rowsRead = 0;
+            while (rowsRead < max && reader.Read())
             {
-                result.Headers.Add(cell.Value.ToString());
+                var rowDict = new Dictionary<string, object>(headers.Count);
+                for (int i = 0; i < headers.Count; i++)
+                    rowDict[headers[i]] = reader.GetValue(i)?.ToString() ?? string.Empty;
+
+                result.Rows.Add(rowDict);
+                rowsRead++;
             }
 
-            // Read data rows
-            int rowCount = 0;
-            foreach (var row in rows.Skip(1))
-            {
-                if (limit.HasValue && result.Rows.Count >= limit.Value)
-                {
-                    // Continue counting total rows
-                    rowCount = rows.Count() - 1;
-                    break;
-                }
-
-                var dataRow = new Dictionary<string, object>();
-                for (int i = 0; i < result.Headers.Count; i++)
-                {
-                    var cell = row.Cell(i + 1);
-                    dataRow[result.Headers[i]] = cell.Value.ToString() ?? string.Empty;
-                }
-                result.Rows.Add(dataRow);
-                rowCount++;
-            }
-
-            result.TotalRows = rowCount;
+            // We don't know total rows without a full scan; set to preview count.
+            result.TotalRows = rowsRead;
             return result;
         });
     }

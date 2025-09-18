@@ -1,47 +1,78 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using System.Collections.ObjectModel;
+using TriSplit.Desktop.Services;
+using TriSplit.Desktop.ViewModels.Tabs;
 
 namespace TriSplit.Desktop.ViewModels;
 
 public partial class MainWindowViewModel : ViewModelBase
 {
+    private readonly IAppSession _appSession;
+
     [ObservableProperty]
     private string _title = "TriSplit - Data Mapping & HubSpot Integration";
 
     [ObservableProperty]
-    private ViewModelBase? _currentViewModel;
-
-    [ObservableProperty]
     private int _selectedTabIndex;
 
-    public ObservableCollection<TabItemViewModel> Tabs { get; }
+    [ObservableProperty]
+    private string _activeProfileName = "No profile selected";
 
-    private readonly ProfilesViewModel _profilesViewModel;
+    [ObservableProperty]
+    private string _statusMessage = "Ready";
 
-    public MainWindowViewModel(ProfilesViewModel profilesViewModel)
+    [ObservableProperty]
+    private double _progressValue;
+
+    [ObservableProperty]
+    private bool _isProgressVisible;
+
+    [ObservableProperty]
+    private string _processingStatus = string.Empty;
+
+    public ViewModels.Tabs.ProfilesViewModel ProfilesViewModel { get; }
+    public TestViewModel TestViewModel { get; }
+    public ProcessingViewModel ProcessingViewModel { get; }
+
+    public MainWindowViewModel(
+        ViewModels.Tabs.ProfilesViewModel profilesViewModel,
+        TestViewModel testViewModel,
+        ProcessingViewModel processingViewModel,
+        IAppSession appSession)
     {
-        _profilesViewModel = profilesViewModel;
+        ProfilesViewModel = profilesViewModel;
+        TestViewModel = testViewModel;
+        ProcessingViewModel = processingViewModel;
+        _appSession = appSession;
 
-        Tabs = new ObservableCollection<TabItemViewModel>
+        // Subscribe to app session changes
+        _appSession.PropertyChanged += (s, e) =>
         {
-            new TabItemViewModel { Header = "Profiles", Content = _profilesViewModel }
+            if (e.PropertyName == nameof(IAppSession.SelectedProfile))
+            {
+                ActiveProfileName = _appSession.SelectedProfile?.Name ?? "No profile selected";
+            }
         };
-
-        CurrentViewModel = _profilesViewModel;
     }
 
     partial void OnSelectedTabIndexChanged(int value)
     {
-        if (value >= 0 && value < Tabs.Count)
+        StatusMessage = value switch
         {
-            CurrentViewModel = Tabs[value].Content;
+            0 => "Configure data mappings and save profiles",
+            1 => "Test your profile with sample data",
+            2 => "Process full files with selected profile",
+            _ => "Ready"
+        };
+    }
+
+    [RelayCommand]
+    private void NavigateToTab(int tabIndex)
+    {
+        if (tabIndex >= 0 && tabIndex <= 2)
+        {
+            SelectedTabIndex = tabIndex;
         }
     }
-}
-
-public class TabItemViewModel
-{
-    public string Header { get; set; } = string.Empty;
-    public ViewModelBase? Content { get; set; }
 }

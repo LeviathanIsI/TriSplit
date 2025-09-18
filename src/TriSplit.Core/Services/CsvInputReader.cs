@@ -37,11 +37,7 @@ public class CsvInputReader : IInputReader
         {
             if (limit.HasValue && rowCount >= limit.Value)
             {
-                // Continue counting total rows
-                while (await csv.ReadAsync())
-                {
-                    rowCount++;
-                }
+                // STOP reading the file - just use what we have
                 break;
             }
 
@@ -61,6 +57,7 @@ public class CsvInputReader : IInputReader
             rowCount++;
         }
 
+        // For preview, we only know the rows we've read
         result.TotalRows = rowCount;
         return result;
     }

@@ -1,0 +1,546 @@
+<UserControl x:Class="TriSplit.Desktop.Views.Tabs.TestView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             mc:Ignorable="d"
+             d:DesignHeight="800" d:DesignWidth="1400"
+             Background="{StaticResource BackgroundBrush}">
+
+  <Grid Margin="20">
+    <Grid.ColumnDefinitions>
+      <ColumnDefinition Width="3*"/>
+      <ColumnDefinition Width="*" MinWidth="300" MaxWidth="400"/>
+    </Grid.ColumnDefinitions>
+
+    <!-- Main Content Area -->
+    <Grid Grid.Column="0" Margin="0,0,15,0">
+      <Grid.RowDefinitions>
+        <RowDefinition Height="Auto"/>
+        <RowDefinition Height="Auto"/>
+        <RowDefinition Height="*"/>
+        <RowDefinition Height="Auto"/>
+      </Grid.RowDefinitions>
+
+      <!-- Header Section -->
+      <StackPanel Grid.Row="0" Margin="0,0,0,20">
+        <TextBlock Text="Test Data Transformation"
+                   Style="{StaticResource HeaderTextBlock}"
+                   Foreground="{StaticResource AccentBrush}"/>
+        <TextBlock Text="Upload a sample file and preview how it will be transformed using the selected profile"
+                   Foreground="{StaticResource SecondaryTextBrush}"
+                   FontSize="14"/>
+      </StackPanel>
+
+      <!-- File Upload Section -->
+      <Border Grid.Row="1"
+              Background="{StaticResource SurfaceBrush}"
+              BorderBrush="{StaticResource BorderBrush}"
+              BorderThickness="1"
+              CornerRadius="4"
+              Margin="0,0,0,20">
+        <Grid Margin="20">
+          <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+          </Grid.RowDefinitions>
+
+          <!-- File Selection -->
+          <Grid Grid.Row="0">
+            <Grid.ColumnDefinitions>
+              <ColumnDefinition Width="*"/>
+              <ColumnDefinition Width="Auto"/>
+              <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+
+            <Border Grid.Column="0"
+                    Background="{StaticResource BackgroundBrush}"
+                    BorderBrush="{StaticResource BorderBrush}"
+                    BorderThickness="1"
+                    CornerRadius="4"
+                    Height="40"
+                    Margin="0,0,10,0">
+              <Grid>
+                <TextBlock Text="{Binding SelectedFileName}"
+                           Foreground="{StaticResource TextBrush}"
+                           VerticalAlignment="Center"
+                           Margin="10,0"
+                           FontSize="14"/>
+                <TextBlock Text="No file selected"
+                           Foreground="{StaticResource SecondaryTextBrush}"
+                           VerticalAlignment="Center"
+                           Margin="10,0"
+                           FontStyle="Italic"
+                           Visibility="{Binding IsFileSelected, Converter={StaticResource InverseBoolToVisibilityConverter}}"/>
+              </Grid>
+            </Border>
+
+            <Button Grid.Column="1"
+                    Content="Browse Files"
+                    Command="{Binding BrowseFilesCommand}"
+                    Style="{StaticResource SecondaryButton}"
+                    Width="120"
+                    Margin="0,0,10,0"/>
+
+            <Button Grid.Column="2"
+                    Content="Upload &amp; Test"
+                    Command="{Binding UploadAndTestCommand}"
+                    Style="{StaticResource PrimaryButton}"
+                    Width="120"
+                    IsEnabled="{Binding IsFileSelected}"/>
+          </Grid>
+
+          <!-- File Info -->
+          <Grid Grid.Row="1"
+                Margin="0,15,0,0"
+                Visibility="{Binding IsFileLoaded, Converter={StaticResource BoolToVisibilityConverter}}">
+            <Grid.ColumnDefinitions>
+              <ColumnDefinition Width="Auto"/>
+              <ColumnDefinition Width="Auto"/>
+              <ColumnDefinition Width="Auto"/>
+              <ColumnDefinition Width="Auto"/>
+              <ColumnDefinition Width="Auto"/>
+              <ColumnDefinition Width="*"/>
+            </Grid.ColumnDefinitions>
+
+            <TextBlock Grid.Column="0"
+                       Text="Total Rows:"
+                       Foreground="{StaticResource SecondaryTextBrush}"
+                       Margin="0,0,5,0"/>
+            <TextBlock Grid.Column="1"
+                       Text="{Binding RowCount, StringFormat='{}{0:N0}'}"
+                       Foreground="{StaticResource AccentBrush}"
+                       FontWeight="Medium"
+                       Margin="0,0,20,0"/>
+
+            <TextBlock Grid.Column="2"
+                       Text="Columns:"
+                       Foreground="{StaticResource SecondaryTextBrush}"
+                       Margin="0,0,5,0"/>
+            <TextBlock Grid.Column="3"
+                       Text="{Binding ColumnCount}"
+                       Foreground="{StaticResource AccentBrush}"
+                       FontWeight="Medium"
+                       Margin="0,0,20,0"/>
+
+            <TextBlock Grid.Column="4"
+                       Text="Profile:"
+                       Foreground="{StaticResource SecondaryTextBrush}"
+                       Margin="0,0,5,0"/>
+            <TextBlock Grid.Column="5"
+                       Text="{Binding ActiveProfileName}"
+                       Foreground="{StaticResource AccentBrush}"
+                       FontWeight="Medium"/>
+          </Grid>
+        </Grid>
+      </Border>
+
+      <!-- Data Preview Section -->
+      <Border Grid.Row="2"
+              Background="{StaticResource SurfaceBrush}"
+              BorderBrush="{StaticResource BorderBrush}"
+              BorderThickness="1"
+              CornerRadius="4">
+        <Grid>
+          <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+          </Grid.RowDefinitions>
+
+          <!-- Preview Header -->
+          <Border Grid.Row="0"
+                  Background="{StaticResource SelectedBrush}"
+                  BorderBrush="{StaticResource BorderBrush}"
+                  BorderThickness="0,0,0,1"
+                  CornerRadius="4,4,0,0">
+            <Grid Margin="15,10">
+              <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+              </Grid.ColumnDefinitions>
+
+              <StackPanel Grid.Column="0" Orientation="Horizontal">
+                <TextBlock Text="DATA PREVIEW"
+                           Foreground="{StaticResource AccentBrush}"
+                           FontWeight="SemiBold"
+                           FontSize="12"
+                           VerticalAlignment="Center"/>
+                <TextBlock Text="{Binding PreviewRowCount, StringFormat='(First {0} rows)'}"
+                           Foreground="{StaticResource SecondaryTextBrush}"
+                           FontSize="11"
+                           VerticalAlignment="Center"
+                           Margin="10,0,0,0"/>
+              </StackPanel>
+            </Grid>
+          </Border>
+
+          <!-- Data Grid Container -->
+          <Border Grid.Row="1"
+                  BorderThickness="0"
+                  ClipToBounds="True">
+            <DataGrid x:Name="PreviewDataGrid"
+                      ItemsSource="{Binding PreviewData}"
+                      AutoGenerateColumns="True"
+                      CanUserAddRows="False"
+                      CanUserDeleteRows="False"
+                      IsReadOnly="True"
+                      Background="{StaticResource SurfaceBrush}"
+                      Foreground="{StaticResource TextBrush}"
+                      BorderThickness="0"
+                      GridLinesVisibility="Horizontal"
+                      HorizontalGridLinesBrush="{StaticResource BorderBrush}"
+                      RowBackground="{StaticResource SurfaceBrush}"
+                      AlternatingRowBackground="#232323"
+                      HeadersVisibility="Column"
+                      VerticalScrollBarVisibility="Auto"
+                      HorizontalScrollBarVisibility="Auto"
+                      ScrollViewer.HorizontalScrollBarVisibility="Auto"
+                      ScrollViewer.VerticalScrollBarVisibility="Auto"
+                      EnableRowVirtualization="True"
+                      EnableColumnVirtualization="True"
+                      VirtualizingPanel.IsVirtualizing="True"
+                      VirtualizingPanel.VirtualizationMode="Recycling"
+                      VirtualizingPanel.ScrollUnit="Pixel"
+                      CanUserReorderColumns="True"
+                      CanUserResizeColumns="True"
+                      CanUserSortColumns="True"
+                      FrozenColumnCount="0"
+                      HorizontalAlignment="Stretch"
+                      VerticalAlignment="Stretch"
+                      PreviewMouseWheel="DataGrid_PreviewMouseWheel">
+
+            <DataGrid.ColumnHeaderStyle>
+              <Style TargetType="DataGridColumnHeader">
+                <Setter Property="Background" Value="{StaticResource SelectedBrush}"/>
+                <Setter Property="Foreground" Value="{StaticResource TextBrush}"/>
+                <Setter Property="BorderBrush" Value="{StaticResource BorderBrush}"/>
+                <Setter Property="BorderThickness" Value="0,0,1,1"/>
+                <Setter Property="Padding" Value="8,6"/>
+                <Setter Property="FontWeight" Value="SemiBold"/>
+                <Setter Property="HorizontalContentAlignment" Value="Left"/>
+              </Style>
+            </DataGrid.ColumnHeaderStyle>
+
+            <DataGrid.Resources>
+              <Style TargetType="DataGridCell">
+                <Setter Property="BorderThickness" Value="0"/>
+                <Setter Property="Padding" Value="8,4"/>
+                <Setter Property="Template">
+                  <Setter.Value>
+                    <ControlTemplate TargetType="DataGridCell">
+                      <Border Background="{TemplateBinding Background}"
+                              BorderBrush="{TemplateBinding BorderBrush}"
+                              BorderThickness="{TemplateBinding BorderThickness}"
+                              Padding="{TemplateBinding Padding}">
+                        <ContentPresenter VerticalAlignment="Center"/>
+                      </Border>
+                    </ControlTemplate>
+                  </Setter.Value>
+                </Setter>
+                <Style.Triggers>
+                  <Trigger Property="IsSelected" Value="True">
+                    <Setter Property="Background" Value="{StaticResource AccentBrush}"/>
+                    <Setter Property="Foreground" Value="Black"/>
+                  </Trigger>
+                </Style.Triggers>
+              </Style>
+            </DataGrid.Resources>
+            </DataGrid>
+          </Border>
+
+          <!-- Empty State -->
+          <Border Grid.Row="1"
+                  Visibility="{Binding IsDataEmpty, Converter={StaticResource BoolToVisibilityConverter}}">
+            <StackPanel HorizontalAlignment="Center"
+                        VerticalAlignment="Center">
+              <TextBlock Text="No data to preview"
+                         Foreground="{StaticResource SecondaryTextBrush}"
+                         FontSize="18"
+                         HorizontalAlignment="Center"
+                         Margin="0,0,0,10"/>
+              <TextBlock Text="Upload a CSV or Excel file to see the preview"
+                         Foreground="{StaticResource SecondaryTextBrush}"
+                         FontSize="14"
+                         HorizontalAlignment="Center"/>
+            </StackPanel>
+          </Border>
+        </Grid>
+      </Border>
+
+      <!-- Actions Section -->
+      <Border Grid.Row="3"
+              Background="{StaticResource SurfaceBrush}"
+              BorderBrush="{StaticResource BorderBrush}"
+              BorderThickness="1"
+              CornerRadius="4"
+              Margin="0,15,0,0">
+        <Grid Margin="15,10">
+          <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="*"/>
+            <ColumnDefinition Width="Auto"/>
+          </Grid.ColumnDefinitions>
+
+          <StackPanel Grid.Column="0" Orientation="Horizontal">
+            <TextBlock Text="Test Status:"
+                       Foreground="{StaticResource SecondaryTextBrush}"
+                       VerticalAlignment="Center"
+                       Margin="0,0,10,0"/>
+            <TextBlock Text="{Binding TestStatus}"
+                       Foreground="{StaticResource AccentBrush}"
+                       FontWeight="Medium"
+                       VerticalAlignment="Center"/>
+          </StackPanel>
+
+          <Button Grid.Column="1"
+                  Content="Export Preview"
+                  Command="{Binding ExportPreviewCommand}"
+                  Style="{StaticResource SecondaryButton}"
+                  IsEnabled="{Binding IsFileLoaded}"/>
+        </Grid>
+      </Border>
+    </Grid>
+
+    <!-- Right Side Panel -->
+    <Grid Grid.Column="1">
+      <Grid.RowDefinitions>
+        <RowDefinition Height="Auto"/>
+        <RowDefinition Height="Auto"/>
+        <RowDefinition Height="*"/>
+      </Grid.RowDefinitions>
+
+      <!-- Quick Stats Panel -->
+      <Border Grid.Row="0"
+              Background="{StaticResource SurfaceBrush}"
+              BorderBrush="{StaticResource BorderBrush}"
+              BorderThickness="1"
+              CornerRadius="4"
+              Margin="0,0,0,15">
+        <Grid>
+          <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+          </Grid.RowDefinitions>
+
+          <Border Grid.Row="0"
+                  Background="{StaticResource SelectedBrush}"
+                  BorderBrush="{StaticResource BorderBrush}"
+                  BorderThickness="0,0,0,1"
+                  CornerRadius="4,4,0,0">
+            <TextBlock Text="QUICK STATS"
+                       Foreground="{StaticResource AccentBrush}"
+                       FontWeight="SemiBold"
+                       FontSize="12"
+                       Margin="15,10"
+                       HorizontalAlignment="Center"/>
+          </Border>
+
+          <StackPanel Grid.Row="1" Margin="15">
+            <Grid Margin="0,5">
+              <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+              </Grid.ColumnDefinitions>
+              <TextBlock Grid.Column="0" Text="Total Rows:" Foreground="{StaticResource SecondaryTextBrush}"/>
+              <TextBlock Grid.Column="1" Text="{Binding RowCount, StringFormat='{}{0:N0}'}"
+                         Foreground="{StaticResource TextBrush}" FontWeight="Medium"/>
+            </Grid>
+
+            <Grid Margin="0,5">
+              <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+              </Grid.ColumnDefinitions>
+              <TextBlock Grid.Column="0" Text="Est. Contacts:" Foreground="{StaticResource SecondaryTextBrush}"/>
+              <TextBlock Grid.Column="1" Text="{Binding EstimatedContacts, StringFormat='{}{0:N0}'}"
+                         Foreground="{StaticResource AccentBrush}" FontWeight="Medium"/>
+            </Grid>
+
+            <Grid Margin="0,5">
+              <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+              </Grid.ColumnDefinitions>
+              <TextBlock Grid.Column="0" Text="Est. Properties:" Foreground="{StaticResource SecondaryTextBrush}"/>
+              <TextBlock Grid.Column="1" Text="{Binding EstimatedProperties, StringFormat='{}{0:N0}'}"
+                         Foreground="{StaticResource AccentBrush}" FontWeight="Medium"/>
+            </Grid>
+
+            <Grid Margin="0,5">
+              <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+              </Grid.ColumnDefinitions>
+              <TextBlock Grid.Column="0" Text="Est. Phone Numbers:" Foreground="{StaticResource SecondaryTextBrush}"/>
+              <TextBlock Grid.Column="1" Text="{Binding EstimatedPhoneNumbers, StringFormat='{}{0:N0}'}"
+                         Foreground="{StaticResource AccentBrush}" FontWeight="Medium"/>
+            </Grid>
+
+            <Separator Background="{StaticResource BorderBrush}" Margin="0,10"/>
+
+            <Grid Margin="0,5">
+              <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+              </Grid.ColumnDefinitions>
+              <TextBlock Grid.Column="0" Text="Processing Time:" Foreground="{StaticResource SecondaryTextBrush}"/>
+              <TextBlock Grid.Column="1" Text="{Binding ProcessingTimeEstimate}"
+                         Foreground="{StaticResource TextBrush}" FontWeight="Medium"/>
+            </Grid>
+          </StackPanel>
+        </Grid>
+      </Border>
+
+      <!-- Column Mapping Validation -->
+      <Border Grid.Row="1"
+              Background="{StaticResource SurfaceBrush}"
+              BorderBrush="{StaticResource BorderBrush}"
+              BorderThickness="1"
+              CornerRadius="4"
+              Margin="0,0,0,15">
+        <Grid>
+          <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+          </Grid.RowDefinitions>
+
+          <Border Grid.Row="0"
+                  Background="{StaticResource SelectedBrush}"
+                  BorderBrush="{StaticResource BorderBrush}"
+                  BorderThickness="0,0,0,1"
+                  CornerRadius="4,4,0,0">
+            <TextBlock Text="COLUMN MAPPING STATUS"
+                       Foreground="{StaticResource AccentBrush}"
+                       FontWeight="SemiBold"
+                       FontSize="12"
+                       Margin="15,10"
+                       HorizontalAlignment="Center"/>
+          </Border>
+
+          <StackPanel Grid.Row="1" Margin="15">
+            <Grid Margin="0,5">
+              <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+              </Grid.ColumnDefinitions>
+              <TextBlock Grid.Column="0" Text="Mapped Columns:" Foreground="{StaticResource SecondaryTextBrush}"/>
+              <StackPanel Grid.Column="1" Orientation="Horizontal">
+                <TextBlock Text="✓ " Foreground="LimeGreen" FontWeight="Bold"/>
+                <TextBlock Text="{Binding MappedColumnsCount}"
+                           Foreground="LimeGreen" FontWeight="Medium"/>
+              </StackPanel>
+            </Grid>
+
+            <Grid Margin="0,5">
+              <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+              </Grid.ColumnDefinitions>
+              <TextBlock Grid.Column="0" Text="Unmapped Columns:" Foreground="{StaticResource SecondaryTextBrush}"/>
+              <StackPanel Grid.Column="1" Orientation="Horizontal">
+                <TextBlock Text="⚠ " Foreground="{StaticResource AccentBrush}" FontWeight="Bold"/>
+                <TextBlock Text="{Binding UnmappedColumnsCount}"
+                           Foreground="{StaticResource AccentBrush}" FontWeight="Medium"/>
+              </StackPanel>
+            </Grid>
+          </StackPanel>
+        </Grid>
+      </Border>
+
+      <!-- Column Details -->
+      <Border Grid.Row="2"
+              Background="{StaticResource SurfaceBrush}"
+              BorderBrush="{StaticResource BorderBrush}"
+              BorderThickness="1"
+              CornerRadius="4">
+        <Grid>
+          <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+          </Grid.RowDefinitions>
+
+          <Border Grid.Row="0"
+                  Background="{StaticResource SelectedBrush}"
+                  BorderBrush="{StaticResource BorderBrush}"
+                  BorderThickness="0,0,0,1"
+                  CornerRadius="4,4,0,0">
+            <TextBlock Text="COLUMN DETAILS"
+                       Foreground="{StaticResource AccentBrush}"
+                       FontWeight="SemiBold"
+                       FontSize="12"
+                       Margin="15,10"
+                       HorizontalAlignment="Center"/>
+          </Border>
+
+          <ScrollViewer Grid.Row="1"
+                        VerticalScrollBarVisibility="Auto"
+                        Margin="10">
+            <ItemsControl ItemsSource="{Binding ColumnMappings}">
+              <ItemsControl.ItemTemplate>
+                <DataTemplate>
+                  <Border BorderBrush="{StaticResource BorderBrush}"
+                          BorderThickness="0,0,0,1"
+                          Padding="5"
+                          Margin="0,2">
+                    <Grid>
+                      <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="20"/>
+                        <ColumnDefinition Width="*"/>
+                      </Grid.ColumnDefinitions>
+
+                      <TextBlock Grid.Column="0"
+                                 FontWeight="Bold"
+                                 VerticalAlignment="Top">
+                        <TextBlock.Style>
+                          <Style TargetType="TextBlock">
+                            <Style.Triggers>
+                              <DataTrigger Binding="{Binding IsMapped}" Value="True">
+                                <Setter Property="Text" Value="✓"/>
+                                <Setter Property="Foreground" Value="LimeGreen"/>
+                              </DataTrigger>
+                              <DataTrigger Binding="{Binding IsMapped}" Value="False">
+                                <Setter Property="Text" Value="⚠"/>
+                                <Setter Property="Foreground" Value="{StaticResource AccentBrush}"/>
+                              </DataTrigger>
+                            </Style.Triggers>
+                          </Style>
+                        </TextBlock.Style>
+                      </TextBlock>
+
+                      <StackPanel Grid.Column="1">
+                        <TextBlock Text="{Binding ColumnName}"
+                                   Foreground="{StaticResource TextBrush}"
+                                   FontSize="12"
+                                   TextTrimming="CharacterEllipsis">
+                          <TextBlock.Style>
+                            <Style TargetType="TextBlock">
+                              <Style.Triggers>
+                                <DataTrigger Binding="{Binding IsCritical}" Value="True">
+                                  <Setter Property="FontWeight" Value="SemiBold"/>
+                                </DataTrigger>
+                              </Style.Triggers>
+                            </Style>
+                          </TextBlock.Style>
+                        </TextBlock>
+
+                        <TextBlock Foreground="{StaticResource SecondaryTextBrush}"
+                                   FontSize="11"
+                                   TextTrimming="CharacterEllipsis"
+                                   Visibility="{Binding IsMapped, Converter={StaticResource BoolToVisibilityConverter}}">
+                          <TextBlock.Text>
+                            <MultiBinding StringFormat="→ {0}">
+                              <Binding Path="MappedTo"/>
+                            </MultiBinding>
+                          </TextBlock.Text>
+                        </TextBlock>
+                      </StackPanel>
+                    </Grid>
+                  </Border>
+                </DataTemplate>
+              </ItemsControl.ItemTemplate>
+            </ItemsControl>
+          </ScrollViewer>
+        </Grid>
+      </Border>
+    </Grid>
+  </Grid>
+</UserControl>

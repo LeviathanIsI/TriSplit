@@ -1,3 +1,5 @@
+using System.ComponentModel;
+using System.Runtime.CompilerServices;
 using TriSplit.Core.Interfaces;
 using TriSplit.Core.Models;
 
@@ -15,6 +17,7 @@ public class AppSession : IAppSession
         set
         {
             _selectedProfile = value;
+            OnPropertyChanged();
             SessionUpdated?.Invoke(this, EventArgs.Empty);
         }
     }
@@ -25,6 +28,7 @@ public class AppSession : IAppSession
         set
         {
             _currentSampleData = value;
+            OnPropertyChanged();
             SessionUpdated?.Invoke(this, EventArgs.Empty);
         }
     }
@@ -35,9 +39,16 @@ public class AppSession : IAppSession
         set
         {
             _loadedFilePath = value;
+            OnPropertyChanged();
             SessionUpdated?.Invoke(this, EventArgs.Empty);
         }
     }
 
     public event EventHandler? SessionUpdated;
+    public event PropertyChangedEventHandler? PropertyChanged;
+
+    protected virtual void OnPropertyChanged([CallerMemberName] string? propertyName = null)
+    {
+        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
+    }
 }

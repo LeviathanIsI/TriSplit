@@ -10,7 +10,11 @@ public class ProfileStore : IProfileStore
 
     public ProfileStore(string? profilesDirectory = null)
     {
-        _profilesDirectory = profilesDirectory ?? Path.Combine(Directory.GetCurrentDirectory(), "profiles");
+        _profilesDirectory = profilesDirectory ?? Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+            "TriSplit",
+            "Profiles"
+        );
         Directory.CreateDirectory(_profilesDirectory);
     }
 
