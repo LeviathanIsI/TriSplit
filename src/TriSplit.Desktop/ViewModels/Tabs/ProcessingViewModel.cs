@@ -6,6 +6,8 @@ using System.IO;
 using System.Windows.Media;
 using TriSplit.Core.Interfaces;
 using TriSplit.Core.Models;
+using TriSplit.Core.Processors;
+using TriSplit.Core.Services;
 using TriSplit.Desktop.Services;
 
 namespace TriSplit.Desktop.ViewModels.Tabs;
@@ -14,6 +16,8 @@ public partial class ProcessingViewModel : ViewModelBase
 {
     private readonly IDialogService _dialogService;
     private readonly ISampleLoader _sampleLoader;
+    private readonly CsvInputReader _csvReader;
+    private readonly ExcelInputReader _excelReader;
     private readonly IAppSession _appSession;
     private readonly IProfileStore _profileStore;
 
@@ -86,6 +90,8 @@ public partial class ProcessingViewModel : ViewModelBase
         _sampleLoader = sampleLoader;
         _appSession = appSession;
         _profileStore = profileStore;
+        _csvReader = new CsvInputReader();
+        _excelReader = new ExcelInputReader();
 
         _ = LoadProfilesAsync();
 
@@ -184,83 +190,73 @@ public partial class ProcessingViewModel : ViewModelBase
 
             AddLogEntry($"Output directory: {_outputDirectory}", LogLevel.Info);
 
-            // Load the full file
-            ProgressText = "Loading file...";
-            ProcessingProgress = 10;
-            var sampleData = await _sampleLoader.LoadSampleWithLimitAsync(InputFilePath, int.MaxValue);
-            AddLogEntry($"Loaded {sampleData.TotalRows} rows with {sampleData.Headers.Count} columns", LogLevel.Success);
+            // Create processor with progress reporting
+            var progress = new Progress<ProcessingProgress>(p =>
+            {
+                ProgressText = p.Message;
+                ProcessingProgress = p.PercentComplete;
+                AddLogEntry(p.Message, p.PercentComplete < 0 ? LogLevel.Error : LogLevel.Info);
+            });
+
+            // Determine input reader type based on file extension
+            IInputReader inputReader;
+            var extension = Path.GetExtension(InputFilePath).ToLower();
+            if (extension == ".csv")
+            {
+                inputReader = _csvReader;
+            }
+            else if (extension == ".xlsx" || extension == ".xls")
+            {
+                inputReader = _excelReader;
+            }
+            else
+            {
+                throw new NotSupportedException($"File type {extension} is not supported");
+            }
+
+            // Create processor using factory
+            var processor = ProcessorFactory.CreateProcessor(
+                SelectedProfile,
+                inputReader,
+                progress,
+                "tlo" // Force TLO processor for now
+            );
+
+            // Process the file and generate three output files with Import ID linking
+            var result = await processor.ProcessAsync(InputFilePath, _outputDirectory, token);
 
             if (token.IsCancellationRequested) return;
 
-            // Apply transformations
-            ProgressText = "Applying transformations...";
-            ProcessingProgress = 30;
-            await Task.Delay(500, token); // Simulate processing
-
-            if (RemoveDuplicates)
+            // Show processing results
+            if (result.Success)
             {
-                AddLogEntry("Removing duplicates...", LogLevel.Info);
-                await Task.Delay(300, token);
-                AddLogEntry("Removed 12 duplicate records", LogLevel.Success);
-            }
+                ProcessingProgress = 100;
+                ProgressText = "Processing complete!";
+                ProcessingStatus = "Completed successfully";
+                StatusColor = Brushes.LimeGreen;
+                HasOutput = true;
 
-            if (ValidateEmails)
+                AddLogEntry($"Processing complete!", LogLevel.Success);
+                AddLogEntry($"  Total records processed: {result.TotalRecordsProcessed}", LogLevel.Success);
+                AddLogEntry($"  Contacts created: {result.ContactsCreated}", LogLevel.Success);
+                AddLogEntry($"  Properties created: {result.PropertiesCreated}", LogLevel.Success);
+                AddLogEntry($"  Phone numbers created: {result.PhonesCreated}", LogLevel.Success);
+                AddLogEntry($"", LogLevel.Info);
+                AddLogEntry($"Output files (Import ID linked):", LogLevel.Info);
+                AddLogEntry($"  1. {Path.GetFileName(result.ContactsFile)}", LogLevel.Info);
+                AddLogEntry($"  2. {Path.GetFileName(result.PhonesFile)}", LogLevel.Info);
+                AddLogEntry($"  3. {Path.GetFileName(result.PropertiesFile)}", LogLevel.Info);
+            }
+            else
             {
-                AddLogEntry("Validating email addresses...", LogLevel.Info);
-                await Task.Delay(300, token);
-                AddLogEntry("Validated 450 email addresses", LogLevel.Success);
+                ProcessingProgress = 100;
+                ProgressText = "Processing failed";
+                ProcessingStatus = $"Failed: {result.ErrorMessage}";
+                StatusColor = Brushes.Red;
+                HasOutput = false;
+
+                AddLogEntry($"Processing failed: {result.ErrorMessage}", LogLevel.Error);
             }
-
-            if (NormalizePhones)
-            {
-                AddLogEntry("Normalizing phone numbers...", LogLevel.Info);
-                await Task.Delay(300, token);
-                AddLogEntry("Normalized 380 phone numbers", LogLevel.Success);
-            }
-
-            ProcessingProgress = 60;
-
-            // Split into batches
-            if (SplitBatches)
-            {
-                ProgressText = "Creating batches...";
-                AddLogEntry("Splitting into batches of 1000 records...", LogLevel.Info);
-                await Task.Delay(500, token);
-
-                var batchCount = (int)Math.Ceiling(sampleData.TotalRows / 1000.0);
-                AddLogEntry($"Created {batchCount} batches", LogLevel.Success);
-            }
-
-            ProcessingProgress = 80;
-
-            // Export results
-            ProgressText = "Exporting results...";
-            if (OutputCsv)
-            {
-                AddLogEntry("Exporting to CSV...", LogLevel.Info);
-                await Task.Delay(300, token);
-                AddLogEntry($"Exported: {Path.Combine(_outputDirectory, "output.csv")}", LogLevel.Success);
-            }
-
-            if (OutputExcel)
-            {
-                AddLogEntry("Exporting to Excel...", LogLevel.Info);
-                await Task.Delay(300, token);
-                AddLogEntry($"Exported: {Path.Combine(_outputDirectory, "output.xlsx")}", LogLevel.Success);
-            }
-
-            if (OutputJson)
-            {
-                AddLogEntry("Exporting to JSON...", LogLevel.Info);
-                await Task.Delay(300, token);
-                AddLogEntry($"Exported: {Path.Combine(_outputDirectory, "output.json")}", LogLevel.Success);
-            }
-
-            ProcessingProgress = 100;
-            ProgressText = "Processing complete!";
-            ProcessingStatus = "Completed successfully";
-            StatusColor = Brushes.LimeGreen;
-            HasOutput = true;
 
             AddLogEntry($"Processing completed successfully in {_outputDirectory}", LogLevel.Success);
         }

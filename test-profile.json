@@ -1,0 +1,39 @@
+{
+  "Id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+  "Name": "Test Profile",
+  "CreatedAt": "2024-01-01T00:00:00Z",
+  "UpdatedAt": "2024-01-01T00:00:00Z",
+  "ContactMappings": [
+    {
+      "SourceColumn": "First Name",
+      "HubSpotProperty": "firstname",
+      "AssociationType": "Owner",
+      "IsRequired": false,
+      "Transforms": []
+    },
+    {
+      "SourceColumn": "Last Name",
+      "HubSpotProperty": "lastname",
+      "AssociationType": "Owner",
+      "IsRequired": false,
+      "Transforms": []
+    }
+  ],
+  "PropertyMappings": [
+    {
+      "SourceColumn": "Street Address",
+      "HubSpotProperty": "address",
+      "AssociationType": "Mailing Address",
+      "IsRequired": false,
+      "Transforms": []
+    }
+  ],
+  "PhoneMappings": [],
+  "DedupeSettings": {
+    "DedupeKeys": [],
+    "UsePhoneNormalization": true,
+    "UseAddressNormalization": true,
+    "MergeStrategy": 0
+  },
+  "Transforms": []
+}

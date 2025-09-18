@@ -242,15 +242,17 @@ public partial class ProfilesViewModel : ViewModelBase
                 }
             }
 
+            // Save all mappings that have at least a source field
             foreach (var mapping in FieldMappings.Where(m => !string.IsNullOrWhiteSpace(m.SourceField)))
             {
                 var fieldMapping = new FieldMapping
                 {
-                    SourceColumn = mapping.SourceField,
-                    HubSpotProperty = mapping.HubSpotHeader,
-                    AssociationType = mapping.AssociationLabel
+                    SourceColumn = mapping.SourceField ?? string.Empty,
+                    HubSpotProperty = mapping.HubSpotHeader ?? string.Empty,
+                    AssociationType = mapping.AssociationLabel ?? string.Empty
                 };
 
+                // Categorize based on AssociationLabel
                 switch (mapping.AssociationLabel)
                 {
                     case "Owner":
@@ -260,8 +262,15 @@ public partial class ProfilesViewModel : ViewModelBase
                     case "Mailing Address":
                         profile.PropertyMappings.Add(fieldMapping);
                         break;
+                    default:
+                        // If no association label or unknown, default to ContactMappings
+                        profile.ContactMappings.Add(fieldMapping);
+                        break;
                 }
             }
+
+            // Log for debugging
+            var totalMappings = profile.ContactMappings.Count + profile.PropertyMappings.Count + profile.PhoneMappings.Count;
 
             await _profileStore.SaveProfileAsync(profile);
             await LoadProfilesAsync();
@@ -270,8 +279,8 @@ public partial class ProfilesViewModel : ViewModelBase
             SelectedProfile = SavedProfiles.FirstOrDefault(p => p.Id == profile.Id);
 
             ProfileStatus = isUpdate
-                ? $"Profile '{ProfileName}' updated successfully"
-                : $"Profile '{ProfileName}' saved successfully";
+                ? $"Profile '{ProfileName}' updated with {totalMappings} mappings"
+                : $"Profile '{ProfileName}' saved with {totalMappings} mappings";
             _appSession.SelectedProfile = profile;
         }
         catch (Exception ex)
@@ -478,15 +487,26 @@ public partial class ProfilesViewModel : ViewModelBase
             FieldMappings.Clear();
 
             // Load all mappings from the selected profile
+            int loadedMappings = 0;
+
             // Load Contact mappings
             foreach (var mapping in profile.ContactMappings)
             {
+                // Determine the correct AssociationLabel
+                string associationLabel = mapping.AssociationType;
+                if (string.IsNullOrEmpty(associationLabel) ||
+                    (associationLabel != "Owner" && associationLabel != "Executor"))
+                {
+                    associationLabel = "Owner"; // Default for contacts
+                }
+
                 FieldMappings.Add(new FieldMappingViewModel
                 {
                     SourceField = mapping.SourceColumn,
-                    AssociationLabel = string.IsNullOrEmpty(mapping.AssociationType) ? "Owner" : mapping.AssociationType,
+                    AssociationLabel = associationLabel,
                     HubSpotHeader = mapping.HubSpotProperty
                 });
+                loadedMappings++;
             }
 
             // Load Property mappings
@@ -495,9 +515,10 @@ public partial class ProfilesViewModel : ViewModelBase
                 FieldMappings.Add(new FieldMappingViewModel
                 {
                     SourceField = mapping.SourceColumn,
-                    AssociationLabel = string.IsNullOrEmpty(mapping.AssociationType) ? "Mailing Address" : mapping.AssociationType,
+                    AssociationLabel = "Mailing Address",
                     HubSpotHeader = mapping.HubSpotProperty
                 });
+                loadedMappings++;
             }
 
             // Load Phone mappings (if any exist for backward compatibility)
@@ -509,6 +530,7 @@ public partial class ProfilesViewModel : ViewModelBase
                     AssociationLabel = "Owner", // Default to Owner since Phone isn't an option anymore
                     HubSpotHeader = mapping.HubSpotProperty
                 });
+                loadedMappings++;
             }
 
             // Add a few empty rows for new mappings
@@ -518,7 +540,7 @@ public partial class ProfilesViewModel : ViewModelBase
             }
 
             UpdateMappingCount();
-            ProfileStatus = $"Profile '{profile.Name}' loaded for editing";
+            ProfileStatus = $"Profile '{profile.Name}' loaded with {loadedMappings} mappings";
             _appSession.SelectedProfile = profile;
         }
         catch (Exception ex)
