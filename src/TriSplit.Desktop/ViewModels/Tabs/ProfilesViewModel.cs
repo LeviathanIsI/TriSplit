@@ -50,6 +50,7 @@ public partial class ProfilesViewModel : ViewModelBase
         // Initialize Association Labels
         AssociationLabels = new ObservableCollection<string>
         {
+            string.Empty,
             "Owner",
             "Executor",
             "Mailing Address"
@@ -113,6 +114,7 @@ public partial class ProfilesViewModel : ViewModelBase
 
         ObjectTypes = new ObservableCollection<string>
         {
+            string.Empty,
             MappingObjectTypes.Contact,
             MappingObjectTypes.PhoneNumber,
             MappingObjectTypes.Property
@@ -628,7 +630,7 @@ public partial class FieldMappingViewModel : ObservableObject
     private string _sourceField = string.Empty;
 
     [ObservableProperty]
-    private string? _associationLabel = null;
+    private string _associationLabel = string.Empty;
 
     [ObservableProperty]
     private string _objectType = string.Empty;

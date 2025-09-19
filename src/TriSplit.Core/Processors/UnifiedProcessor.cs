@@ -25,15 +25,26 @@ public class UnifiedProcessor
     private readonly Dictionary<string, PropertyRecord> _properties = new();
 
     private readonly Dictionary<string, string> _contactImportIds = new(StringComparer.OrdinalIgnoreCase);
-    private readonly Dictionary<string, HashSet<string>> _mailingKeysByContact = new(StringComparer.OrdinalIgnoreCase);
+    private readonly HashSet<string> _additionalPropertyFieldSet = new(StringComparer.OrdinalIgnoreCase);
+    private readonly List<string> _additionalPropertyFieldOrder = new();
 
-    private readonly string? _mailingAssociationLabel;
-    private readonly bool _dedupeMailing;
-    private readonly bool _assumeSharedMailing;
-    private readonly bool _createCompoundLabels;
-    private readonly bool _skipRedundantMailing;
+    private const string MailingAssociationLabel = "Mailing Address";
 
     private static readonly Regex WhitespaceRegex = new(@"\s+", RegexOptions.Compiled);
+    private static readonly Regex OwnerIndexRegex = new(@"owner\s*(\d+)", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+    private static readonly Dictionary<string, int> OwnerOrdinalLookup = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ["first"] = 1,
+        ["primary"] = 1,
+        ["second"] = 2,
+        ["third"] = 3,
+        ["fourth"] = 4,
+        ["1st"] = 1,
+        ["2nd"] = 2,
+        ["3rd"] = 3,
+        ["4th"] = 4
+    };
+
 
     public UnifiedProcessor(Profile profile, IInputReader inputReader, IProgress<ProcessingProgress>? progress = null)
     {
@@ -41,17 +52,7 @@ public class UnifiedProcessor
         _inputReader = inputReader;
         _progress = progress;
 
-        _mailingAssociationLabel = GetMappingsByObjectType(MappingObjectTypes.Property)
-            .Select(m => m.AssociationType?.Trim())
-            .Where(v => !string.IsNullOrWhiteSpace(v) && v.IndexOf("mail", StringComparison.OrdinalIgnoreCase) >= 0)
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .OrderBy(v => v, StringComparer.OrdinalIgnoreCase)
-            .FirstOrDefault();
-
-        _dedupeMailing = GetRule("DeduplicateMailingPerContact", defaultValue: true);
-        _assumeSharedMailing = GetRule("AssumeCoOwnerSharedMailing", defaultValue: true);
-        _createCompoundLabels = GetRule("CreateCompoundLabels", defaultValue: true);
-        _skipRedundantMailing = GetRule("SkipRedundantMailing", defaultValue: true);
+        
     }
 
     public async Task<ProcessingResult> ProcessAsync(string inputFilePath, string outputDirectory, CancellationToken cancellationToken = default)
@@ -62,17 +63,33 @@ public class UnifiedProcessor
         _phones.Clear();
         _properties.Clear();
         _contactImportIds.Clear();
-        _mailingKeysByContact.Clear();
+
+        InitializeAdditionalPropertyFieldRegistry();
 
         string outputPath;
         if (string.IsNullOrWhiteSpace(outputDirectory))
         {
-            var timestamp = DateTime.Now.ToString("yyyyMMdd_HHmmss");
-            outputPath = Path.Combine(
+            var baseExportPath = Path.Combine(
                 Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
                 "TriSplit",
-                "Exports",
-                timestamp);
+                "Exports");
+
+            var sourceFolderName = Path.GetFileNameWithoutExtension(inputFilePath);
+            if (string.IsNullOrWhiteSpace(sourceFolderName))
+            {
+                sourceFolderName = "Export";
+            }
+
+            sourceFolderName = SanitizePathSegment(sourceFolderName);
+            if (string.IsNullOrWhiteSpace(sourceFolderName))
+            {
+                sourceFolderName = "Export";
+            }
+
+            var preferredPath = Path.Combine(baseExportPath, sourceFolderName);
+            outputPath = Directory.Exists(preferredPath)
+                ? MakeUniqueDirectoryPath(preferredPath)
+                : preferredPath;
         }
         else
         {
@@ -140,43 +157,59 @@ public class UnifiedProcessor
         }
     }
 
-    private async Task ProcessRowAsync(Dictionary<string, object> row)
+    private Task ProcessRowAsync(Dictionary<string, object> row)
     {
         var contexts = BuildContactContexts(row);
         if (contexts.Count == 0)
-            return;
+            return Task.CompletedTask;
 
-        ApplyMailingRules(contexts);
+        ApplyMailingInheritance(contexts);
 
         foreach (var context in contexts)
         {
             AssignImportId(context);
-
-            await ProcessPhoneNumbersAsync(row, context);
-
-            PersistContact(context);
-            PersistProperties(context);
         }
+
+        ProcessPhoneNumbers(row, contexts);
+
+        var primaryContext = contexts[0];
+
+        foreach (var context in contexts)
+        {
+            PersistContact(context);
+            PersistProperties(context, primaryContext);
+        }
+
+        return Task.CompletedTask;
     }
 
     private List<ContactContext> BuildContactContexts(Dictionary<string, object> row)
     {
         var contexts = new List<ContactContext>();
 
-        var groupedMappings = GetMappingsByObjectType(MappingObjectTypes.Contact)
-            .Where(m => !string.IsNullOrWhiteSpace(m.AssociationType))
-            .GroupBy(m => m.AssociationType!.Trim(), StringComparer.OrdinalIgnoreCase)
-            .OrderBy(g => g.Key, StringComparer.OrdinalIgnoreCase);
+        var contactMappings = GetMappingsByObjectType(MappingObjectTypes.Contact).ToList();
+        if (contactMappings.Count == 0)
+            return contexts;
 
-        var mailingSnapshot = BuildPropertySnapshot(row, _mailingAssociationLabel);
+        var associationOrder = new List<string>();
 
-        var isFirst = true;
-        foreach (var group in groupedMappings)
+        foreach (var mapping in contactMappings)
         {
-            var association = group.Key;
-            var context = new ContactContext(association)
+            var association = (mapping.AssociationType ?? string.Empty).Trim();
+            if (!associationOrder.Any(existing => string.Equals(existing, association, StringComparison.OrdinalIgnoreCase)))
             {
-                IsPrimary = isFirst,
+                associationOrder.Add(association);
+            }
+        }
+
+        var mailingSnapshot = BuildPropertySnapshot(row, MailingAssociationLabel);
+
+        for (var index = 0; index < associationOrder.Count; index++)
+        {
+            var association = associationOrder[index];
+            var context = new ContactContext(association, index + 1)
+            {
+                IsPrimary = index == 0,
                 FirstName = CleanName(GetMappedValue(row, association, "First Name", MappingObjectTypes.Contact)),
                 LastName = CleanName(GetMappedValue(row, association, "Last Name", MappingObjectTypes.Contact)),
                 Email = (GetMappedValue(row, association, "Email", MappingObjectTypes.Contact) ?? string.Empty).Trim(),
@@ -186,45 +219,25 @@ public class UnifiedProcessor
             };
 
             contexts.Add(context);
-            isFirst = false;
         }
 
         return contexts;
     }
-    private void ApplyMailingRules(List<ContactContext> contexts)
+    private void ApplyMailingInheritance(List<ContactContext> contexts)
     {
-        if (contexts.Count == 0)
+        if (contexts.Count <= 1)
             return;
 
-        if (_createCompoundLabels)
+        var primary = contexts[0];
+
+        foreach (var context in contexts.Skip(1))
         {
-            foreach (var context in contexts)
+            if (!HasSameSurname(context, primary))
+                continue;
+
+            if (!context.Mailing.HasCoreAddress && primary.Mailing.HasCoreAddress)
             {
-                if (context.PropertyMatchesMailing)
-                {
-                    context.TreatAsMailing = true;
-                }
-            }
-        }
-
-        if (_assumeSharedMailing)
-        {
-            var groups = contexts
-                .Where(c => !string.IsNullOrWhiteSpace(c.LastName))
-                .GroupBy(c => c.LastName, StringComparer.OrdinalIgnoreCase);
-
-            foreach (var group in groups)
-            {
-                if (group.Count() < 2)
-                    continue;
-
-                if (!group.Any(c => c.Mailing.HasCoreAddress))
-                    continue;
-
-                foreach (var context in group)
-                {
-                    context.TreatAsMailing = true;
-                }
+                context.Mailing = primary.Mailing;
             }
         }
     }
@@ -276,71 +289,33 @@ public class UnifiedProcessor
         }
     }
 
-    private void PersistProperties(ContactContext context)
+    private void PersistProperties(ContactContext context, ContactContext primaryContext)
     {
+        var associationLabel = DeterminePropertyAssociationLabel(context, primaryContext);
+
         if (context.Property.HasCoreAddress)
         {
-            var associationLabel = context.TreatAsMailing && _createCompoundLabels
-                ? MergeAssociationLabels(context.Association, _mailingAssociationLabel ?? "Mailing Address")
-                : context.Association;
-
-            var propertyRecord = context.Property.ToPropertyRecord(context.ImportId, associationLabel);
-            var propertyKey = $"{context.ImportId}|PROPERTY|{Guid.NewGuid():N}";
-            _properties[propertyKey] = propertyRecord;
+            PersistPropertySnapshot(context.ImportId, context.Property, associationLabel);
         }
 
-        var shouldAddMailingRecord = (context.IsPrimary || context.TreatAsMailing)
-            && context.Mailing.HasCoreAddress
-            && !(_skipRedundantMailing && context.TreatAsMailing && context.PropertyMatchesMailing);
-
-        if (!shouldAddMailingRecord)
-            return;
-
-        var mailingKey = BuildMailingKey(context.ImportId, context.Mailing);
-        if (_dedupeMailing && !RegisterMailingKey(context.ImportId, mailingKey))
+        if (context.Mailing.HasCoreAddress)
         {
-            return;
+            PersistPropertySnapshot(context.ImportId, context.Mailing, MailingAssociationLabel);
         }
-
-        var mailingRecord = context.Mailing.ToPropertyRecord(context.ImportId, _mailingAssociationLabel ?? "Mailing Address");
-        var mailingPropertyKey = $"{context.ImportId}|MAILING|{Guid.NewGuid():N}";
-        _properties[mailingPropertyKey] = mailingRecord;
     }
-    private async Task ProcessPhoneNumbersAsync(Dictionary<string, object> row, ContactContext context)
+    private void ProcessPhoneNumbers(Dictionary<string, object> row, List<ContactContext> contexts)
     {
-        var phoneMappingCandidates = GetMappingsByObjectType(MappingObjectTypes.PhoneNumber)
-            .ToList();
-
-        if (phoneMappingCandidates.Count == 0)
-        {
-            await Task.CompletedTask;
+        if (contexts.Count == 0)
             return;
-        }
 
-        var phoneMappings = phoneMappingCandidates
+        var phoneMappings = GetMappingsByObjectType(MappingObjectTypes.PhoneNumber)
             .Where(m => string.Equals(m.HubSpotProperty, "Phone Number", StringComparison.OrdinalIgnoreCase))
-            .Where(m => string.Equals(m.AssociationType?.Trim(), context.Association, StringComparison.OrdinalIgnoreCase))
             .ToList();
 
         if (phoneMappings.Count == 0)
-        {
-            phoneMappings = phoneMappingCandidates
-                .Where(m => string.Equals(m.HubSpotProperty, "Phone Number", StringComparison.OrdinalIgnoreCase))
-                .Where(m => string.IsNullOrWhiteSpace(m.AssociationType))
-                .ToList();
-        }
-
-        if (phoneMappings.Count == 0)
-        {
-            await Task.CompletedTask;
             return;
-        }
 
-        var phoneTypeMappings = phoneMappingCandidates
-            .Where(m => string.Equals(m.HubSpotProperty, "Phone Type", StringComparison.OrdinalIgnoreCase))
-            .ToList();
-
-        var phoneRecords = new List<PhoneRecord>();
+        var primaryContext = contexts[0];
 
         foreach (var mapping in phoneMappings)
         {
@@ -348,83 +323,407 @@ public class UnifiedProcessor
             if (string.IsNullOrWhiteSpace(phone) || phone.Length < 10)
                 continue;
 
-            var phoneType = "Primary";
-            var possibleTypeColumns = new[]
-            {
-                mapping.SourceColumn?.Replace("Number", "Type", StringComparison.OrdinalIgnoreCase),
-                mapping.SourceColumn + "PhoneType",
-                mapping.SourceColumn + "Type",
-                mapping.SourceColumn + "_Type"
-            };
+            var owner = ResolvePhoneOwner(mapping, contexts) ?? primaryContext;
+            var formatted = FormatPhoneNumber(phone);
 
-            var typeMapping = phoneTypeMappings.FirstOrDefault(m =>
-                string.Equals(m.AssociationType?.Trim(), mapping.AssociationType?.Trim(), StringComparison.OrdinalIgnoreCase) &&
-                possibleTypeColumns.Contains(m.SourceColumn));
+            AddPhoneRecord(owner.ImportId, formatted);
+        }
+    }
 
-            if (typeMapping != null)
-            {
-                var typeValue = GetValueFromMapping(row, typeMapping);
-                if (!string.IsNullOrWhiteSpace(typeValue))
-                {
-                    phoneType = typeValue.Trim();
-                }
-            }
+    private void AddPhoneRecord(string importId, string phoneNumber)
+    {
+        if (string.IsNullOrWhiteSpace(importId) || string.IsNullOrWhiteSpace(phoneNumber))
+            return;
 
-            phoneRecords.Add(new PhoneRecord
+        if (!_phones.TryGetValue(importId, out var existing))
+        {
+            existing = new List<PhoneRecord>();
+            _phones[importId] = existing;
+        }
+
+        if (!existing.Any(p => p.PhoneNumber.Equals(phoneNumber, StringComparison.OrdinalIgnoreCase)))
+        {
+            existing.Add(new PhoneRecord
             {
-                ImportId = context.ImportId,
-                PhoneNumber = FormatPhoneNumber(phone),
-                PhoneType = phoneType
+                ImportId = importId,
+                PhoneNumber = phoneNumber
             });
         }
+    }
 
-        if (phoneRecords.Count == 0)
+    private ContactContext? ResolvePhoneOwner(FieldMapping mapping, List<ContactContext> contexts)
+    {
+        if (!string.IsNullOrWhiteSpace(mapping.AssociationType))
         {
-            await Task.CompletedTask;
-            return;
-        }
-
-        if (_phones.TryGetValue(context.ImportId, out var existing))
-        {
-            foreach (var phone in phoneRecords)
+            var association = mapping.AssociationType.Trim();
+            var explicitMatch = contexts.FirstOrDefault(c =>
+                string.Equals(c.Association, association, StringComparison.OrdinalIgnoreCase));
+            if (explicitMatch != null)
             {
-                if (!existing.Any(p => p.PhoneNumber.Equals(phone.PhoneNumber, StringComparison.OrdinalIgnoreCase)))
-                {
-                    existing.Add(phone);
-                }
+                return explicitMatch;
             }
         }
-        else
+
+        var sourceColumn = mapping.SourceColumn ?? string.Empty;
+
+        if (TryGetOwnerIndexFromHeader(sourceColumn, out var index))
         {
-            _phones[context.ImportId] = phoneRecords;
+            var matchedByIndex = contexts.FirstOrDefault(c => c.OwnerIndex == index);
+            if (matchedByIndex != null)
+            {
+                return matchedByIndex;
+            }
         }
 
-        await Task.CompletedTask;
+        return contexts.FirstOrDefault();
+    }
+
+    private static bool TryGetOwnerIndexFromHeader(string header, out int index)
+    {
+        index = 0;
+        if (string.IsNullOrWhiteSpace(header))
+            return false;
+
+        var match = OwnerIndexRegex.Match(header);
+        if (match.Success && int.TryParse(match.Groups[1].Value, NumberStyles.Integer, CultureInfo.InvariantCulture, out var parsed) && parsed > 0)
+        {
+            index = parsed;
+            return true;
+        }
+
+        var lower = header.ToLowerInvariant();
+
+        foreach (var pair in OwnerOrdinalLookup)
+        {
+            var token = pair.Key.ToLowerInvariant();
+            if (lower.Contains(token + " owner") || lower.Contains("owner " + token))
+            {
+                index = pair.Value;
+                return true;
+            }
+        }
+
+        return false;
     }
     private PropertySnapshot BuildPropertySnapshot(Dictionary<string, object> row, string? association)
     {
-        if (string.IsNullOrWhiteSpace(association))
+        var normalizedAssociation = (association ?? string.Empty).Trim();
+
+        var address = string.Empty;
+        var city = string.Empty;
+        var state = string.Empty;
+        var zip = string.Empty;
+        var county = string.Empty;
+        var propertyType = string.Empty;
+        var propertyValue = string.Empty;
+
+        var additionalFields = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+
+        var propertyMappings = GetMappingsByObjectType(MappingObjectTypes.Property)
+            .Where(m => !string.IsNullOrWhiteSpace(m.HubSpotProperty))
+            .ToList();
+
+        if (propertyMappings.Count == 0)
         {
-            return PropertySnapshot.Empty;
+            return new PropertySnapshot(address, city, state, zip, county, propertyType, propertyValue, additionalFields);
         }
 
-        var address = CleanAddress(GetMappedValue(row, association, "Address", MappingObjectTypes.Property));
-        var city = (GetMappedValue(row, association, "City", MappingObjectTypes.Property) ?? string.Empty).Trim();
-        var state = (GetMappedValue(row, association, "State", MappingObjectTypes.Property) ?? string.Empty).Trim().ToUpperInvariant();
-
-        var zip = GetMappedValue(row, association, "Postal Code", MappingObjectTypes.Property);
-        if (string.IsNullOrWhiteSpace(zip))
+        var seenProperties = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var mapping in propertyMappings)
         {
-            zip = GetMappedValue(row, association, "Zip", MappingObjectTypes.Property);
+            var propertyName = mapping.HubSpotProperty?.Trim();
+            if (string.IsNullOrWhiteSpace(propertyName) || !seenProperties.Add(propertyName))
+            {
+                continue;
+            }
+
+            var rawValue = GetMappedValue(row, normalizedAssociation, propertyName, MappingObjectTypes.Property);
+            var value = rawValue ?? string.Empty;
+
+            if (TryAssignCoreProperty(propertyName, value, ref address, ref city, ref state, ref zip, ref county, ref propertyType, ref propertyValue))
+            {
+                continue;
+            }
+
+            RegisterAdditionalPropertyField(propertyName);
+            additionalFields[propertyName] = value.Trim();
         }
-        zip = CleanZip(zip);
 
-        var county = (GetMappedValue(row, association, "County", MappingObjectTypes.Property) ?? string.Empty).Trim();
-        var propertyType = (GetMappedValue(row, association, "Property Type", MappingObjectTypes.Property) ?? string.Empty).Trim();
-        var propertyValue = (GetMappedValue(row, association, "Property Value", MappingObjectTypes.Property) ?? string.Empty).Trim();
-
-        return new PropertySnapshot(address, city, state, zip, county, propertyType, propertyValue);
+        return new PropertySnapshot(address, city, state, zip, county, propertyType, propertyValue, additionalFields);
     }
+
+
+    private void PersistPropertySnapshot(string importId, PropertySnapshot snapshot, string associationLabel)
+    {
+        if (!snapshot.HasCoreAddress)
+            return;
+
+        var key = BuildPropertyKey(importId, snapshot);
+
+        if (_properties.TryGetValue(key, out var existing))
+        {
+            existing.AssociationLabel = MergeAssociationLabels(existing.AssociationLabel, associationLabel);
+
+            if (string.IsNullOrWhiteSpace(existing.Address))
+                existing.Address = snapshot.Address;
+            if (string.IsNullOrWhiteSpace(existing.City))
+                existing.City = snapshot.City;
+            if (string.IsNullOrWhiteSpace(existing.State))
+                existing.State = snapshot.State;
+            if (string.IsNullOrWhiteSpace(existing.Zip))
+                existing.Zip = snapshot.Zip;
+            if (string.IsNullOrWhiteSpace(existing.County))
+                existing.County = snapshot.County;
+            if (string.IsNullOrWhiteSpace(existing.PropertyType))
+                existing.PropertyType = snapshot.PropertyType;
+            if (string.IsNullOrWhiteSpace(existing.PropertyValue))
+                existing.PropertyValue = snapshot.PropertyValue;
+
+            foreach (var pair in snapshot.AdditionalFields)
+            {
+                RegisterAdditionalPropertyField(pair.Key);
+
+                if (existing.AdditionalFields.TryGetValue(pair.Key, out var existingValue))
+                {
+                    if (string.IsNullOrWhiteSpace(existingValue) && !string.IsNullOrWhiteSpace(pair.Value))
+                    {
+                        existing.AdditionalFields[pair.Key] = pair.Value;
+                    }
+                }
+                else
+                {
+                    existing.AdditionalFields[pair.Key] = pair.Value;
+                }
+            }
+
+            return;
+        }
+
+        var record = snapshot.ToPropertyRecord(importId, associationLabel);
+        foreach (var fieldName in record.AdditionalFields.Keys)
+        {
+            RegisterAdditionalPropertyField(fieldName);
+        }
+
+        _properties[key] = record;
+    }
+
+
+    private void InitializeAdditionalPropertyFieldRegistry()
+    {
+        _additionalPropertyFieldSet.Clear();
+        _additionalPropertyFieldOrder.Clear();
+
+        foreach (var mapping in GetMappingsByObjectType(MappingObjectTypes.Property))
+        {
+            var fieldName = mapping.HubSpotProperty?.Trim();
+            if (string.IsNullOrWhiteSpace(fieldName))
+                continue;
+
+            if (GetCorePropertyKey(fieldName) != null)
+                continue;
+
+            RegisterAdditionalPropertyField(fieldName);
+        }
+    }
+
+    private void RegisterAdditionalPropertyField(string fieldName)
+    {
+        if (string.IsNullOrWhiteSpace(fieldName))
+            return;
+
+        if (GetCorePropertyKey(fieldName) != null)
+            return;
+
+        var trimmed = fieldName.Trim();
+        if (_additionalPropertyFieldSet.Add(trimmed))
+        {
+            _additionalPropertyFieldOrder.Add(trimmed);
+        }
+    }
+
+    private static bool TryAssignCoreProperty(string fieldName, string rawValue, ref string address, ref string city, ref string state, ref string zip, ref string county, ref string propertyType, ref string propertyValue)
+    {
+        var key = GetCorePropertyKey(fieldName);
+        if (key is null)
+            return false;
+
+        var normalizedInput = rawValue ?? string.Empty;
+        var trimmedValue = normalizedInput.Trim();
+        var hasValue = !string.IsNullOrWhiteSpace(trimmedValue);
+
+        switch (key)
+        {
+            case "Address":
+                if (hasValue || string.IsNullOrWhiteSpace(address))
+                {
+                    address = CleanAddress(normalizedInput);
+                }
+                break;
+            case "City":
+                if (hasValue || string.IsNullOrWhiteSpace(city))
+                {
+                    city = trimmedValue;
+                }
+                break;
+            case "State":
+                if (hasValue || string.IsNullOrWhiteSpace(state))
+                {
+                    state = trimmedValue.ToUpperInvariant();
+                }
+                break;
+            case "Zip":
+                if (hasValue || string.IsNullOrWhiteSpace(zip))
+                {
+                    zip = CleanZip(normalizedInput);
+                }
+                break;
+            case "County":
+                if (hasValue || string.IsNullOrWhiteSpace(county))
+                {
+                    county = trimmedValue;
+                }
+                break;
+            case "PropertyType":
+                if (hasValue || string.IsNullOrWhiteSpace(propertyType))
+                {
+                    propertyType = trimmedValue;
+                }
+                break;
+            case "PropertyValue":
+                if (hasValue || string.IsNullOrWhiteSpace(propertyValue))
+                {
+                    propertyValue = trimmedValue;
+                }
+                break;
+        }
+
+        return true;
+    }
+
+    private static string SanitizePathSegment(string value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+            return string.Empty;
+
+        var trimmed = value.Trim();
+        var invalidChars = Path.GetInvalidFileNameChars();
+        var builder = new StringBuilder(trimmed.Length);
+
+        foreach (var ch in trimmed)
+        {
+            if (invalidChars.Contains(ch) || ch == Path.DirectorySeparatorChar || ch == Path.AltDirectorySeparatorChar)
+            {
+                builder.Append('_');
+            }
+            else
+            {
+                builder.Append(ch);
+            }
+        }
+
+        var sanitized = builder.ToString().Trim();
+        sanitized = sanitized.TrimEnd('.');
+
+        return sanitized;
+    }
+
+    private static string MakeUniqueDirectoryPath(string preferredPath)
+    {
+        if (!Directory.Exists(preferredPath))
+        {
+            return preferredPath;
+        }
+
+        var counter = 1;
+        while (true)
+        {
+            var candidate = $"{preferredPath}_{counter}";
+            if (!Directory.Exists(candidate))
+            {
+                return candidate;
+            }
+
+            counter++;
+        }
+    }
+
+    private static string? GetCorePropertyKey(string fieldName)
+    {
+        if (string.IsNullOrWhiteSpace(fieldName))
+            return null;
+
+        var normalized = fieldName.Trim().ToLowerInvariant();
+
+        switch (normalized)
+        {
+            case "address":
+            case "property address":
+            case "mailing address":
+            case "street address":
+                return "Address";
+            case "city":
+            case "property city":
+            case "mailing city":
+                return "City";
+            case "state":
+            case "property state":
+            case "mailing state":
+                return "State";
+            case "zip":
+            case "postal code":
+            case "zip code":
+            case "property zip":
+            case "mailing zip":
+                return "Zip";
+            case "county":
+            case "property county":
+            case "mailing county":
+                return "County";
+            case "property type":
+                return "PropertyType";
+            case "property value":
+                return "PropertyValue";
+            default:
+                return null;
+        }
+    }
+
+    private static string BuildPropertyKey(string importId, PropertySnapshot snapshot)
+    {
+        return string.Join("|", new[]
+        {
+            NormalizeKeyPart(importId),
+            NormalizeKeyPart(snapshot.Address),
+            NormalizeKeyPart(snapshot.City),
+            NormalizeKeyPart(snapshot.State),
+            NormalizeKeyPart(snapshot.Zip)
+        });
+    }
+
+    private string DeterminePropertyAssociationLabel(ContactContext context, ContactContext primaryContext)
+    {
+        if (!string.IsNullOrWhiteSpace(context.Association))
+        {
+            return context.Association.Trim();
+        }
+
+        if (!ReferenceEquals(context, primaryContext) && HasSameSurname(context, primaryContext))
+        {
+            return MailingAssociationLabel;
+        }
+
+        return string.Empty;
+    }
+
+    private static bool HasSameSurname(ContactContext context, ContactContext primaryContext)
+    {
+        if (string.IsNullOrWhiteSpace(context.LastName) || string.IsNullOrWhiteSpace(primaryContext.LastName))
+            return false;
+
+        return string.Equals(context.LastName.Trim(), primaryContext.LastName.Trim(), StringComparison.OrdinalIgnoreCase);
+    }
+
     private IEnumerable<(FieldMapping Mapping, string ObjectType)> EnumerateResolvedMappings()
     {
         foreach (var mapping in _profile.ContactMappings)
@@ -582,39 +881,6 @@ public class UnifiedProcessor
             "propertyzip" => context.Property.Zip,
             _ => string.Empty
         };
-    }
-
-    private static string BuildMailingKey(string importId, PropertySnapshot snapshot)
-    {
-        return string.Join("|", new[]
-        {
-            NormalizeKeyPart(importId),
-            NormalizeKeyPart(snapshot.Address),
-            NormalizeKeyPart(snapshot.City),
-            NormalizeKeyPart(snapshot.State),
-            NormalizeKeyPart(snapshot.Zip)
-        });
-    }
-
-    private bool RegisterMailingKey(string importId, string mailingKey)
-    {
-        if (!_mailingKeysByContact.TryGetValue(importId, out var set))
-        {
-            set = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-            _mailingKeysByContact[importId] = set;
-        }
-
-        return set.Add(mailingKey);
-    }
-
-    private bool GetRule(string ruleName, bool defaultValue = false)
-    {
-        if (_profile.ProcessingRules != null && _profile.ProcessingRules.TryGetValue(ruleName, out var value))
-        {
-            return value;
-        }
-
-        return defaultValue;
     }
 
     private static string GenerateImportId() => Guid.NewGuid().ToString();
@@ -818,7 +1084,6 @@ public class UnifiedProcessor
 
         csv.WriteField("Import ID");
         csv.WriteField("Phone Number");
-        csv.WriteField("Phone Type");
         await csv.NextRecordAsync();
 
         foreach (var phoneEntry in _phones.OrderBy(p => p.Key))
@@ -827,7 +1092,6 @@ public class UnifiedProcessor
             {
                 csv.WriteField(phone.ImportId);
                 csv.WriteField(phone.PhoneNumber);
-                csv.WriteField(phone.PhoneType);
                 await csv.NextRecordAsync();
             }
         }
@@ -852,9 +1116,15 @@ public class UnifiedProcessor
         csv.WriteField("State");
         csv.WriteField("Zip");
         csv.WriteField("County");
-        csv.WriteField("Association Label");
         csv.WriteField("Property Type");
         csv.WriteField("Property Value");
+
+        foreach (var fieldName in _additionalPropertyFieldOrder)
+        {
+            csv.WriteField(fieldName);
+        }
+
+        csv.WriteField("Association Label");
         await csv.NextRecordAsync();
 
         foreach (var property in _properties.Values.OrderBy(p => p.Address))
@@ -865,15 +1135,23 @@ public class UnifiedProcessor
             csv.WriteField(property.State);
             csv.WriteField(property.Zip);
             csv.WriteField(property.County);
-            csv.WriteField(property.AssociationLabel);
             csv.WriteField(property.PropertyType);
             csv.WriteField(property.PropertyValue);
+
+            foreach (var fieldName in _additionalPropertyFieldOrder)
+            {
+                property.AdditionalFields.TryGetValue(fieldName, out var value);
+                csv.WriteField(value ?? string.Empty);
+            }
+
+            csv.WriteField(property.AssociationLabel);
             await csv.NextRecordAsync();
         }
 
         await writer.FlushAsync();
         return filePath;
     }
+
 
     private void ReportProgress(string message, int percentComplete)
     {
@@ -887,30 +1165,52 @@ public class UnifiedProcessor
 
     private sealed class ContactContext
     {
-        public ContactContext(string association)
+        public ContactContext(string association, int ownerIndex)
         {
             Association = association;
+            OwnerIndex = ownerIndex;
         }
 
         public string Association { get; }
+        public int OwnerIndex { get; }
         public string FirstName { get; set; } = string.Empty;
         public string LastName { get; set; } = string.Empty;
         public string Email { get; set; } = string.Empty;
         public string Company { get; set; } = string.Empty;
         public bool IsPrimary { get; set; }
-        public bool TreatAsMailing { get; set; }
         public string ImportId { get; set; } = string.Empty;
         public PropertySnapshot Property { get; set; } = PropertySnapshot.Empty;
         public PropertySnapshot Mailing { get; set; } = PropertySnapshot.Empty;
 
         public bool HasContactData => !string.IsNullOrWhiteSpace(FirstName) || !string.IsNullOrWhiteSpace(LastName) || !string.IsNullOrWhiteSpace(Email) || !string.IsNullOrWhiteSpace(Company);
-        public bool PropertyMatchesMailing => Property.HasCoreAddress && Mailing.HasCoreAddress && Property.EqualsCore(Mailing);
-
     }
 
-    private sealed record PropertySnapshot(string Address, string City, string State, string Zip, string County, string PropertyType, string PropertyValue)
+    private sealed record PropertySnapshot
     {
-        public static PropertySnapshot Empty { get; } = new(string.Empty, string.Empty, string.Empty, string.Empty, string.Empty, string.Empty, string.Empty);
+        private static readonly IReadOnlyDictionary<string, string> EmptyAdditionalFields = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+
+        public PropertySnapshot(string address, string city, string state, string zip, string county, string propertyType, string propertyValue, IReadOnlyDictionary<string, string>? additionalFields = null)
+        {
+            Address = address;
+            City = city;
+            State = state;
+            Zip = zip;
+            County = county;
+            PropertyType = propertyType;
+            PropertyValue = propertyValue;
+            AdditionalFields = additionalFields ?? EmptyAdditionalFields;
+        }
+
+        public static PropertySnapshot Empty { get; } = new(string.Empty, string.Empty, string.Empty, string.Empty, string.Empty, string.Empty, string.Empty, EmptyAdditionalFields);
+
+        public string Address { get; }
+        public string City { get; }
+        public string State { get; }
+        public string Zip { get; }
+        public string County { get; }
+        public string PropertyType { get; }
+        public string PropertyValue { get; }
+        public IReadOnlyDictionary<string, string> AdditionalFields { get; }
 
         public bool HasCoreAddress => !string.IsNullOrWhiteSpace(Address) || !string.IsNullOrWhiteSpace(City) || !string.IsNullOrWhiteSpace(State) || !string.IsNullOrWhiteSpace(Zip);
 
@@ -937,13 +1237,15 @@ public class UnifiedProcessor
                 County = County,
                 AssociationLabel = associationLabel,
                 PropertyType = PropertyType,
-                PropertyValue = PropertyValue
+                PropertyValue = PropertyValue,
+                AdditionalFields = new Dictionary<string, string>(AdditionalFields, StringComparer.OrdinalIgnoreCase)
             };
         }
 
         private static string Normalize(string? value) => (value ?? string.Empty).Trim();
     }
 }
+
 
 public class ContactRecord
 {
@@ -960,7 +1262,6 @@ public class PhoneRecord
 {
     public string ImportId { get; set; } = string.Empty;
     public string PhoneNumber { get; set; } = string.Empty;
-    public string PhoneType { get; set; } = "Mobile";
 }
 
 public class PropertyRecord
@@ -974,6 +1275,7 @@ public class PropertyRecord
     public string AssociationLabel { get; set; } = string.Empty;
     public string PropertyType { get; set; } = string.Empty;
     public string PropertyValue { get; set; } = string.Empty;
+    public Dictionary<string, string> AdditionalFields { get; set; } = new(StringComparer.OrdinalIgnoreCase);
 }
 
 public class ProcessingResult
