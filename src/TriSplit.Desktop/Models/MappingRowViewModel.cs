@@ -11,7 +11,10 @@ public partial class MappingRowViewModel : ObservableObject
     private string _hubSpotProperty = string.Empty;
 
     [ObservableProperty]
-    private string _associationType = "Contact";
+    private string _associationType = string.Empty;
+
+    [ObservableProperty]
+    private string _objectType = string.Empty;
 
     [ObservableProperty]
     private string _sampleValues = string.Empty;

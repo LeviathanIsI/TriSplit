@@ -18,6 +18,7 @@ public partial class ProfilesViewModel : ViewModelBase
 
     public ObservableCollection<string> AssociationLabels { get; }
     public ObservableCollection<string> HubSpotHeaders { get; }
+    public ObservableCollection<string> ObjectTypes { get; }
 
     [ObservableProperty]
     private string _profileName = "New Data Profile";
@@ -108,6 +109,13 @@ public partial class ProfilesViewModel : ViewModelBase
             "Taxes Delinquent Amount",
             "Taxes Delinquent Date",
             "Year Built"
+        };
+
+        ObjectTypes = new ObservableCollection<string>
+        {
+            MappingObjectTypes.Contact,
+            MappingObjectTypes.PhoneNumber,
+            MappingObjectTypes.Property
         };
 
         InitializeMappings();
@@ -236,29 +244,47 @@ public partial class ProfilesViewModel : ViewModelBase
             // Save all mappings that have at least a source field
             foreach (var mapping in FieldMappings.Where(m => !string.IsNullOrWhiteSpace(m.SourceField)))
             {
+                var association = mapping.AssociationLabel?.Trim();
+                var objectTypeValue = mapping.ObjectType?.Trim();
+                var normalizedObjectType = string.IsNullOrWhiteSpace(objectTypeValue)
+                    ? string.Empty
+                    : MappingObjectTypes.Normalize(objectTypeValue);
+
                 var fieldMapping = new FieldMapping
                 {
                     SourceColumn = mapping.SourceField ?? string.Empty,
                     HubSpotProperty = mapping.HubSpotHeader ?? string.Empty,
-                    AssociationType = mapping.AssociationLabel ?? string.Empty
+                    AssociationType = association ?? string.Empty,
+                    ObjectType = normalizedObjectType
                 };
 
-                // Categorize based on AssociationLabel
-                switch (mapping.AssociationLabel)
+                var targetBucket = normalizedObjectType;
+                if (string.IsNullOrEmpty(targetBucket))
                 {
-                    case "Owner":
-                    case "Executor":
-                        profile.ContactMappings.Add(fieldMapping);
-                        break;
-                    case "Mailing Address":
+                    if (!string.IsNullOrWhiteSpace(association) && association.Equals("Mailing Address", System.StringComparison.OrdinalIgnoreCase))
+                    {
+                        targetBucket = MappingObjectTypes.Property;
+                    }
+                    else
+                    {
+                        targetBucket = MappingObjectTypes.Contact;
+                    }
+                }
+
+                switch (targetBucket)
+                {
+                    case MappingObjectTypes.Property:
                         profile.PropertyMappings.Add(fieldMapping);
                         break;
+                    case MappingObjectTypes.PhoneNumber:
+                        profile.PhoneMappings.Add(fieldMapping);
+                        break;
                     default:
-                        // If no association label or unknown, default to ContactMappings
                         profile.ContactMappings.Add(fieldMapping);
                         break;
                 }
             }
+
 
             // Log for debugging
             var totalMappings = profile.ContactMappings.Count + profile.PropertyMappings.Count + profile.PhoneMappings.Count;
@@ -303,7 +329,10 @@ public partial class ProfilesViewModel : ViewModelBase
                 {
                     SourceField = mapping.SourceColumn,
                     AssociationLabel = mapping.AssociationType,
-                    HubSpotHeader = mapping.HubSpotProperty
+                    HubSpotHeader = mapping.HubSpotProperty,
+                    ObjectType = string.IsNullOrWhiteSpace(mapping.ObjectType)
+                        ? string.Empty
+                        : MappingObjectTypes.Normalize(mapping.ObjectType)
                 });
             }
 
@@ -314,12 +343,27 @@ public partial class ProfilesViewModel : ViewModelBase
                 {
                     SourceField = mapping.SourceColumn,
                     AssociationLabel = mapping.AssociationType,
-                    HubSpotHeader = mapping.HubSpotProperty
+                    HubSpotHeader = mapping.HubSpotProperty,
+                    ObjectType = string.IsNullOrWhiteSpace(mapping.ObjectType)
+                        ? string.Empty
+                        : MappingObjectTypes.Normalize(mapping.ObjectType)
                 });
             }
 
-            // Note: Phone mappings are not used with the current association labels
-            // but we keep them for backward compatibility if they exist
+
+            // Load Phone mappings (if any exist for backward compatibility)
+            foreach (var mapping in profile.PhoneMappings)
+            {
+                FieldMappings.Add(new FieldMappingViewModel
+                {
+                    SourceField = mapping.SourceColumn,
+                    AssociationLabel = mapping.AssociationType,
+                    HubSpotHeader = mapping.HubSpotProperty,
+                    ObjectType = string.IsNullOrWhiteSpace(mapping.ObjectType)
+                        ? string.Empty
+                        : MappingObjectTypes.Normalize(mapping.ObjectType)
+                });
+            }
 
             // Add a few empty rows for new mappings
             for (int i = 0; i < 3; i++)
@@ -483,19 +527,14 @@ public partial class ProfilesViewModel : ViewModelBase
             // Load Contact mappings
             foreach (var mapping in profile.ContactMappings)
             {
-                // Determine the correct AssociationLabel
-                string associationLabel = mapping.AssociationType;
-                if (string.IsNullOrEmpty(associationLabel) ||
-                    (associationLabel != "Owner" && associationLabel != "Executor"))
-                {
-                    associationLabel = "Owner"; // Default for contacts
-                }
-
                 FieldMappings.Add(new FieldMappingViewModel
                 {
                     SourceField = mapping.SourceColumn,
-                    AssociationLabel = associationLabel,
-                    HubSpotHeader = mapping.HubSpotProperty
+                    AssociationLabel = mapping.AssociationType,
+                    HubSpotHeader = mapping.HubSpotProperty,
+                    ObjectType = string.IsNullOrWhiteSpace(mapping.ObjectType)
+                        ? string.Empty
+                        : MappingObjectTypes.Normalize(mapping.ObjectType)
                 });
                 loadedMappings++;
             }
@@ -506,8 +545,11 @@ public partial class ProfilesViewModel : ViewModelBase
                 FieldMappings.Add(new FieldMappingViewModel
                 {
                     SourceField = mapping.SourceColumn,
-                    AssociationLabel = "Mailing Address",
-                    HubSpotHeader = mapping.HubSpotProperty
+                    AssociationLabel = mapping.AssociationType,
+                    HubSpotHeader = mapping.HubSpotProperty,
+                    ObjectType = string.IsNullOrWhiteSpace(mapping.ObjectType)
+                        ? string.Empty
+                        : MappingObjectTypes.Normalize(mapping.ObjectType)
                 });
                 loadedMappings++;
             }
@@ -518,8 +560,11 @@ public partial class ProfilesViewModel : ViewModelBase
                 FieldMappings.Add(new FieldMappingViewModel
                 {
                     SourceField = mapping.SourceColumn,
-                    AssociationLabel = "Owner", // Default to Owner since Phone isn't an option anymore
-                    HubSpotHeader = mapping.HubSpotProperty
+                    AssociationLabel = mapping.AssociationType,
+                    HubSpotHeader = mapping.HubSpotProperty,
+                    ObjectType = string.IsNullOrWhiteSpace(mapping.ObjectType)
+                        ? string.Empty
+                        : MappingObjectTypes.Normalize(mapping.ObjectType)
                 });
                 loadedMappings++;
             }
@@ -584,6 +629,9 @@ public partial class FieldMappingViewModel : ObservableObject
 
     [ObservableProperty]
     private string? _associationLabel = null;
+
+    [ObservableProperty]
+    private string _objectType = string.Empty;
 
     [ObservableProperty]
     private string? _hubSpotHeader = null;

@@ -41,7 +41,7 @@ public class UnifiedProcessor
         _inputReader = inputReader;
         _progress = progress;
 
-        _mailingAssociationLabel = _profile.PropertyMappings
+        _mailingAssociationLabel = GetMappingsByObjectType(MappingObjectTypes.Property)
             .Select(m => m.AssociationType?.Trim())
             .Where(v => !string.IsNullOrWhiteSpace(v) && v.IndexOf("mail", StringComparison.OrdinalIgnoreCase) >= 0)
             .Distinct(StringComparer.OrdinalIgnoreCase)
@@ -163,7 +163,7 @@ public class UnifiedProcessor
     {
         var contexts = new List<ContactContext>();
 
-        var groupedMappings = _profile.ContactMappings
+        var groupedMappings = GetMappingsByObjectType(MappingObjectTypes.Contact)
             .Where(m => !string.IsNullOrWhiteSpace(m.AssociationType))
             .GroupBy(m => m.AssociationType!.Trim(), StringComparer.OrdinalIgnoreCase)
             .OrderBy(g => g.Key, StringComparer.OrdinalIgnoreCase);
@@ -177,10 +177,10 @@ public class UnifiedProcessor
             var context = new ContactContext(association)
             {
                 IsPrimary = isFirst,
-                FirstName = CleanName(GetMappedValue(row, association, "First Name")),
-                LastName = CleanName(GetMappedValue(row, association, "Last Name")),
-                Email = (GetMappedValue(row, association, "Email") ?? string.Empty).Trim(),
-                Company = (GetMappedValue(row, association, "Company") ?? string.Empty).Trim(),
+                FirstName = CleanName(GetMappedValue(row, association, "First Name", MappingObjectTypes.Contact)),
+                LastName = CleanName(GetMappedValue(row, association, "Last Name", MappingObjectTypes.Contact)),
+                Email = (GetMappedValue(row, association, "Email", MappingObjectTypes.Contact) ?? string.Empty).Trim(),
+                Company = (GetMappedValue(row, association, "Company", MappingObjectTypes.Contact) ?? string.Empty).Trim(),
                 Property = BuildPropertySnapshot(row, association),
                 Mailing = mailingSnapshot
             };
@@ -308,18 +308,23 @@ public class UnifiedProcessor
     }
     private async Task ProcessPhoneNumbersAsync(Dictionary<string, object> row, ContactContext context)
     {
-        var allMappings = _profile.ContactMappings
-            .Concat(_profile.PropertyMappings)
-            .Concat(_profile.PhoneMappings);
+        var phoneMappingCandidates = GetMappingsByObjectType(MappingObjectTypes.PhoneNumber)
+            .ToList();
 
-        var phoneMappings = allMappings
+        if (phoneMappingCandidates.Count == 0)
+        {
+            await Task.CompletedTask;
+            return;
+        }
+
+        var phoneMappings = phoneMappingCandidates
             .Where(m => string.Equals(m.HubSpotProperty, "Phone Number", StringComparison.OrdinalIgnoreCase))
             .Where(m => string.Equals(m.AssociationType?.Trim(), context.Association, StringComparison.OrdinalIgnoreCase))
             .ToList();
 
         if (phoneMappings.Count == 0)
         {
-            phoneMappings = allMappings
+            phoneMappings = phoneMappingCandidates
                 .Where(m => string.Equals(m.HubSpotProperty, "Phone Number", StringComparison.OrdinalIgnoreCase))
                 .Where(m => string.IsNullOrWhiteSpace(m.AssociationType))
                 .ToList();
@@ -330,6 +335,10 @@ public class UnifiedProcessor
             await Task.CompletedTask;
             return;
         }
+
+        var phoneTypeMappings = phoneMappingCandidates
+            .Where(m => string.Equals(m.HubSpotProperty, "Phone Type", StringComparison.OrdinalIgnoreCase))
+            .ToList();
 
         var phoneRecords = new List<PhoneRecord>();
 
@@ -348,8 +357,7 @@ public class UnifiedProcessor
                 mapping.SourceColumn + "_Type"
             };
 
-            var typeMapping = allMappings.FirstOrDefault(m =>
-                string.Equals(m.HubSpotProperty, "Phone Type", StringComparison.OrdinalIgnoreCase) &&
+            var typeMapping = phoneTypeMappings.FirstOrDefault(m =>
                 string.Equals(m.AssociationType?.Trim(), mapping.AssociationType?.Trim(), StringComparison.OrdinalIgnoreCase) &&
                 possibleTypeColumns.Contains(m.SourceColumn));
 
@@ -400,34 +408,80 @@ public class UnifiedProcessor
             return PropertySnapshot.Empty;
         }
 
-        var address = CleanAddress(GetMappedValue(row, association, "Address"));
-        var city = (GetMappedValue(row, association, "City") ?? string.Empty).Trim();
-        var state = (GetMappedValue(row, association, "State") ?? string.Empty).Trim().ToUpperInvariant();
+        var address = CleanAddress(GetMappedValue(row, association, "Address", MappingObjectTypes.Property));
+        var city = (GetMappedValue(row, association, "City", MappingObjectTypes.Property) ?? string.Empty).Trim();
+        var state = (GetMappedValue(row, association, "State", MappingObjectTypes.Property) ?? string.Empty).Trim().ToUpperInvariant();
 
-        var zip = GetMappedValue(row, association, "Postal Code");
+        var zip = GetMappedValue(row, association, "Postal Code", MappingObjectTypes.Property);
         if (string.IsNullOrWhiteSpace(zip))
         {
-            zip = GetMappedValue(row, association, "Zip");
+            zip = GetMappedValue(row, association, "Zip", MappingObjectTypes.Property);
         }
         zip = CleanZip(zip);
 
-        var county = (GetMappedValue(row, association, "County") ?? string.Empty).Trim();
-        var propertyType = (GetMappedValue(row, association, "Property Type") ?? string.Empty).Trim();
-        var propertyValue = (GetMappedValue(row, association, "Property Value") ?? string.Empty).Trim();
+        var county = (GetMappedValue(row, association, "County", MappingObjectTypes.Property) ?? string.Empty).Trim();
+        var propertyType = (GetMappedValue(row, association, "Property Type", MappingObjectTypes.Property) ?? string.Empty).Trim();
+        var propertyValue = (GetMappedValue(row, association, "Property Value", MappingObjectTypes.Property) ?? string.Empty).Trim();
 
         return new PropertySnapshot(address, city, state, zip, county, propertyType, propertyValue);
     }
-    private IEnumerable<FieldMapping> GetMappings(string? associationType, string hubSpotProperty)
+    private IEnumerable<(FieldMapping Mapping, string ObjectType)> EnumerateResolvedMappings()
+    {
+        foreach (var mapping in _profile.ContactMappings)
+        {
+            yield return (mapping, ResolveObjectType(mapping, MappingObjectTypes.Contact));
+        }
+
+        foreach (var mapping in _profile.PropertyMappings)
+        {
+            yield return (mapping, ResolveObjectType(mapping, MappingObjectTypes.Property));
+        }
+
+        foreach (var mapping in _profile.PhoneMappings)
+        {
+            yield return (mapping, ResolveObjectType(mapping, MappingObjectTypes.PhoneNumber));
+        }
+    }
+
+    private static string ResolveObjectType(FieldMapping mapping, string fallbackType)
+    {
+        if (!string.IsNullOrWhiteSpace(mapping.ObjectType))
+        {
+            return MappingObjectTypes.Normalize(mapping.ObjectType);
+        }
+
+        return fallbackType;
+    }
+
+    private IEnumerable<FieldMapping> GetMappingsByObjectType(string objectType)
+    {
+        return EnumerateResolvedMappings()
+            .Where(pair => string.Equals(pair.ObjectType, objectType, StringComparison.OrdinalIgnoreCase))
+            .Select(pair => pair.Mapping);
+    }
+
+    private IEnumerable<FieldMapping> GetAllMappings()
+    {
+        return EnumerateResolvedMappings().Select(pair => pair.Mapping);
+    }
+
+    private IEnumerable<FieldMapping> GetMappings(string? associationType, string hubSpotProperty, string? objectType = null)
     {
         var normalizedAssociation = associationType?.Trim();
 
-        var allMappings = _profile.ContactMappings
-            .Concat(_profile.PropertyMappings)
-            .Concat(_profile.PhoneMappings)
-            .Where(m => string.Equals(m.HubSpotProperty, hubSpotProperty, StringComparison.OrdinalIgnoreCase));
+        var candidates = EnumerateResolvedMappings()
+            .Where(pair => string.Equals(pair.Mapping.HubSpotProperty, hubSpotProperty, StringComparison.OrdinalIgnoreCase));
 
-        var associationMatches = allMappings
-            .Where(m => string.Equals(m.AssociationType?.Trim(), normalizedAssociation, StringComparison.OrdinalIgnoreCase))
+        if (!string.IsNullOrWhiteSpace(objectType))
+        {
+            candidates = candidates.Where(pair => string.Equals(pair.ObjectType, objectType, StringComparison.OrdinalIgnoreCase));
+        }
+
+        var candidateList = candidates.ToList();
+
+        var associationMatches = candidateList
+            .Where(pair => string.Equals(pair.Mapping.AssociationType?.Trim(), normalizedAssociation, StringComparison.OrdinalIgnoreCase))
+            .Select(pair => pair.Mapping)
             .ToList();
 
         if (associationMatches.Count > 0)
@@ -435,17 +489,19 @@ public class UnifiedProcessor
             return associationMatches;
         }
 
-        return allMappings.Where(m => string.IsNullOrWhiteSpace(m.AssociationType));
+        return candidateList
+            .Where(pair => string.IsNullOrWhiteSpace(pair.Mapping.AssociationType))
+            .Select(pair => pair.Mapping);
     }
 
-    private string GetMappedValue(Dictionary<string, object> row, string? associationType, string hubSpotProperty)
+    private string GetMappedValue(Dictionary<string, object> row, string? associationType, string hubSpotProperty, string? objectType = null)
     {
         if (string.IsNullOrWhiteSpace(hubSpotProperty))
             return string.Empty;
 
         string? fallback = null;
 
-        foreach (var mapping in GetMappings(associationType, hubSpotProperty))
+        foreach (var mapping in GetMappings(associationType, hubSpotProperty, objectType))
         {
             var value = GetValueFromMapping(row, mapping);
             if (!string.IsNullOrEmpty(value))
