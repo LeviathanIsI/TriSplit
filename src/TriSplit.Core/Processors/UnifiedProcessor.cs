@@ -11,7 +11,6 @@ using CsvHelper;
 using CsvHelper.Configuration;
 using TriSplit.Core.Interfaces;
 using TriSplit.Core.Models;
-using TriSplit.Core.Transforms;
 
 namespace TriSplit.Core.Processors;
 
@@ -24,6 +23,7 @@ public class UnifiedProcessor
     private readonly Dictionary<string, ContactRecord> _contacts = new();
     private readonly Dictionary<string, List<PhoneRecord>> _phones = new();
     private readonly Dictionary<string, PropertyRecord> _properties = new();
+    private readonly HashSet<string> _flaggedPhoneMessages = new(StringComparer.OrdinalIgnoreCase);
 
     private readonly Dictionary<string, string> _contactImportIds = new(StringComparer.OrdinalIgnoreCase);
     private readonly HashSet<string> _additionalPropertyFieldSet = new(StringComparer.OrdinalIgnoreCase);
@@ -32,6 +32,7 @@ public class UnifiedProcessor
     private const string MailingAssociationLabel = "Mailing Address";
 
     private static readonly Regex WhitespaceRegex = new(@"\s+", RegexOptions.Compiled);
+    private static readonly Regex NonDigitRegex = new(@"[^0-9]", RegexOptions.Compiled);
     private static readonly Regex OwnerIndexRegex = new(@"owner\s*(\d+)", RegexOptions.IgnoreCase | RegexOptions.Compiled);
     private static readonly Dictionary<string, int> OwnerOrdinalLookup = new(StringComparer.OrdinalIgnoreCase)
     {
@@ -315,6 +316,7 @@ public class UnifiedProcessor
 
         if (_contacts.TryGetValue(context.ImportId, out var existing))
         {
+            ReconcilePrimaryState(existing, context);
             if (string.IsNullOrWhiteSpace(existing.FirstName) && !string.IsNullOrWhiteSpace(context.FirstName))
                 existing.FirstName = context.FirstName;
             if (string.IsNullOrWhiteSpace(existing.LastName) && !string.IsNullOrWhiteSpace(context.LastName))
@@ -326,7 +328,6 @@ public class UnifiedProcessor
             if (string.IsNullOrWhiteSpace(existing.LinkedContactId) && !string.IsNullOrWhiteSpace(context.LinkedContactId))
                 existing.LinkedContactId = context.LinkedContactId;
 
-            existing.IsSecondary = context.IsSecondary;
             existing.AssociationLabel = MergeAssociationLabels(existing.AssociationLabel, context.Association);
         }
         else
@@ -346,6 +347,38 @@ public class UnifiedProcessor
 
             _contacts[context.ImportId] = record;
         }
+    }
+
+    private void ReconcilePrimaryState(ContactRecord existing, ContactContext incoming)
+    {
+        if (!existing.IsSecondary && !incoming.IsSecondary)
+        {
+            LogPrimaryConflict(existing, incoming);
+            incoming.IsSecondary = true;
+            incoming.LinkedContactId ??= existing.ImportId;
+            return;
+        }
+
+        if (existing.IsSecondary && !incoming.IsSecondary)
+        {
+            existing.IsSecondary = false;
+            return;
+        }
+
+        if (!existing.IsSecondary && incoming.IsSecondary)
+        {
+            return;
+        }
+
+        existing.IsSecondary = true;
+    }
+
+    private void LogPrimaryConflict(ContactRecord existing, ContactContext incoming)
+    {
+        var existingLabel = string.IsNullOrWhiteSpace(existing.AssociationLabel) ? "Primary" : existing.AssociationLabel;
+        var incomingLabel = string.IsNullOrWhiteSpace(incoming.Association) ? "Primary" : incoming.Association;
+        var message = $"Primary contact conflict detected for Import ID {existing.ImportId}. Kept '{existingLabel}' as primary and demoted '{incomingLabel}' (Import ID {incoming.ImportId}) to secondary.";
+        ReportProgress(message, 0);
     }
 
     private void PersistProperties(ContactContext context, ContactContext primaryContext)
@@ -933,7 +966,7 @@ public class UnifiedProcessor
         return fallback ?? string.Empty;
     }
 
-    private static string GetValueFromMapping(Dictionary<string, object> row, FieldMapping mapping)
+    private string GetValueFromMapping(Dictionary<string, object> row, FieldMapping mapping)
     {
         if (mapping == null || string.IsNullOrWhiteSpace(mapping.SourceColumn))
             return string.Empty;
@@ -942,13 +975,139 @@ public class UnifiedProcessor
             return string.Empty;
 
         var value = rawValue.ToString() ?? string.Empty;
+        if (string.IsNullOrWhiteSpace(value))
+            return string.Empty;
 
-        foreach (var transform in mapping.Transforms ?? new List<Transform>())
+        value = NormalizeWhitespace(value);
+
+        if (IsPhoneField(mapping))
         {
-            value = ApplyTransform(value, transform);
+            return NormalizePhoneValue(mapping, value);
+        }
+
+        if (IsZipField(mapping))
+        {
+            return NormalizeZipValue(value);
+        }
+
+        if (ShouldTitleCase(mapping))
+        {
+            value = ToTitleCase(value);
         }
 
         return value;
+    }
+
+    private static string NormalizeWhitespace(string value)
+    {
+        var trimmed = value.Trim();
+        return WhitespaceRegex.Replace(trimmed, " ");
+    }
+
+    private static bool IsPhoneField(FieldMapping mapping)
+    {
+        return ContainsKeyword(mapping?.HubSpotProperty, "phone") ||
+               ContainsKeyword(mapping?.SourceColumn, "phone");
+    }
+
+    private static bool IsZipField(FieldMapping mapping)
+    {
+        return ContainsKeyword(mapping?.HubSpotProperty, "zip", "postal") ||
+               ContainsKeyword(mapping?.SourceColumn, "zip", "postal");
+    }
+
+    private static bool ShouldTitleCase(FieldMapping mapping)
+    {
+        return ContainsKeyword(mapping?.HubSpotProperty, "name", "title") ||
+               ContainsKeyword(mapping?.SourceColumn, "name", "title");
+    }
+
+    private string NormalizePhoneValue(FieldMapping mapping, string value)
+    {
+        var digits = NonDigitRegex.Replace(value, string.Empty);
+
+        if (digits.Length == 11 && digits.StartsWith("1", StringComparison.Ordinal))
+        {
+            digits = digits[1..];
+        }
+
+        if (digits.Length == 10)
+        {
+            return digits;
+        }
+
+        string message;
+        var displayName = GetMappingDisplayName(mapping);
+
+        if (digits.Length > 10)
+        {
+            var truncated = digits[^10..];
+            message = $"Flagged phone number for '{displayName}': '{value}' -> truncated to '{truncated}' (expected 10 digits)";
+            if (_flaggedPhoneMessages.Add(message))
+            {
+                ReportProgress(message, 0);
+            }
+            return truncated;
+        }
+
+        message = $"Flagged phone number for '{displayName}': '{value}' (only {digits.Length} digits after cleaning)";
+        if (_flaggedPhoneMessages.Add(message))
+        {
+            ReportProgress(message, 0);
+        }
+
+        return digits;
+    }
+
+    private static string NormalizeZipValue(string value)
+    {
+        var digits = NonDigitRegex.Replace(value, string.Empty);
+        if (digits.Length >= 5)
+        {
+            return digits[..5];
+        }
+        return digits;
+    }
+
+    private static string ToTitleCase(string value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+            return string.Empty;
+
+        var lower = value.ToLower(CultureInfo.CurrentCulture);
+        return CultureInfo.CurrentCulture.TextInfo.ToTitleCase(lower);
+    }
+
+    private static bool ContainsKeyword(string? text, params string[] keywords)
+    {
+        if (string.IsNullOrWhiteSpace(text) || keywords.Length == 0)
+            return false;
+
+        var normalized = text.Replace('_', ' ').ToLowerInvariant();
+        foreach (var keyword in keywords)
+        {
+            if (normalized.Contains(keyword.ToLowerInvariant()))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static string GetMappingDisplayName(FieldMapping mapping)
+    {
+        if (!string.IsNullOrWhiteSpace(mapping.SourceColumn))
+        {
+            return mapping.SourceColumn;
+        }
+
+        if (!string.IsNullOrWhiteSpace(mapping.HubSpotProperty))
+        {
+            return mapping.HubSpotProperty;
+        }
+
+        return "Unknown";
     }
     private string BuildContactKey(ContactContext context)
     {
@@ -1060,14 +1219,13 @@ public class UnifiedProcessor
         if (string.IsNullOrWhiteSpace(value))
             return string.Empty;
 
-        value = Regex.Replace(value, @"[^0-9-]", string.Empty);
-
-        if (value.Length > 5 && !value.Contains('-'))
+        var digits = NonDigitRegex.Replace(value, string.Empty);
+        if (digits.Length >= 5)
         {
-            value = value.Substring(0, 5) + "-" + value.Substring(5);
+            return digits[..5];
         }
 
-        return value;
+        return digits;
     }
 
     private static string CleanPhoneNumber(string phone)
@@ -1075,7 +1233,7 @@ public class UnifiedProcessor
         if (string.IsNullOrWhiteSpace(phone))
             return string.Empty;
 
-        return Regex.Replace(phone, @"[^0-9]", string.Empty);
+        return NonDigitRegex.Replace(phone, string.Empty);
     }
 
     private static string FormatPhoneNumber(string phone)
@@ -1096,52 +1254,6 @@ public class UnifiedProcessor
         return phone;
     }
 
-    private static string ApplyTransform(string value, Transform transform)
-    {
-        if (string.IsNullOrEmpty(value))
-            return value;
-
-        if (transform == null)
-            return value;
-
-        var builtInKey = BuiltInTransforms.ResolveKey(transform);
-        if (!string.IsNullOrWhiteSpace(builtInKey) && BuiltInTransforms.TryApply(builtInKey, value, out var builtInResult))
-        {
-            return builtInResult;
-        }
-
-        if (string.IsNullOrWhiteSpace(transform.Type))
-            return value;
-
-        switch (transform.Type.ToLowerInvariant())
-        {
-            case "regex":
-                if (!string.IsNullOrEmpty(transform.Pattern))
-                {
-                    var regex = new Regex(transform.Pattern);
-                    value = regex.Replace(value, transform.Replacement ?? string.Empty);
-                }
-                break;
-            case "format":
-                if (!string.IsNullOrEmpty(transform.Pattern))
-                {
-                    try
-                    {
-                        value = string.Format(transform.Pattern, value);
-                    }
-                    catch
-                    {
-                        // ignore formatting errors
-                    }
-                }
-                break;
-            case "normalize":
-                value = value.Trim().ToUpperInvariant();
-                break;
-        }
-
-        return value;
-    }
 
     private static string MergeAssociationLabels(string existingLabels, string newLabel)
     {
@@ -1462,4 +1574,3 @@ public class ProcessingProgress
     public int PercentComplete { get; set; }
     public DateTime Timestamp { get; set; }
 }
-

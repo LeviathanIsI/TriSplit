@@ -176,7 +176,6 @@
                 <ColumnDefinition Width="*"/>
                 <ColumnDefinition Width="20"/>
                 <ColumnDefinition Width="*"/>
-                <ColumnDefinition Width="2*"/>
                 <ColumnDefinition Width="60"/>
               </Grid.ColumnDefinitions>
               <TextBlock Grid.Column="1"
@@ -204,12 +203,6 @@
                          FontSize="12"/>
 
               <TextBlock Grid.Column="8"
-                         Text="TRANSFORMS"
-                         Foreground="{StaticResource AccentBrush}"
-                         FontWeight="SemiBold"
-                         FontSize="12"/>
-
-              <TextBlock Grid.Column="9"
                          Text="ACTION"
                          Foreground="{StaticResource AccentBrush}"
                          FontWeight="SemiBold"
@@ -250,33 +243,14 @@
               </StackPanel>
             </Border>
 
-            <!-- Mapping Rows -->
-            <ListBox Margin="15,15,15,0"
-                     Padding="15"
-                     ItemsSource="{Binding FieldMappings}"
-                     Background="Transparent"
-                     BorderThickness="0"
-                     ScrollViewer.CanContentScroll="True"
-                     ScrollViewer.VerticalScrollBarVisibility="Auto"
-                     VirtualizingPanel.IsVirtualizing="True"
-                     VirtualizingPanel.VirtualizationMode="Recycling"
-                     VirtualizingPanel.CacheLength="2"
-                     VirtualizingPanel.CacheLengthUnit="Item"
-                     behaviors:BlockSelectionBehavior.Enable="True">
-              <ListBox.ItemsPanel>
-                <ItemsPanelTemplate>
-                  <VirtualizingStackPanel Orientation="Vertical"/>
-                </ItemsPanelTemplate>
-              </ListBox.ItemsPanel>
-              <ListBox.ItemContainerStyle>
-                <Style TargetType="ListBoxItem" BasedOn="{StaticResource {x:Type ListBoxItem}}">
-                  <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
-                  <Setter Property="Padding" Value="0"/>
-                  <Setter Property="Background" Value="Transparent"/>
-                </Style>
-              </ListBox.ItemContainerStyle>
-              <ListBox.ItemTemplate>
-        <DataTemplate>
+            <!-- Mapping Rows -->
+            <ScrollViewer Margin="15,15,15,0"
+                          VerticalScrollBarVisibility="Auto"
+                          HorizontalScrollBarVisibility="Hidden">
+              <ItemsControl ItemsSource="{Binding FieldMappings}"
+                            Margin="15">
+              <ItemsControl.ItemTemplate>
+                <DataTemplate>
                   <Border Margin="0,0,0,10"
                           Background="{StaticResource BackgroundBrush}"
                           BorderBrush="{StaticResource BorderBrush}"
@@ -305,7 +279,6 @@
                         <ColumnDefinition Width="*"/>
                         <ColumnDefinition Width="20"/>
                         <ColumnDefinition Width="*"/>
-                        <ColumnDefinition Width="2*"/>
                         <ColumnDefinition Width="60"/>
                       </Grid.ColumnDefinitions>
 
@@ -363,7 +336,7 @@
                       <!-- ASSOCIATION LABEL / RELATIONSHIP -->
                       <ComboBox x:Name="AssociationCombo"
                                 Grid.Column="3"
-                                ItemsSource="{Binding DataContext.AssociationLabels, RelativeSource={RelativeSource AncestorType=ListBox}}"
+                                ItemsSource="{Binding DataContext.AssociationLabels, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
                                 SelectedItem="{Binding AssociationLabel}"
                                 behaviors:ComboBoxDragFillBehavior.FillPropertyName="AssociationLabel"
                                 VerticalAlignment="Center">
@@ -417,7 +390,7 @@
                       <!-- Object Type -->
                       <ComboBox x:Name="ObjectTypeCombo"
                                 Grid.Column="5"
-                                ItemsSource="{Binding DataContext.ObjectTypes, RelativeSource={RelativeSource AncestorType=ListBox}}"
+                                ItemsSource="{Binding DataContext.ObjectTypes, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
                                 SelectedItem="{Binding ObjectType}"
                                 behaviors:ComboBoxDragFillBehavior.FillPropertyName="ObjectType"
                                 VerticalAlignment="Center">
@@ -470,7 +443,7 @@
 
                       <!-- HubSpot Header -->
                       <ComboBox Grid.Column="7"
-                                ItemsSource="{Binding DataContext.HubSpotHeaders, RelativeSource={RelativeSource AncestorType=ListBox}}"
+                                ItemsSource="{Binding DataContext.HubSpotHeaders, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
                                 SelectedItem="{Binding HubSpotHeader}"
                                 VerticalAlignment="Center">
                         <ComboBox.Style>
@@ -485,42 +458,10 @@
                         </ComboBox.Style>
                       </ComboBox>
 
-                      <ItemsControl Grid.Column="8"
-                                    ItemsSource="{Binding TransformOptions}"
-                                    Margin="0"
-                                    VerticalAlignment="Center">
-                        <ItemsControl.ItemsPanel>
-                          <ItemsPanelTemplate>
-                            <WrapPanel Orientation="Horizontal"/>
-                          </ItemsPanelTemplate>
-                        </ItemsControl.ItemsPanel>
-                        <ItemsControl.ItemTemplate>
-                          <DataTemplate>
-                            <CheckBox Content="{Binding DisplayName}"
-                                      IsChecked="{Binding IsSelected}"
-                                      Margin="0,0,8,4"
-                                      FontSize="12"
-                                      VerticalAlignment="Center"
-                                      Foreground="{StaticResource TextBrush}">
-                              <CheckBox.ToolTip>
-                                <ToolTip Background="{StaticResource SurfaceBrush}"
-                                         BorderBrush="{StaticResource AccentBrush}"
-                                         MaxWidth="220"
-                                         Placement="Mouse">
-                                  <TextBlock Text="{Binding Description}"
-                                             TextWrapping="Wrap"
-                                             Foreground="{StaticResource TextBrush}"/>
-                                </ToolTip>
-                              </CheckBox.ToolTip>
-                            </CheckBox>
-                          </DataTemplate>
-                        </ItemsControl.ItemTemplate>
-                      </ItemsControl>
-
                       <!-- Remove Button -->
-                      <Button Grid.Column="9"
+                      <Button Grid.Column="8"
                               Content="Remove"
-                              Command="{Binding DataContext.RemoveMappingCommand, RelativeSource={RelativeSource AncestorType=ListBox}}"
+                              Command="{Binding DataContext.RemoveMappingCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
                               CommandParameter="{Binding}"
                               Style="{StaticResource SecondaryButton}"
                               Padding="8,4"
@@ -528,9 +469,10 @@
                               HorizontalAlignment="Center"/>
                     </Grid>
                   </Border>
-                </DataTemplate>
-              </ListBox.ItemTemplate>
-            </ListBox>
+                </DataTemplate>
+              </ItemsControl.ItemTemplate>
+            </ItemsControl>
+          </ScrollViewer>
         </Grid>
 
           <!-- Add Mapping Button -->
