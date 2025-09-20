@@ -11,7 +11,8 @@ public static class ServiceCollectionExtensions
         // Register core services
         services.AddSingleton<IProfileStore, ProfileStore>();
         services.AddSingleton<IInputReaderFactory, InputReaderFactory>();
-        services.AddScoped<ISampleLoader, SampleLoader>();
+        services.AddSingleton<ISampleLoader, SampleLoader>();
+        services.AddSingleton<IProfileSignatureService, ProfileSignatureService>();
 
         // Register readers
         services.AddTransient<IInputReader, CsvInputReader>();

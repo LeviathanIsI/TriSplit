@@ -19,6 +19,8 @@ public class Profile
     public List<Transform> Transforms { get; set; } = new();
     public Dictionary<string, bool> ProcessingRules { get; set; } = new Dictionary<string, bool>(StringComparer.OrdinalIgnoreCase);
 
+    public List<string> SourceHeaders { get; set; } = new();
+
     [JsonIgnore]
     public string FilePath { get; set; } = string.Empty;
 }
