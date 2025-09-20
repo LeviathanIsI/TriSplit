@@ -500,7 +500,8 @@
                                       IsChecked="{Binding IsSelected}"
                                       Margin="0,0,8,4"
                                       FontSize="12"
-                                      VerticalAlignment="Center">
+                                      VerticalAlignment="Center"
+                                      Foreground="{StaticResource TextBrush}">
                               <CheckBox.ToolTip>
                                 <ToolTip Background="{StaticResource SurfaceBrush}"
                                          BorderBrush="{StaticResource AccentBrush}"
