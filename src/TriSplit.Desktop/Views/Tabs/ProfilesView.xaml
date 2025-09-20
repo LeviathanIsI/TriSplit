@@ -212,39 +212,40 @@
 
           <Grid Grid.Row="1">
             <Grid.RowDefinitions>
-              <RowDefinition Height="Auto"/>
+              <RowDefinition Height="60"/>
               <RowDefinition Height="*"/>
             </Grid.RowDefinitions>
 
             <!-- Selection Actions -->
-            <Border Grid.Row="0"
-                    Margin="15,0,15,10"
-                    Visibility="{Binding HasBlockSelection, Converter={StaticResource BoolToVisibilityConverter}}"
-                    Background="#10293F"
-                    BorderBrush="#FF4BA3FF"
-                    BorderThickness="1"
-                    CornerRadius="4"
-                    Padding="10">
-              <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                <TextBlock Text="{Binding BlockSelectionSummary}"
-                           Foreground="{StaticResource AccentBrush}"
-                           FontWeight="SemiBold"
-                           VerticalAlignment="Center"
-                           Margin="0,0,12,0"/>
-                <Button Content="Copy Block"
-                        Command="{Binding CopyBlockSelectionCommand}"
-                        Style="{StaticResource PrimaryButton}"
-                        Margin="0,0,8,0"/>
-                <Button Content="Paste Block"
-                        Command="{Binding PasteBlockSelectionCommand}"
-                        IsEnabled="{Binding CanPasteBlock}"
-                        Style="{StaticResource SecondaryButton}"
-                        Margin="0,0,8,0"/>
-                <Button Content="Clear Selection"
-                        Command="{Binding ClearBlockSelectionCommand}"
-                        Style="{StaticResource SecondaryButton}"/>
-              </StackPanel>
-            </Border>
+            <Grid Grid.Row="0"
+                  Margin="15,0,15,10">
+              <Border Background="#10293F"
+                      BorderBrush="#FF4BA3FF"
+                      BorderThickness="1"
+                      CornerRadius="4"
+                      Padding="10"
+                      Visibility="{Binding HasBlockSelection, Converter={StaticResource BoolToVisibilityConverter}}">
+                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                  <TextBlock Text="{Binding BlockSelectionSummary}"
+                             Foreground="{StaticResource AccentBrush}"
+                             FontWeight="SemiBold"
+                             VerticalAlignment="Center"
+                             Margin="0,0,12,0"/>
+                  <Button Content="Copy Block"
+                          Command="{Binding CopyBlockSelectionCommand}"
+                          Style="{StaticResource PrimaryButton}"
+                          Margin="0,0,8,0"/>
+                  <Button Content="Paste Block"
+                          Command="{Binding PasteBlockSelectionCommand}"
+                          IsEnabled="{Binding CanPasteBlock}"
+                          Style="{StaticResource SecondaryButton}"
+                          Margin="0,0,8,0"/>
+                  <Button Content="Clear Selection"
+                          Command="{Binding ClearBlockSelectionCommand}"
+                          Style="{StaticResource SecondaryButton}"/>
+                </StackPanel>
+              </Border>
+            </Grid>
 
             <!-- Mapping Rows -->
             <ScrollViewer Grid.Row="1"
