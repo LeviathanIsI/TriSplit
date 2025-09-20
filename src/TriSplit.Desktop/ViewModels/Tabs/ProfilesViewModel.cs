@@ -97,6 +97,13 @@ public partial class ProfilesViewModel : ViewModelBase
 
     [ObservableProperty]
     private string _autosaveStatus = string.Empty;
+[ObservableProperty]
+private bool _hasAutosaveStatus;
+
+partial void OnAutosaveStatusChanged(string value)
+{
+    HasAutosaveStatus = !string.IsNullOrWhiteSpace(value);
+}
 
 
 
@@ -264,23 +271,32 @@ public partial class ProfilesViewModel : ViewModelBase
         }
     }
 
-private void UpdateAutosaveStatus(bool clearIfClean = false)
-{
-    if (!IsDirty)
+    private void UpdateAutosaveStatus(bool clearIfClean = false)
     {
-        AutosaveStatus = clearIfClean ? string.Empty : AutosaveStatus;
-        return;
-    }
+        if (!IsDirty)
+        {
+            if (clearIfClean)
+            {
+                AutosaveStatus = string.Empty;
+            }
+            return;
+        }
 
-    if (_remainingAutosaveTime > 0)
-    {
-        AutosaveStatus = $"*Unsaved Changes* Auto-Saving in {_remainingAutosaveTime}...";
+        if (SelectedProfile == null)
+        {
+            AutosaveStatus = "*Unsaved Changes*";
+            return;
+        }
+
+        if (_remainingAutosaveTime > 0)
+        {
+            AutosaveStatus = $"*Unsaved Changes* Auto-Saving in {_remainingAutosaveTime}...";
+        }
+        else if (_isAutosaving)
+        {
+            AutosaveStatus = "*Auto-Saving...*";
+        }
     }
-    else if (_isAutosaving)
-    {
-        AutosaveStatus = "*Auto-Saving...*";
-    }
-}
 
     private void UpdateMappingCount()
     {

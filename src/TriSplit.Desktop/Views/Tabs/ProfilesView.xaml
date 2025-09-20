@@ -37,11 +37,11 @@
       </StackPanel>
 
       <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
-        <TextBlock Text="*Unsaved Changes*"
+        <TextBlock Text="{Binding AutosaveStatus}"
                    Foreground="{StaticResource AccentBrush}"
                    FontStyle="Italic"
                    Margin="0,0,10,0"
-                   Visibility="{Binding IsDirty, Converter={StaticResource BoolToVisibilityConverter}}"
+                   Visibility="{Binding HasAutosaveStatus, Converter={StaticResource BoolToVisibilityConverter}}"
                    VerticalAlignment="Center"/>
         <TextBox Width="250"
                  Text="{Binding ProfileName}"
