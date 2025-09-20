@@ -155,123 +155,142 @@ public partial class TestViewModel : ViewModelBase
 
         var opId = System.Threading.Interlocked.Increment(ref _loadCount);
 
-        // Cancel any existing load operation
+        // Cancel any existing load operation and spin up a new CTS
         _loadCts?.Cancel();
-        _loadCts = new CancellationTokenSource();
-        var ct = _loadCts.Token;
 
-        // Try to acquire the load gate
-        if (!await _loadGate.WaitAsync(0, ct))
-        {
-            TestStatus = "Load already in progress...";
-            return;
-        }
+        var currentCts = new CancellationTokenSource();
+        _loadCts = currentCts;
+        var ct = currentCts.Token;
+        var gateAcquired = false;
 
         try
         {
-            TestStatus = "Loading file...";
-
-            // Load only preview data for display - OFF UI THREAD
-            var sampleData = await Task.Run(async () =>
-                await _sampleLoader.LoadSampleWithLimitAsync(_currentFilePath, PREVIEW_ROW_LIMIT), ct)
-                .ConfigureAwait(false);
-
-            if (ct.IsCancellationRequested) return;
-
-            // Build DataTable OFF UI THREAD
-            var dataTable = await Task.Run(() =>
+            // Try to acquire the load gate
+            if (!await _loadGate.WaitAsync(0, ct))
             {
-                var dt = new DataTable();
-
-                // Add columns (limit to prevent UI freeze with wide sheets)
-                var mappedHeaders = new List<(string Original, string Display)>();
-                var usedColumnNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-
-                var limitedHeaders = sampleData.Headers.Take(PREVIEW_COL_LIMIT).ToList();
-                for (var index = 0; index < limitedHeaders.Count; index++)
-                {
-                    var original = limitedHeaders[index];
-                    var display = string.IsNullOrWhiteSpace(original)
-                        ? $"Column {index + 1}"
-                        : original.Trim();
-
-                    if (string.IsNullOrWhiteSpace(display))
-                    {
-                        display = $"Column {index + 1}";
-                    }
-
-                    var baseName = display;
-                    var suffix = 1;
-                    while (!usedColumnNames.Add(display))
-                    {
-                        display = $"{baseName}_{suffix++}";
-                    }
-
-                    dt.Columns.Add(display);
-                    mappedHeaders.Add((original, display));
-                }
-
-                // Add rows
-                foreach (var row in sampleData.Rows)
-                {
-                    var dataRow = dt.NewRow();
-                    foreach (var (Original, Display) in mappedHeaders)
-                    {
-                        if (!string.IsNullOrEmpty(Original) && row.TryGetValue(Original, out var value))
-                        {
-                            dataRow[Display] = value?.ToString() ?? string.Empty;
-                        }
-                        else
-                        {
-                            dataRow[Display] = string.Empty;
-                        }
-                    }
-                    dt.Rows.Add(dataRow);
-                }
-
-                return dt;
-            }, ct).ConfigureAwait(false);
-
-            if (ct.IsCancellationRequested) return;
-
-            // Update UI on UI thread
-            await Application.Current.Dispatcher.InvokeAsync(() =>
-            {
-                _originalData = dataTable;
-                PreviewData = _originalData;
-                RowCount = sampleData.TotalRows;
-                PreviewRowCount = Math.Min(PREVIEW_ROW_LIMIT, RowCount);
-                ColumnCount = sampleData.Headers.Count;
-                IsFileLoaded = true;
-                IsDataEmpty = false;
-
-                // Update shared session
-                _appSession.LoadedFilePath = _currentFilePath;
-
-                TestStatus = $"Loaded {RowCount:N0} rows, {ColumnCount} columns (showing first {PreviewRowCount})";
-
-                // Update mapping status and statistics
-                UpdateColumnMappingStatus();
-                UpdateStatistics();
-            }, System.Windows.Threading.DispatcherPriority.Background);
-
-            // Apply transformation if profile is selected
-            if (_appSession.SelectedProfile != null)
-            {
-                await ApplyTransformationAsync();
+                TestStatus = "Load already in progress...";
+                return;
             }
-        }
-        catch (Exception ex)
-        {
-            await Application.Current.Dispatcher.InvokeAsync(() =>
+
+            gateAcquired = true;
+
+            try
             {
-                TestStatus = $"Error: {ex.Message}";
-            });
-            await _dialogService.ShowMessageAsync("Error", $"Failed to load file: {ex.Message}");
+                TestStatus = "Loading file...";
+
+                // Load only preview data for display - OFF UI THREAD
+                var sampleData = await Task.Run(async () =>
+                    await _sampleLoader.LoadSampleWithLimitAsync(_currentFilePath, PREVIEW_ROW_LIMIT), ct)
+                    .ConfigureAwait(false);
+
+                if (ct.IsCancellationRequested) return;
+
+                // Build DataTable OFF UI THREAD
+                var dataTable = await Task.Run(() =>
+                {
+                    var dt = new DataTable();
+
+                    // Add columns (limit to prevent UI freeze with wide sheets)
+                    var mappedHeaders = new List<(string Original, string Display)>();
+                    var usedColumnNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+                    var limitedHeaders = sampleData.Headers.Take(PREVIEW_COL_LIMIT).ToList();
+                    for (var index = 0; index < limitedHeaders.Count; index++)
+                    {
+                        var original = limitedHeaders[index];
+                        var display = string.IsNullOrWhiteSpace(original)
+                            ? $"Column {index + 1}"
+                            : original.Trim();
+
+                        if (string.IsNullOrWhiteSpace(display))
+                        {
+                            display = $"Column {index + 1}";
+                        }
+
+                        var baseName = display;
+                        var suffix = 1;
+                        while (!usedColumnNames.Add(display))
+                        {
+                            display = $"{baseName}_{suffix++}";
+                        }
+
+                        dt.Columns.Add(display);
+                        mappedHeaders.Add((original, display));
+                    }
+
+                    // Add rows
+                    foreach (var row in sampleData.Rows)
+                    {
+                        var dataRow = dt.NewRow();
+                        foreach (var (Original, Display) in mappedHeaders)
+                        {
+                            if (!string.IsNullOrEmpty(Original) && row.TryGetValue(Original, out var value))
+                            {
+                                dataRow[Display] = value?.ToString() ?? string.Empty;
+                            }
+                            else
+                            {
+                                dataRow[Display] = string.Empty;
+                            }
+                        }
+                        dt.Rows.Add(dataRow);
+                    }
+
+                    return dt;
+                }, ct).ConfigureAwait(false);
+
+                if (ct.IsCancellationRequested) return;
+
+                // Update UI on UI thread
+                await Application.Current.Dispatcher.InvokeAsync(() =>
+                {
+                    _originalData = dataTable;
+                    PreviewData = _originalData;
+                    RowCount = sampleData.TotalRows;
+                    PreviewRowCount = Math.Min(PREVIEW_ROW_LIMIT, RowCount);
+                    ColumnCount = sampleData.Headers.Count;
+                    IsFileLoaded = true;
+                    IsDataEmpty = false;
+
+                    // Update shared session
+                    _appSession.LoadedFilePath = _currentFilePath;
+
+                    TestStatus = $"Loaded {RowCount:N0} rows, {ColumnCount} columns (showing first {PreviewRowCount})";
+
+                    // Update mapping status and statistics
+                    UpdateColumnMappingStatus();
+                    UpdateStatistics();
+                }, System.Windows.Threading.DispatcherPriority.Background);
+
+                // Apply transformation if profile is selected
+                if (_appSession.SelectedProfile != null)
+                {
+                    await ApplyTransformationAsync();
+                }
+            }
+            catch (Exception ex)
+            {
+                await Application.Current.Dispatcher.InvokeAsync(() =>
+                {
+                    TestStatus = $"Error: {ex.Message}";
+                });
+                await _dialogService.ShowMessageAsync("Error", $"Failed to load file: {ex.Message}");
+            }
+            finally
+            {
+                if (gateAcquired)
+                {
+                    _loadGate.Release();
+                }
+            }
         }
         finally
         {
-            _loadGate.Release();
+            currentCts.Dispose();
+            if (ReferenceEquals(_loadCts, currentCts))
+            {
+                _loadCts = null;
+            }
         }
     }
 
@@ -281,107 +300,126 @@ public partial class TestViewModel : ViewModelBase
 
         // Cancel any existing transform
         _transformCts?.Cancel();
-        _transformCts = new CancellationTokenSource();
-        var ct = _transformCts.Token;
 
-        // Try to acquire the transform gate
-        if (!await _transformGate.WaitAsync(0, ct))
-        {
-            TestStatus = "Transformation already in progress...";
-            return;
-        }
+        var currentCts = new CancellationTokenSource();
+        _transformCts = currentCts;
+        var ct = currentCts.Token;
+        var gateAcquired = false;
 
         try
         {
-            var original = _originalData;
-            var profile = _appSession.SelectedProfile;
-            if (original == null || profile == null)
+            // Try to acquire the transform gate
+            if (!await _transformGate.WaitAsync(0, ct))
             {
+                TestStatus = "Transformation already in progress...";
                 return;
             }
 
-            TestStatus = "Applying transformation...";
+            gateAcquired = true;
 
-            var transformed = await Task.Run(() =>
+            try
             {
-                // Create transformed DataTable off-thread
-                var dt = new DataTable();
-
-                // Map columns based on profile
-                var allMappings = profile.ContactMappings
-                    .Concat(profile.PropertyMappings)
-                    .Concat(profile.PhoneMappings)
-                    .Take(PREVIEW_COL_LIMIT) // Limit columns for preview
-                    .ToList();
-
-                // Add HubSpot columns
-                var addedColumns = new HashSet<string>();
-                foreach (var mapping in allMappings)
+                var original = _originalData;
+                var profile = _appSession.SelectedProfile;
+                if (original == null || profile == null)
                 {
-                    if (!string.IsNullOrWhiteSpace(mapping.HubSpotProperty) && !addedColumns.Contains(mapping.HubSpotProperty))
-                    {
-                        dt.Columns.Add(mapping.HubSpotProperty);
-                        addedColumns.Add(mapping.HubSpotProperty);
-                    }
+                    return;
                 }
 
-                // Add association type column
-                dt.Columns.Add("Association Type");
+                TestStatus = "Applying transformation...";
 
-                // Transform rows
-                foreach (DataRow originalRow in original.Rows)
+                var transformed = await Task.Run(() =>
                 {
-                    if (ct.IsCancellationRequested) return null;
+                    // Create transformed DataTable off-thread
+                    var dt = new DataTable();
 
-                    var transformedRow = dt.NewRow();
+                    // Map columns based on profile
+                    var allMappings = profile.ContactMappings
+                        .Concat(profile.PropertyMappings)
+                        .Concat(profile.PhoneMappings)
+                        .Where(m => !string.IsNullOrWhiteSpace(m.HubSpotProperty))
+                        .Take(PREVIEW_COL_LIMIT)
+                        .ToList();
 
+                    var addedColumns = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
                     foreach (var mapping in allMappings)
                     {
-                        if (original.Columns.Contains(mapping.SourceColumn) &&
-                            dt.Columns.Contains(mapping.HubSpotProperty))
+                        if (addedColumns.Add(mapping.HubSpotProperty))
                         {
-                            transformedRow[mapping.HubSpotProperty] = originalRow[mapping.SourceColumn];
+                            dt.Columns.Add(mapping.HubSpotProperty);
                         }
                     }
 
-                    // Set association type based on first matching mapping
-                    var firstMapping = allMappings.FirstOrDefault();
-                    if (firstMapping != null)
+                    dt.Columns.Add("Association Label");
+
+                    foreach (DataRow originalRow in original.Rows)
                     {
-                        transformedRow["Association Type"] = firstMapping.AssociationType;
+                        if (ct.IsCancellationRequested) return null;
+
+                        var transformedRow = dt.NewRow();
+
+                        string? associationLabel = null;
+                        foreach (var mapping in allMappings)
+                        {
+                            if (!original.Columns.Contains(mapping.SourceColumn) ||
+                                !dt.Columns.Contains(mapping.HubSpotProperty))
+                            {
+                                continue;
+                            }
+
+                            transformedRow[mapping.HubSpotProperty] = originalRow[mapping.SourceColumn];
+
+                            if (string.IsNullOrWhiteSpace(associationLabel) && !string.IsNullOrWhiteSpace(mapping.AssociationType))
+                            {
+                                associationLabel = mapping.AssociationType;
+                            }
+                        }
+
+                        transformedRow["Association Label"] = associationLabel ?? string.Empty;
+
+                        dt.Rows.Add(transformedRow);
                     }
 
-                    dt.Rows.Add(transformedRow);
+                    return dt;
+                }, ct);
+
+                if (!ct.IsCancellationRequested && transformed != null)
+                {
+                    // Update UI on UI thread
+                    await Application.Current.Dispatcher.InvokeAsync(() =>
+                    {
+                        _transformedData = transformed;
+                        TestStatus = $"Transformation complete - {profile.ContactMappings.Count + profile.PropertyMappings.Count + profile.PhoneMappings.Count} mappings applied";
+
+                        if (ShowTransformedData)
+                        {
+                            PreviewData = _transformedData;
+                        }
+                    }, System.Windows.Threading.DispatcherPriority.Background);
                 }
-
-                return dt;
-            }, ct);
-
-            if (!ct.IsCancellationRequested && transformed != null)
+            }
+            catch (Exception ex)
             {
-                // Update UI on UI thread
                 await Application.Current.Dispatcher.InvokeAsync(() =>
                 {
-                    _transformedData = transformed;
-                    TestStatus = $"Transformation complete - {profile.ContactMappings.Count + profile.PropertyMappings.Count + profile.PhoneMappings.Count} mappings applied";
-
-                    if (ShowTransformedData)
-                    {
-                        PreviewData = _transformedData;
-                    }
-                }, System.Windows.Threading.DispatcherPriority.Background);
+                    TestStatus = $"Transformation error: {ex.Message}";
+                });
             }
-        }
-        catch (Exception ex)
-        {
-            await Application.Current.Dispatcher.InvokeAsync(() =>
+            finally
             {
-                TestStatus = $"Transformation error: {ex.Message}";
-            });
+                if (gateAcquired)
+                {
+                    _transformGate.Release();
+                }
+            }
         }
         finally
         {
-            _transformGate.Release();
+            currentCts.Dispose();
+            if (ReferenceEquals(_transformCts, currentCts))
+            {
+                _transformCts = null;
+            }
         }
     }
 
