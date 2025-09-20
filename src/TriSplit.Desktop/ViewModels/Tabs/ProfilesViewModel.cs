@@ -234,18 +234,11 @@ public partial class ProfilesViewModel : ViewModelBase
             return;
 
         ClearBlockSelectionMarkers();
-
-        var endIndex = anchorIndex;
-        if (_blockClipboard.Count > 1)
-        {
-            endIndex = Math.Min(anchorIndex + _blockClipboard.Count - 1, FieldMappings.Count - 1);
-        }
-
-        LogBlockAction($"BeginBlockSelection: anchor={anchorIndex}, proposedEnd={endIndex}");
+        LogBlockAction($"BeginBlockSelection: anchor={anchorIndex}");
 
         _blockSelectionStartIndex = anchorIndex;
-        _blockSelectionEndIndex = endIndex;
-        ApplyBlockSelectionRange(anchorIndex, endIndex);
+        _blockSelectionEndIndex = anchorIndex;
+        ApplyBlockSelectionRange(anchorIndex, anchorIndex);
     }
 
     public void BeginBlockSelectionForPaste(int anchorIndex)
@@ -386,6 +379,13 @@ public partial class ProfilesViewModel : ViewModelBase
     [RelayCommand]
     private void PasteBlockSelection()
     {
+        if (_blockClipboard.Count == 0)
+        {
+            ProfileStatus = "Copy a block before pasting";
+            LogBlockAction("PasteBlockSelection aborted: clipboard empty");
+            return;
+        }
+
         var range = GetCurrentSelectionRange();
         if (range == null)
         {
@@ -394,47 +394,28 @@ public partial class ProfilesViewModel : ViewModelBase
             return;
         }
 
-        if (_blockClipboard.Count == 0)
-        {
-            ProfileStatus = "Copy a block before pasting";
-            LogBlockAction("PasteBlockSelection aborted: clipboard empty");
-            return;
-        }
+        var start = range.Value.Start;
+        LogBlockAction($"PasteBlockSelection requested: start={start}, clipboardRows={_blockClipboard.Count}");
 
-        var length = range.Value.End - range.Value.Start + 1;
-        LogBlockAction($"PasteBlockSelection requested: targetRange={range.Value.Start}-{range.Value.End}, clipboardRows={_blockClipboard.Count}");
-
-        if (length != _blockClipboard.Count)
+        for (int i = 0; i < _blockClipboard.Count; i++)
         {
-            var desiredEnd = range.Value.Start + _blockClipboard.Count - 1;
-            if (desiredEnd < FieldMappings.Count)
-            {
-                LogBlockAction($"PasteBlockSelection adjusting selection to {range.Value.Start}-{desiredEnd}");
-                ApplyBlockSelectionRange(range.Value.Start, desiredEnd);
-                range = (range.Value.Start, desiredEnd);
-                length = _blockClipboard.Count;
-            }
-            else
-            {
-                ProfileStatus = $"Copied {_blockClipboard.Count} row{(_blockClipboard.Count == 1 ? string.Empty : "s")}; select {_blockClipboard.Count} row{(_blockClipboard.Count == 1 ? string.Empty : "s")} to paste";
-                LogBlockAction("PasteBlockSelection aborted: length mismatch");
-                return;
-            }
-        }
-
-        for (int i = 0; i < length; i++)
-        {
-            var targetIndex = range.Value.Start + i;
-            var target = FieldMappings[targetIndex];
             var snapshot = _blockClipboard[i];
-            target.SourceField = snapshot.SourceField;
-            target.AssociationLabel = snapshot.AssociationLabel;
-            target.ObjectType = snapshot.ObjectType;
-            target.HubSpotHeader = snapshot.HubSpotHeader;
+            var clone = new FieldMappingViewModel
+            {
+                SourceField = snapshot.SourceField,
+                AssociationLabel = snapshot.AssociationLabel,
+                ObjectType = snapshot.ObjectType,
+                HubSpotHeader = snapshot.HubSpotHeader
+            };
+
+            FieldMappings.Insert(start + i, clone);
         }
+
+        var end = start + _blockClipboard.Count - 1;
+        ApplyBlockSelectionRange(start, end);
 
         UpdateMappingCount();
-        LogBlockAction($"PasteBlockSelection applied: range={range.Value.Start}-{range.Value.End}, rows={length}");
+        LogBlockAction($"PasteBlockSelection applied by insertion: range={start}-{end}, rows={_blockClipboard.Count}");
         ProfileStatus = $"Pasted {_blockClipboard.Count} row{(_blockClipboard.Count == 1 ? string.Empty : "s")}";
     }
 
@@ -448,7 +429,7 @@ public partial class ProfilesViewModel : ViewModelBase
 
     private void UpdatePasteAvailability()
     {
-        CanPasteBlock = HasBlockSelection && _blockClipboard.Count > 0 && BlockSelectionCount == _blockClipboard.Count;
+        CanPasteBlock = HasBlockSelection && _blockClipboard.Count > 0;
         LogBlockAction($"UpdatePasteAvailability: CanPasteBlock={CanPasteBlock}, HasSelection={HasBlockSelection}, ClipboardCount={_blockClipboard.Count}, SelectionCount={BlockSelectionCount}");
     }
 

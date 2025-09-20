@@ -266,7 +266,7 @@
                         <Setter Property="BorderBrush" Value="{StaticResource BorderBrush}"/>
                         <Style.Triggers>
                           <DataTrigger Binding="{Binding IsBlockSelected}" Value="True">
-                            <Setter Property="Background" Value="#FF153B63"/>
+                            <Setter Property="Background" Value="#FF265C8F"/>
                             <Setter Property="BorderBrush" Value="#FF4BA3FF"/>
                           </DataTrigger>
                         </Style.Triggers>
