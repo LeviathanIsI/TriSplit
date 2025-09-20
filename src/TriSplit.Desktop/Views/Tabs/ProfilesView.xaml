@@ -168,6 +168,7 @@
                   CornerRadius="4,4,0,0">
             <Grid Margin="15,12">
               <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="24"/>
                 <ColumnDefinition Width="*"/>
                 <ColumnDefinition Width="20"/>
                 <ColumnDefinition Width="*"/>
@@ -177,31 +178,31 @@
                 <ColumnDefinition Width="*"/>
                 <ColumnDefinition Width="60"/>
               </Grid.ColumnDefinitions>
-              <TextBlock Grid.Column="0"
+              <TextBlock Grid.Column="1"
                          Text="SOURCE DATA FIELD"
                          Foreground="{StaticResource AccentBrush}"
                          FontWeight="SemiBold"
                          FontSize="12"/>
 
-              <TextBlock Grid.Column="2"
-                         Text="ASSOCIATION LABEL"
+              <TextBlock Grid.Column="3"
+                         Text="ASSOCIATION LABEL / RELATIONSHIP"
                          Foreground="{StaticResource AccentBrush}"
                          FontWeight="SemiBold"
                          FontSize="12"/>
 
-              <TextBlock Grid.Column="4"
+              <TextBlock Grid.Column="5"
                          Text="OBJECT TYPE"
                          Foreground="{StaticResource AccentBrush}"
                          FontWeight="SemiBold"
                          FontSize="12"/>
 
-              <TextBlock Grid.Column="6"
+              <TextBlock Grid.Column="7"
                          Text="HUBSPOT HEADER"
                          Foreground="{StaticResource AccentBrush}"
                          FontWeight="SemiBold"
                          FontSize="12"/>
 
-              <TextBlock Grid.Column="7"
+              <TextBlock Grid.Column="8"
                          Text="ACTION"
                          Foreground="{StaticResource AccentBrush}"
                          FontWeight="SemiBold"
@@ -332,7 +333,7 @@
                         </TextBox.ToolTip>
                       </TextBox>
 
-                      <!-- Association Label -->
+                      <!-- ASSOCIATION LABEL / RELATIONSHIP -->
                       <ComboBox x:Name="AssociationCombo"
                                 Grid.Column="3"
                                 ItemsSource="{Binding DataContext.AssociationLabels, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
@@ -360,7 +361,7 @@
                               Background="Transparent"
                               CornerRadius="2"
                               Cursor="Hand"
-                              ToolTip="Click and drag to fill Association Label down"
+                              ToolTip="Click and drag to fill ASSOCIATION LABEL / RELATIONSHIP down"
                               behaviors:ComboBoxDragFillBehavior.HandleFor="{Binding ElementName=AssociationCombo}">
                         <Border.Style>
                           <Style TargetType="Border">
@@ -444,7 +445,18 @@
                       <ComboBox Grid.Column="7"
                                 ItemsSource="{Binding DataContext.HubSpotHeaders, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
                                 SelectedItem="{Binding HubSpotHeader}"
-                                VerticalAlignment="Center"/>
+                                VerticalAlignment="Center">
+                        <ComboBox.Style>
+                          <Style TargetType="ComboBox" BasedOn="{StaticResource {x:Type ComboBox}}">
+                            <Style.Triggers>
+                              <DataTrigger Binding="{Binding DataContext.IsBlockSelected, RelativeSource={RelativeSource AncestorType=Border}}" Value="True">
+                                <Setter Property="BorderBrush" Value="#FF4BA3FF"/>
+                                <Setter Property="BorderThickness" Value="2"/>
+                              </DataTrigger>
+                            </Style.Triggers>
+                          </Style>
+                        </ComboBox.Style>
+                      </ComboBox>
 
                       <!-- Remove Button -->
                       <Button Grid.Column="8"
@@ -515,7 +527,7 @@
       <Grid Margin="15,10">
         <Grid.ColumnDefinitions>
           <ColumnDefinition Width="*"/>
-          <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="Auto"/>
         </Grid.ColumnDefinitions>
 
         <StackPanel Grid.Column="0" Orientation="Horizontal">
