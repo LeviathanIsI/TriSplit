@@ -7,7 +7,9 @@ using System.Collections.Specialized;
 using System.ComponentModel;
 using System.Linq;
 using System.IO;
+using System.Threading.Tasks;
 using System.Windows.Input;
+using System.Windows.Threading;
 using TriSplit.Core.Interfaces;
 using TriSplit.Core.Models;
 using TriSplit.Desktop.Models;
@@ -23,6 +25,11 @@ public partial class ProfilesViewModel : ViewModelBase
 
     private readonly HashSet<FieldMappingViewModel> _trackedMappings = new();
     private bool _isUpdatingMappingState;
+    private bool _isLoadingProfile;
+    private readonly TimeSpan _autosaveDelay = TimeSpan.FromSeconds(5);
+    private DispatcherTimer? _autosaveTimer;
+    private bool _isAutosaving;
+    private int _remainingAutosaveTime;
 
 
 
@@ -56,6 +63,14 @@ public partial class ProfilesViewModel : ViewModelBase
     [ObservableProperty]
     private string _profileName = "New Data Profile";
 
+    partial void OnProfileNameChanged(string value)
+    {
+        if (_isLoadingProfile)
+            return;
+
+        MarkDirty();
+    }
+
     [ObservableProperty]
     private ObservableCollection<ProfileViewModel> _savedProfiles = new();
 
@@ -76,6 +91,12 @@ public partial class ProfilesViewModel : ViewModelBase
 
     [ObservableProperty]
     private string _duplicateWarning = string.Empty;
+
+    [ObservableProperty]
+    private bool _isDirty;
+
+    [ObservableProperty]
+    private string _autosaveStatus = string.Empty;
 
 
 
@@ -167,7 +188,9 @@ public partial class ProfilesViewModel : ViewModelBase
             MappingObjectTypes.Property
         };
 
+        _isLoadingProfile = true;
         InitializeMappings();
+        _isLoadingProfile = false;
         _ = LoadProfilesAsync();
     }
 
@@ -181,6 +204,83 @@ public partial class ProfilesViewModel : ViewModelBase
 
         UpdateMappingCount();
     }
+
+    private void MarkDirty()
+    {
+        if (_isUpdatingMappingState || _isLoadingProfile)
+            return;
+
+        if (!IsDirty)
+        {
+            IsDirty = true;
+        }
+
+        UpdateAutosaveStatus();
+        ScheduleAutosave();
+    }
+
+    private void ScheduleAutosave()
+    {
+        if (_isLoadingProfile || _isAutosaving)
+            return;
+
+        _autosaveTimer ??= new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
+
+        _autosaveTimer.Stop();
+        _autosaveTimer.Tick -= OnAutosaveTimerTick;
+        _autosaveTimer.Tick += OnAutosaveTimerTick;
+        _remainingAutosaveTime = (int)_autosaveDelay.TotalSeconds;
+        UpdateAutosaveStatus();
+        _autosaveTimer.Start();
+    }
+
+    private async void OnAutosaveTimerTick(object? sender, EventArgs e)
+    {
+        if (!IsDirty || SelectedProfile == null || _isAutosaving)
+        {
+            _autosaveTimer?.Stop();
+            UpdateAutosaveStatus(clearIfClean: true);
+            return;
+        }
+
+        _remainingAutosaveTime--;
+
+        if (_remainingAutosaveTime > 0)
+        {
+            UpdateAutosaveStatus();
+            return;
+        }
+
+        _autosaveTimer?.Stop();
+
+        _isAutosaving = true;
+        try
+        {
+            await SaveProfileInternalAsync(isAutoSave: true);
+        }
+        finally
+        {
+            _isAutosaving = false;
+        }
+    }
+
+private void UpdateAutosaveStatus(bool clearIfClean = false)
+{
+    if (!IsDirty)
+    {
+        AutosaveStatus = clearIfClean ? string.Empty : AutosaveStatus;
+        return;
+    }
+
+    if (_remainingAutosaveTime > 0)
+    {
+        AutosaveStatus = $"*Unsaved Changes* Auto-Saving in {_remainingAutosaveTime}...";
+    }
+    else if (_isAutosaving)
+    {
+        AutosaveStatus = "*Auto-Saving...*";
+    }
+}
 
     private void UpdateMappingCount()
     {
@@ -488,6 +588,10 @@ public partial class ProfilesViewModel : ViewModelBase
         }
 
         UpdateMappingCount();
+        if (!_isUpdatingMappingState && !_isLoadingProfile)
+        {
+            MarkDirty();
+        }
     }
 
     private void TrackMapping(FieldMappingViewModel mapping)
@@ -541,68 +645,48 @@ public partial class ProfilesViewModel : ViewModelBase
     [RelayCommand]
     private async Task SaveProfileAsync()
     {
+        await SaveProfileInternalAsync(isAutoSave: false);
+    }
+
+    private async Task SaveProfileInternalAsync(bool isAutoSave)
+    {
         if (string.IsNullOrWhiteSpace(ProfileName))
         {
-            await _dialogService.ShowMessageAsync("Error", "Please enter a data profile name");
+            if (!isAutoSave)
+            {
+                await _dialogService.ShowMessageAsync("Error", "Please enter a data profile name");
+            }
             return;
         }
 
         try
         {
-            // Check if we're updating an existing profile
-            Profile profile;
+            Profile? profile = null;
             bool isUpdate = false;
 
             if (SelectedProfile != null && SelectedProfile.Profile.Id != Guid.Empty)
             {
-                // Check if we're updating the currently selected profile (match by UUID)
-                var existingProfile = SavedProfiles.FirstOrDefault(p => p.Id == SelectedProfile.Id);
-                if (existingProfile != null)
-                {
-                    // We're updating the selected profile
-                    profile = existingProfile.Profile;
-                    profile.Name = ProfileName;
-                    profile.ContactMappings.Clear();
-                    profile.PropertyMappings.Clear();
-                    profile.PhoneMappings.Clear();
-                    isUpdate = true;
-                }
-                else
-                {
-                    // Selected profile not found, create a new one
-                    profile = new Profile
-                    {
-                        Id = Guid.NewGuid(),
-                        Name = ProfileName,
-                        ContactMappings = new List<FieldMapping>(),
-                        PropertyMappings = new List<FieldMapping>(),
-                        PhoneMappings = new List<FieldMapping>()
-                    };
-                }
+                profile = SelectedProfile.Profile;
+                isUpdate = true;
             }
-            else
+            else if (!isAutoSave)
             {
-                // No profile selected or empty ID, check if a profile with this name already exists
-                var existingProfile = SavedProfiles.FirstOrDefault(p => p.Name == ProfileName);
-                if (existingProfile != null)
+                var existingByName = SavedProfiles.FirstOrDefault(p => p.Name.Equals(ProfileName, StringComparison.OrdinalIgnoreCase));
+                if (existingByName != null)
                 {
-                    var result = await _dialogService.ShowConfirmationDialogAsync(
+                    var overwrite = await _dialogService.ShowConfirmationDialogAsync(
                         "Overwrite Data Profile",
                         $"A data profile named '{ProfileName}' already exists. Do you want to overwrite it?");
 
-                    if (!result)
+                    if (!overwrite)
                         return;
 
-                    profile = existingProfile.Profile;
-                    profile.Name = ProfileName;
-                    profile.ContactMappings.Clear();
-                    profile.PropertyMappings.Clear();
-                    profile.PhoneMappings.Clear();
+                    profile = existingByName.Profile;
+                    SelectedProfile = existingByName;
                     isUpdate = true;
                 }
                 else
                 {
-                    // Creating a new profile
                     profile = new Profile
                     {
                         Id = Guid.NewGuid(),
@@ -614,7 +698,21 @@ public partial class ProfilesViewModel : ViewModelBase
                 }
             }
 
-            // Save all mappings that have at least a source field
+            if (profile == null)
+            {
+                // Autosave only supports existing profiles
+                return;
+            }
+
+            profile.Name = ProfileName;
+            profile.ContactMappings ??= new List<FieldMapping>();
+            profile.PropertyMappings ??= new List<FieldMapping>();
+            profile.PhoneMappings ??= new List<FieldMapping>();
+
+            profile.ContactMappings.Clear();
+            profile.PropertyMappings.Clear();
+            profile.PhoneMappings.Clear();
+
             foreach (var mapping in FieldMappings.Where(m => !string.IsNullOrWhiteSpace(m.SourceField)))
             {
                 var association = mapping.AssociationLabel?.Trim();
@@ -634,7 +732,7 @@ public partial class ProfilesViewModel : ViewModelBase
                 var targetBucket = normalizedObjectType;
                 if (string.IsNullOrEmpty(targetBucket))
                 {
-                    if (!string.IsNullOrWhiteSpace(association) && association.Equals("Mailing Address", System.StringComparison.OrdinalIgnoreCase))
+                    if (!string.IsNullOrWhiteSpace(association) && association.Equals("Mailing Address", StringComparison.OrdinalIgnoreCase))
                     {
                         targetBucket = MappingObjectTypes.Property;
                     }
@@ -658,24 +756,39 @@ public partial class ProfilesViewModel : ViewModelBase
                 }
             }
 
-
-            // Log for debugging
             var totalMappings = profile.ContactMappings.Count + profile.PropertyMappings.Count + profile.PhoneMappings.Count;
 
             await _profileStore.SaveProfileAsync(profile);
-            await LoadProfilesAsync();
 
-            // Select the saved profile in the list
-            SelectedProfile = SavedProfiles.FirstOrDefault(p => p.Id == profile.Id);
+            if (!isAutoSave)
+            {
+                await LoadProfilesAsync();
+                SelectedProfile = SavedProfiles.FirstOrDefault(p => p.Id == profile.Id);
+                ProfileStatus = isUpdate
+                    ? $"Data profile '{ProfileName}' updated with {totalMappings} mappings"
+                    : $"Data profile '{ProfileName}' saved with {totalMappings} mappings";
+                AutosaveStatus = "*Changes Saved*";
+            }
+            else
+            {
+                ProfileStatus = $"Autosaved '{profile.Name}' at {DateTime.Now:t}";
+                AutosaveStatus = "*Auto-Saved*";
+            }
 
-            ProfileStatus = isUpdate
-                ? $"Data profile '{ProfileName}' updated with {totalMappings} mappings"
-                : $"Data profile '{ProfileName}' saved with {totalMappings} mappings";
             _appSession.SelectedProfile = profile;
+            _autosaveTimer?.Stop();
+            IsDirty = false;
         }
         catch (Exception ex)
         {
-            ProfileStatus = $"Error saving data profile: {ex.Message}";
+            if (!isAutoSave)
+            {
+                ProfileStatus = $"Error saving data profile: {ex.Message}";
+            }
+            else
+            {
+                AutosaveStatus = $"Autosave failed: {ex.Message}";
+            }
         }
     }
 
@@ -690,6 +803,7 @@ public partial class ProfilesViewModel : ViewModelBase
 
         try
         {
+            _isLoadingProfile = true;
             var profile = SelectedProfile.Profile;
             ProfileName = profile.Name;
 
@@ -747,10 +861,17 @@ public partial class ProfilesViewModel : ViewModelBase
             UpdateMappingCount();
             ProfileStatus = $"Data profile '{profile.Name}' loaded";
             _appSession.SelectedProfile = profile;
+            IsDirty = false;
+            _autosaveTimer?.Stop();
+            AutosaveStatus = string.Empty;
         }
         catch (Exception ex)
         {
             ProfileStatus = $"Error loading data profile: {ex.Message}";
+        }
+        finally
+        {
+            _isLoadingProfile = false;
         }
     }
 
@@ -759,6 +880,7 @@ public partial class ProfilesViewModel : ViewModelBase
     {
         FieldMappings.Add(new FieldMappingViewModel());
         UpdateMappingCount();
+        MarkDirty();
     }
 
     [RelayCommand]
@@ -768,22 +890,33 @@ public partial class ProfilesViewModel : ViewModelBase
         {
             FieldMappings.Remove(mapping);
             UpdateMappingCount();
+            MarkDirty();
         }
     }
 
     [RelayCommand]
     private void ClearMappings()
     {
+        _isLoadingProfile = true;
         FieldMappings.Clear();
         InitializeMappings();
+        _isLoadingProfile = false;
+        MarkDirty();
+        AutosaveStatus = "*Unsaved Changes*";
     }
 
     [RelayCommand]
     private void NewProfile()
     {
+        _isLoadingProfile = true;
         ProfileName = "New Data Profile";
         SelectedProfile = null;
-        ClearMappings();
+        FieldMappings.Clear();
+        InitializeMappings();
+        _isLoadingProfile = false;
+        IsDirty = false;
+        _autosaveTimer?.Stop();
+        AutosaveStatus = string.Empty;
         ProfileStatus = "Creating new data profile";
     }
 
@@ -962,12 +1095,21 @@ public partial class ProfilesViewModel : ViewModelBase
 
     private void OnMappingPropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
-        if (_isUpdatingMappingState)
+        if (_isUpdatingMappingState || _isLoadingProfile)
             return;
 
-        if (e.PropertyName == nameof(FieldMappingViewModel.SourceField) || string.IsNullOrEmpty(e.PropertyName))
+        if (string.IsNullOrEmpty(e.PropertyName) || e.PropertyName == nameof(FieldMappingViewModel.SourceField))
         {
             UpdateMappingCount();
+        }
+
+        if (string.IsNullOrEmpty(e.PropertyName) ||
+            e.PropertyName == nameof(FieldMappingViewModel.SourceField) ||
+            e.PropertyName == nameof(FieldMappingViewModel.AssociationLabel) ||
+            e.PropertyName == nameof(FieldMappingViewModel.ObjectType) ||
+            e.PropertyName == nameof(FieldMappingViewModel.HubSpotHeader))
+        {
+            MarkDirty();
         }
     }
 

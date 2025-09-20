@@ -1,6 +1,7 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using System.Collections.ObjectModel;
+using System.ComponentModel;
 using TriSplit.Desktop.Services;
 using TriSplit.Desktop.ViewModels.Tabs;
 
@@ -31,6 +32,9 @@ public partial class MainWindowViewModel : ViewModelBase
     [ObservableProperty]
     private string _processingStatus = string.Empty;
 
+    [ObservableProperty]
+    private string _profilesTabHeader = "DATA PROFILES";
+
     public ViewModels.Tabs.ProfilesViewModel ProfilesViewModel { get; }
     public TestViewModel TestViewModel { get; }
     public ProcessingViewModel ProcessingViewModel { get; }
@@ -54,6 +58,9 @@ public partial class MainWindowViewModel : ViewModelBase
                 ActiveProfileName = _appSession.SelectedProfile?.Name ?? "No data profile selected";
             }
         };
+
+        ProfilesViewModel.PropertyChanged += ProfilesViewModelOnPropertyChanged;
+        UpdateProfilesTabHeader();
     }
 
     partial void OnSelectedTabIndexChanged(int value)
@@ -74,5 +81,18 @@ public partial class MainWindowViewModel : ViewModelBase
         {
             SelectedTabIndex = tabIndex;
         }
+    }
+
+    private void ProfilesViewModelOnPropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(ProfilesViewModel.IsDirty))
+        {
+            UpdateProfilesTabHeader();
+        }
+    }
+
+    private void UpdateProfilesTabHeader()
+    {
+        ProfilesTabHeader = ProfilesViewModel.IsDirty ? "DATA PROFILES*" : "DATA PROFILES";
     }
 }

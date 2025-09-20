@@ -90,7 +90,7 @@
       </TabControl.Template>
 
       <!-- Profiles Tab -->
-      <TabItem Header="DATA PROFILES">
+      <TabItem Header="{Binding ProfilesTabHeader}">
         <views:ProfilesView DataContext="{Binding ProfilesViewModel}"/>
       </TabItem>
 
