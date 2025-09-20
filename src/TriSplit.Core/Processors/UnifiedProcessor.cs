@@ -11,6 +11,7 @@ using CsvHelper;
 using CsvHelper.Configuration;
 using TriSplit.Core.Interfaces;
 using TriSplit.Core.Models;
+using TriSplit.Core.Transforms;
 
 namespace TriSplit.Core.Processors;
 
@@ -1100,7 +1101,16 @@ public class UnifiedProcessor
         if (string.IsNullOrEmpty(value))
             return value;
 
-        if (transform == null || string.IsNullOrWhiteSpace(transform.Type))
+        if (transform == null)
+            return value;
+
+        var builtInKey = BuiltInTransforms.ResolveKey(transform);
+        if (!string.IsNullOrWhiteSpace(builtInKey) && BuiltInTransforms.TryApply(builtInKey, value, out var builtInResult))
+        {
+            return builtInResult;
+        }
+
+        if (string.IsNullOrWhiteSpace(transform.Type))
             return value;
 
         switch (transform.Type.ToLowerInvariant())

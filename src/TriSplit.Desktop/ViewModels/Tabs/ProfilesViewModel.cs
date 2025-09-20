@@ -10,6 +10,7 @@ using System.IO;
 using System.Windows.Input;
 using TriSplit.Core.Interfaces;
 using TriSplit.Core.Models;
+using TriSplit.Core.Transforms;
 using TriSplit.Desktop.Models;
 using TriSplit.Desktop.Services;
 
@@ -182,6 +183,23 @@ public partial class ProfilesViewModel : ViewModelBase
         UpdateMappingCount();
     }
 
+    private static FieldMappingViewModel CreateFieldMappingViewModel(FieldMapping mapping)
+    {
+        var viewModel = new FieldMappingViewModel
+        {
+            SourceField = mapping.SourceColumn,
+            AssociationLabel = mapping.AssociationType,
+            HubSpotHeader = mapping.HubSpotProperty,
+            ObjectType = string.IsNullOrWhiteSpace(mapping.ObjectType)
+                ? string.Empty
+                : MappingObjectTypes.Normalize(mapping.ObjectType)
+        };
+
+        viewModel.ApplyTransforms(mapping.Transforms);
+
+        return viewModel;
+    }
+
     private void UpdateMappingCount()
     {
         if (_isUpdatingMappingState)
@@ -191,42 +209,105 @@ public partial class ProfilesViewModel : ViewModelBase
         try
         {
             var populatedMappings = FieldMappings
-            .Where(m => !string.IsNullOrWhiteSpace(m.SourceField))
-            .Select(m => new { Mapping = m, Key = m.SourceField!.Trim() })
-            .ToList();
+                .Where(m => !string.IsNullOrWhiteSpace(m.SourceField))
+                .ToList();
 
-        var count = populatedMappings.Count;
-        MappingCount = $"{count} mapping{(count == 1 ? string.Empty : "s")} configured";
+            var count = populatedMappings.Count;
+            MappingCount = $"{count} mapping{(count == 1 ? string.Empty : "s")} configured";
 
-        foreach (var mapping in FieldMappings)
-        {
-            mapping.IsDuplicate = false;
+            foreach (var mapping in FieldMappings)
+            {
+                mapping.IsDuplicate = false;
+            }
+
+            var duplicateCandidates = populatedMappings
+                .Select(CreateDuplicateCandidate)
+                .ToList();
+
+            var duplicateGroups = duplicateCandidates
+                .GroupBy(candidate => (candidate.SourceKey, candidate.ObjectTypeKey, candidate.AssociationKey))
+                .Where(group => group.Count() > 1)
+                .ToList();
+
+            var duplicates = duplicateGroups
+                .SelectMany(group => group.Select(candidate => candidate.Mapping))
+                .ToHashSet();
+
+            foreach (var mapping in duplicates)
+            {
+                mapping.IsDuplicate = true;
+            }
+
+            HasDuplicateMappings = duplicateGroups.Count > 0;
+            DuplicateWarning = HasDuplicateMappings
+                ? BuildDuplicateWarning(duplicateGroups)
+                : string.Empty;
         }
-
-        var duplicateGroups = populatedMappings
-            .GroupBy(x => x.Key, StringComparer.OrdinalIgnoreCase)
-            .Where(g => g.Count() > 1)
-            .ToList();
-
-        var duplicates = duplicateGroups
-            .SelectMany(g => g.Select(x => x.Mapping))
-            .ToHashSet();
-
-        foreach (var mapping in duplicates)
+        finally
         {
-            mapping.IsDuplicate = true;
+            _isUpdatingMappingState = false;
         }
-
-        HasDuplicateMappings = duplicateGroups.Count > 0;
-        DuplicateWarning = HasDuplicateMappings
-            ? $"Duplicate source columns: {string.Join(", ", duplicateGroups.Select(g => g.Key).OrderBy(name => name, StringComparer.OrdinalIgnoreCase))}"
-            : string.Empty;
     }
-    finally
+
+    private static DuplicateMappingCandidate CreateDuplicateCandidate(FieldMappingViewModel mapping)
     {
-        _isUpdatingMappingState = false;
+        var sourceDisplay = mapping.SourceField!.Trim();
+        var objectTypeDisplay = string.IsNullOrWhiteSpace(mapping.ObjectType)
+            ? MappingObjectTypes.Contact
+            : MappingObjectTypes.Normalize(mapping.ObjectType);
+        var associationDisplay = string.IsNullOrWhiteSpace(mapping.AssociationLabel)
+            ? string.Empty
+            : mapping.AssociationLabel.Trim();
+
+        return new DuplicateMappingCandidate(
+            mapping,
+            sourceDisplay,
+            NormalizeKey(sourceDisplay),
+            objectTypeDisplay,
+            NormalizeKey(objectTypeDisplay),
+            associationDisplay,
+            NormalizeKey(associationDisplay));
     }
-}
+
+    private static string BuildDuplicateWarning(IEnumerable<IGrouping<(string SourceKey, string ObjectTypeKey, string AssociationKey), DuplicateMappingCandidate>> groups)
+    {
+        var formatted = groups.Select(FormatDuplicateGroup);
+        return $"Duplicate source reuse for same object context: {string.Join(", ", formatted)}";
+    }
+
+    private static string FormatDuplicateGroup(IGrouping<(string SourceKey, string ObjectTypeKey, string AssociationKey), DuplicateMappingCandidate> group)
+    {
+        var sample = group.First();
+        var contextParts = new List<string>();
+
+        if (!string.IsNullOrEmpty(sample.ObjectTypeDisplay))
+        {
+            contextParts.Add(sample.ObjectTypeDisplay);
+        }
+
+        if (!string.IsNullOrEmpty(sample.AssociationDisplay))
+        {
+            contextParts.Add(sample.AssociationDisplay);
+        }
+
+        var contextSuffix = contextParts.Count > 0
+            ? $" ({string.Join(" / ", contextParts)})"
+            : string.Empty;
+
+        return $"{sample.SourceDisplay}{contextSuffix}";
+    }
+
+    private static string NormalizeKey(string? value) =>
+        string.IsNullOrWhiteSpace(value) ? string.Empty : value.Trim().ToUpperInvariant();
+
+    private sealed record DuplicateMappingCandidate(
+        FieldMappingViewModel Mapping,
+        string SourceDisplay,
+        string SourceKey,
+        string ObjectTypeDisplay,
+        string ObjectTypeKey,
+        string AssociationDisplay,
+        string AssociationKey);
 
     public void BeginBlockSelection(int anchorIndex)
     {
@@ -359,11 +440,12 @@ public partial class ProfilesViewModel : ViewModelBase
         for (int i = range.Value.Start; i <= range.Value.End; i++)
         {
             var mapping = FieldMappings[i];
-            _blockClipboard.Add(new MappingBlockSnapshot(
-                mapping.SourceField ?? string.Empty,
-                mapping.AssociationLabel ?? string.Empty,
-                mapping.ObjectType ?? string.Empty,
-                mapping.HubSpotHeader ?? string.Empty));
+        _blockClipboard.Add(new MappingBlockSnapshot(
+            mapping.SourceField ?? string.Empty,
+            mapping.AssociationLabel ?? string.Empty,
+            mapping.ObjectType ?? string.Empty,
+            mapping.HubSpotHeader ?? string.Empty,
+            mapping.GetSelectedTransformKeys().ToList()));
         }
 
         HasBlockClipboard = _blockClipboard.Count > 0;
@@ -407,6 +489,8 @@ public partial class ProfilesViewModel : ViewModelBase
                 ObjectType = snapshot.ObjectType,
                 HubSpotHeader = snapshot.HubSpotHeader
             };
+
+            clone.SetSelectedTransformKeys(snapshot.TransformKeys);
 
             FieldMappings.Insert(start + i, clone);
         }
@@ -455,7 +539,7 @@ public partial class ProfilesViewModel : ViewModelBase
     }
 #endif
 
-    private sealed record MappingBlockSnapshot(string SourceField, string AssociationLabel, string ObjectType, string HubSpotHeader);
+    private sealed record MappingBlockSnapshot(string SourceField, string AssociationLabel, string ObjectType, string HubSpotHeader, IReadOnlyList<string> TransformKeys);
 
     private void OnFieldMappingsCollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)
     {
@@ -631,6 +715,12 @@ public partial class ProfilesViewModel : ViewModelBase
                     ObjectType = normalizedObjectType
                 };
 
+                var selectedTransforms = mapping.BuildTransformModels();
+                if (selectedTransforms.Count > 0)
+                {
+                    fieldMapping.Transforms = selectedTransforms.ToList();
+                }
+
                 var targetBucket = normalizedObjectType;
                 if (string.IsNullOrEmpty(targetBucket))
                 {
@@ -698,44 +788,20 @@ public partial class ProfilesViewModel : ViewModelBase
             // Load Contact mappings
             foreach (var mapping in profile.ContactMappings)
             {
-                FieldMappings.Add(new FieldMappingViewModel
-                {
-                    SourceField = mapping.SourceColumn,
-                    AssociationLabel = mapping.AssociationType,
-                    HubSpotHeader = mapping.HubSpotProperty,
-                    ObjectType = string.IsNullOrWhiteSpace(mapping.ObjectType)
-                        ? string.Empty
-                        : MappingObjectTypes.Normalize(mapping.ObjectType)
-                });
+                FieldMappings.Add(CreateFieldMappingViewModel(mapping));
             }
 
             // Load Property mappings
             foreach (var mapping in profile.PropertyMappings)
             {
-                FieldMappings.Add(new FieldMappingViewModel
-                {
-                    SourceField = mapping.SourceColumn,
-                    AssociationLabel = mapping.AssociationType,
-                    HubSpotHeader = mapping.HubSpotProperty,
-                    ObjectType = string.IsNullOrWhiteSpace(mapping.ObjectType)
-                        ? string.Empty
-                        : MappingObjectTypes.Normalize(mapping.ObjectType)
-                });
+                FieldMappings.Add(CreateFieldMappingViewModel(mapping));
             }
 
 
             // Load Phone mappings (if any exist for backward compatibility)
             foreach (var mapping in profile.PhoneMappings)
             {
-                FieldMappings.Add(new FieldMappingViewModel
-                {
-                    SourceField = mapping.SourceColumn,
-                    AssociationLabel = mapping.AssociationType,
-                    HubSpotHeader = mapping.HubSpotProperty,
-                    ObjectType = string.IsNullOrWhiteSpace(mapping.ObjectType)
-                        ? string.Empty
-                        : MappingObjectTypes.Normalize(mapping.ObjectType)
-                });
+                FieldMappings.Add(CreateFieldMappingViewModel(mapping));
             }
 
             // Add a few empty rows for new mappings
@@ -900,45 +966,21 @@ public partial class ProfilesViewModel : ViewModelBase
             // Load Contact mappings
             foreach (var mapping in profile.ContactMappings)
             {
-                FieldMappings.Add(new FieldMappingViewModel
-                {
-                    SourceField = mapping.SourceColumn,
-                    AssociationLabel = mapping.AssociationType,
-                    HubSpotHeader = mapping.HubSpotProperty,
-                    ObjectType = string.IsNullOrWhiteSpace(mapping.ObjectType)
-                        ? string.Empty
-                        : MappingObjectTypes.Normalize(mapping.ObjectType)
-                });
+                FieldMappings.Add(CreateFieldMappingViewModel(mapping));
                 loadedMappings++;
             }
 
             // Load Property mappings
             foreach (var mapping in profile.PropertyMappings)
             {
-                FieldMappings.Add(new FieldMappingViewModel
-                {
-                    SourceField = mapping.SourceColumn,
-                    AssociationLabel = mapping.AssociationType,
-                    HubSpotHeader = mapping.HubSpotProperty,
-                    ObjectType = string.IsNullOrWhiteSpace(mapping.ObjectType)
-                        ? string.Empty
-                        : MappingObjectTypes.Normalize(mapping.ObjectType)
-                });
+                FieldMappings.Add(CreateFieldMappingViewModel(mapping));
                 loadedMappings++;
             }
 
             // Load Phone mappings (if any exist for backward compatibility)
             foreach (var mapping in profile.PhoneMappings)
             {
-                FieldMappings.Add(new FieldMappingViewModel
-                {
-                    SourceField = mapping.SourceColumn,
-                    AssociationLabel = mapping.AssociationType,
-                    HubSpotHeader = mapping.HubSpotProperty,
-                    ObjectType = string.IsNullOrWhiteSpace(mapping.ObjectType)
-                        ? string.Empty
-                        : MappingObjectTypes.Normalize(mapping.ObjectType)
-                });
+                FieldMappings.Add(CreateFieldMappingViewModel(mapping));
                 loadedMappings++;
             }
 
@@ -1011,6 +1053,12 @@ public partial class ProfileViewModel : ObservableObject
 
 public partial class FieldMappingViewModel : ObservableObject
 {
+    public FieldMappingViewModel()
+    {
+        TransformOptions = new ObservableCollection<TransformOptionViewModel>(
+            BuiltInTransforms.Definitions.Select(definition => new TransformOptionViewModel(definition)));
+    }
+
     [ObservableProperty]
     private string _sourceField = string.Empty;
 
@@ -1028,5 +1076,60 @@ public partial class FieldMappingViewModel : ObservableObject
 
     [ObservableProperty]
     private bool _isBlockSelected;
+
+    public ObservableCollection<TransformOptionViewModel> TransformOptions { get; }
+
+    public IReadOnlyList<string> GetSelectedTransformKeys()
+    {
+        return TransformOptions
+            .Where(option => option.IsSelected)
+            .Select(option => option.Key)
+            .ToList();
+    }
+
+    public IReadOnlyList<Transform> BuildTransformModels()
+    {
+        return GetSelectedTransformKeys()
+            .Select(BuiltInTransforms.CreateTransform)
+            .ToList();
+    }
+
+    public void SetSelectedTransformKeys(IEnumerable<string> keys)
+    {
+        var keySet = new HashSet<string>(keys ?? Enumerable.Empty<string>(), StringComparer.OrdinalIgnoreCase);
+
+        foreach (var option in TransformOptions)
+        {
+            option.IsSelected = keySet.Contains(option.Key);
+        }
+    }
+
+    public void ApplyTransforms(IEnumerable<Transform>? transforms)
+    {
+        var keys = transforms?
+            .Select(BuiltInTransforms.ResolveKey)
+            .Where(key => !string.IsNullOrWhiteSpace(key))
+            .Select(key => key!)
+            .ToList() ?? new List<string>();
+
+        SetSelectedTransformKeys(keys);
+    }
+}
+
+public partial class TransformOptionViewModel : ObservableObject
+{
+    public TransformOptionViewModel(BuiltInTransformDefinition definition)
+    {
+        Definition = definition;
+    }
+
+    public BuiltInTransformDefinition Definition { get; }
+
+    public string Key => Definition.Key;
+    public string DisplayName => Definition.DisplayName;
+    public string Description => Definition.Description;
+
+    [ObservableProperty]
+    private bool _isSelected;
 }
 

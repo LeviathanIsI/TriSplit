@@ -35,9 +35,10 @@ public class FieldMapping
 
 public class Transform
 {
-    public string Type { get; set; } = string.Empty; // "regex", "format", "normalize"
+    public string Type { get; set; } = string.Empty; // "regex", "format", "normalize", "builtin"
     public string Pattern { get; set; } = string.Empty;
     public string Replacement { get; set; } = string.Empty;
+    public string Key { get; set; } = string.Empty;
     public Dictionary<string, string> Options { get; set; } = new();
 }
 
