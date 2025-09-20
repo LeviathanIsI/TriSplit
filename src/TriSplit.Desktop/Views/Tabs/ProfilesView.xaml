@@ -3,9 +3,15 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:behaviors="clr-namespace:TriSplit.Desktop.Behaviors"
              mc:Ignorable="d"
              d:DesignHeight="800" d:DesignWidth="1400"
              Background="{StaticResource BackgroundBrush}">
+
+
+  <UserControl.Resources>
+    <BooleanToVisibilityConverter x:Key="BoolToVisibilityConverter"/>
+  </UserControl.Resources>
 
   <Grid Margin="20">
     <Grid.RowDefinitions>
@@ -171,7 +177,6 @@
                 <ColumnDefinition Width="*"/>
                 <ColumnDefinition Width="60"/>
               </Grid.ColumnDefinitions>
-
               <TextBlock Grid.Column="0"
                          Text="SOURCE DATA FIELD"
                          Foreground="{StaticResource AccentBrush}"
@@ -205,12 +210,48 @@
             </Grid>
           </Border>
 
-          <!-- Mapping Rows -->
-          <ScrollViewer Grid.Row="1"
-                        VerticalScrollBarVisibility="Auto"
-                        HorizontalScrollBarVisibility="Hidden">
-            <ItemsControl ItemsSource="{Binding FieldMappings}"
-                          Margin="15">
+          <Grid Grid.Row="1">
+            <Grid.RowDefinitions>
+              <RowDefinition Height="Auto"/>
+              <RowDefinition Height="*"/>
+            </Grid.RowDefinitions>
+
+            <!-- Selection Actions -->
+            <Border Grid.Row="0"
+                    Margin="15,0,15,10"
+                    Visibility="{Binding HasBlockSelection, Converter={StaticResource BoolToVisibilityConverter}}"
+                    Background="#10293F"
+                    BorderBrush="#FF4BA3FF"
+                    BorderThickness="1"
+                    CornerRadius="4"
+                    Padding="10">
+              <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                <TextBlock Text="{Binding BlockSelectionSummary}"
+                           Foreground="{StaticResource AccentBrush}"
+                           FontWeight="SemiBold"
+                           VerticalAlignment="Center"
+                           Margin="0,0,12,0"/>
+                <Button Content="Copy Block"
+                        Command="{Binding CopyBlockSelectionCommand}"
+                        Style="{StaticResource PrimaryButton}"
+                        Margin="0,0,8,0"/>
+                <Button Content="Paste Block"
+                        Command="{Binding PasteBlockSelectionCommand}"
+                        IsEnabled="{Binding CanPasteBlock}"
+                        Style="{StaticResource SecondaryButton}"
+                        Margin="0,0,8,0"/>
+                <Button Content="Clear Selection"
+                        Command="{Binding ClearBlockSelectionCommand}"
+                        Style="{StaticResource SecondaryButton}"/>
+              </StackPanel>
+            </Border>
+
+            <!-- Mapping Rows -->
+            <ScrollViewer Grid.Row="1"
+                          VerticalScrollBarVisibility="Auto"
+                          HorizontalScrollBarVisibility="Hidden">
+              <ItemsControl ItemsSource="{Binding FieldMappings}"
+                            Margin="15">
               <ItemsControl.ItemTemplate>
                 <DataTemplate>
                   <Border Margin="0,0,0,10"
@@ -219,8 +260,21 @@
                           BorderThickness="1"
                           CornerRadius="4"
                           Padding="10">
+                    <Border.Style>
+                      <Style TargetType="Border">
+                        <Setter Property="Background" Value="{StaticResource BackgroundBrush}"/>
+                        <Setter Property="BorderBrush" Value="{StaticResource BorderBrush}"/>
+                        <Style.Triggers>
+                          <DataTrigger Binding="{Binding IsBlockSelected}" Value="True">
+                            <Setter Property="Background" Value="#FF153B63"/>
+                            <Setter Property="BorderBrush" Value="#FF4BA3FF"/>
+                          </DataTrigger>
+                        </Style.Triggers>
+                      </Style>
+                    </Border.Style>
                     <Grid>
                       <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="24"/>
                         <ColumnDefinition Width="*"/>
                         <ColumnDefinition Width="20"/>
                         <ColumnDefinition Width="*"/>
@@ -231,39 +285,153 @@
                         <ColumnDefinition Width="60"/>
                       </Grid.ColumnDefinitions>
 
+                      <Border Grid.Column="0"
+                              HorizontalAlignment="Center"
+                              VerticalAlignment="Center"
+                              behaviors:BlockSelectionBehavior.Enable="True">
+                        <Ellipse Width="10" Height="10">
+                          <Ellipse.Style>
+                            <Style TargetType="Ellipse">
+                              <Setter Property="Fill" Value="{StaticResource SecondaryTextBrush}"/>
+                              <Style.Triggers>
+                                <DataTrigger Binding="{Binding IsBlockSelected}" Value="True">
+                                  <Setter Property="Fill" Value="#FF4BA3FF"/>
+                                </DataTrigger>
+                              </Style.Triggers>
+                            </Style>
+                          </Ellipse.Style>
+                        </Ellipse>
+                      </Border>
+
                       <!-- Source Data Field -->
-                      <TextBox Grid.Column="0"
+                      <TextBox Grid.Column="1"
                                Text="{Binding SourceField}"
-                               VerticalAlignment="Center">
+                               VerticalAlignment="Center"
+                               Margin="0">
+                        <TextBox.Style>
+                          <Style TargetType="TextBox" BasedOn="{StaticResource {x:Type TextBox}}">
+                            <Style.Triggers>
+                              <DataTrigger Binding="{Binding IsDuplicate}" Value="True">
+                                <Setter Property="BorderBrush" Value="#FF4C61"/>
+                                <Setter Property="BorderThickness" Value="2"/>
+                              </DataTrigger>
+                            </Style.Triggers>
+                          </Style>
+                        </TextBox.Style>
                         <TextBox.ToolTip>
                           <ToolTip Background="{StaticResource SurfaceBrush}"
                                    BorderBrush="{StaticResource AccentBrush}">
-                            <TextBlock Text="Enter the source column name from your CSV/Excel file"
-                                       Foreground="{StaticResource TextBrush}"/>
+                            <StackPanel>
+                              <TextBlock Text="Enter the source column name from your CSV/Excel file"
+                                         Foreground="{StaticResource TextBrush}"/>
+                              <TextBlock Text="Duplicate source column"
+                                         Foreground="#FF4C61"
+                                         Visibility="{Binding IsDuplicate, Converter={StaticResource BoolToVisibilityConverter}}"/>
+                            </StackPanel>
                           </ToolTip>
                         </TextBox.ToolTip>
                       </TextBox>
 
                       <!-- Association Label -->
-                      <ComboBox Grid.Column="2"
+                      <ComboBox x:Name="AssociationCombo"
+                                Grid.Column="3"
                                 ItemsSource="{Binding DataContext.AssociationLabels, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
                                 SelectedItem="{Binding AssociationLabel}"
-                                VerticalAlignment="Center"/>
+                                behaviors:ComboBoxDragFillBehavior.FillPropertyName="AssociationLabel"
+                                VerticalAlignment="Center">
+                        <ComboBox.Style>
+                          <Style TargetType="ComboBox" BasedOn="{StaticResource {x:Type ComboBox}}">
+                            <Style.Triggers>
+                              <Trigger Property="behaviors:ComboBoxDragFillBehavior.IsDragHighlighted" Value="True">
+                                <Setter Property="BorderBrush" Value="{StaticResource AccentBrush}"/>
+                                <Setter Property="BorderThickness" Value="2"/>
+                              </Trigger>
+                            </Style.Triggers>
+                          </Style>
+                        </ComboBox.Style>
+                      </ComboBox>
+
+                      <Border Grid.Column="4"
+                              Width="20"
+                              Background="Transparent"
+                              CornerRadius="2"
+                              Cursor="Hand"
+                              ToolTip="Click and drag to fill Association Label down"
+                              behaviors:ComboBoxDragFillBehavior.HandleFor="{Binding ElementName=AssociationCombo}">
+                        <Border.Style>
+                          <Style TargetType="Border">
+                            <Setter Property="Background" Value="Transparent"/>
+                            <Setter Property="CornerRadius" Value="2"/>
+                            <Style.Triggers>
+                              <Trigger Property="behaviors:ComboBoxDragFillBehavior.IsDragHighlighted" Value="True">
+                                <Setter Property="Background" Value="{StaticResource AccentBrush}"/>
+                              </Trigger>
+                            </Style.Triggers>
+                          </Style>
+                        </Border.Style>
+                        <StackPanel Orientation="Vertical"
+                                    HorizontalAlignment="Center"
+                                    VerticalAlignment="Center">
+                          <Rectangle Width="4" Height="2" Fill="{StaticResource SecondaryTextBrush}" Margin="0,1"/>
+                          <Rectangle Width="4" Height="2" Fill="{StaticResource SecondaryTextBrush}" Margin="0,1"/>
+                          <Rectangle Width="4" Height="2" Fill="{StaticResource SecondaryTextBrush}" Margin="0,1"/>
+                        </StackPanel>
+                      </Border>
 
                       <!-- Object Type -->
-                      <ComboBox Grid.Column="4"
+                      <ComboBox x:Name="ObjectTypeCombo"
+                                Grid.Column="5"
                                 ItemsSource="{Binding DataContext.ObjectTypes, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
                                 SelectedItem="{Binding ObjectType}"
-                                VerticalAlignment="Center"/>
+                                behaviors:ComboBoxDragFillBehavior.FillPropertyName="ObjectType"
+                                VerticalAlignment="Center">
+                        <ComboBox.Style>
+                          <Style TargetType="ComboBox" BasedOn="{StaticResource {x:Type ComboBox}}">
+                            <Style.Triggers>
+                              <Trigger Property="behaviors:ComboBoxDragFillBehavior.IsDragHighlighted" Value="True">
+                                <Setter Property="BorderBrush" Value="{StaticResource AccentBrush}"/>
+                                <Setter Property="BorderThickness" Value="2"/>
+                              </Trigger>
+                            </Style.Triggers>
+                          </Style>
+                        </ComboBox.Style>
+                      </ComboBox>
+
+                      <Border Grid.Column="6"
+                              Width="20"
+                              Background="Transparent"
+                              CornerRadius="2"
+                              Cursor="Hand"
+                              ToolTip="Click and drag to fill Object Type down"
+                              behaviors:ComboBoxDragFillBehavior.HandleFor="{Binding ElementName=ObjectTypeCombo}">
+                        <Border.Style>
+                          <Style TargetType="Border">
+                            <Setter Property="Background" Value="Transparent"/>
+                            <Setter Property="CornerRadius" Value="2"/>
+                            <Style.Triggers>
+                              <Trigger Property="behaviors:ComboBoxDragFillBehavior.IsDragHighlighted" Value="True">
+                                <Setter Property="Background" Value="{StaticResource AccentBrush}"/>
+                              </Trigger>
+                            </Style.Triggers>
+                          </Style>
+                        </Border.Style>
+                        <StackPanel Orientation="Vertical"
+                                    HorizontalAlignment="Center"
+                                    VerticalAlignment="Center">
+                          <Rectangle Width="4" Height="2" Fill="{StaticResource SecondaryTextBrush}" Margin="0,1"/>
+                          <Rectangle Width="4" Height="2" Fill="{StaticResource SecondaryTextBrush}" Margin="0,1"/>
+                          <Rectangle Width="4" Height="2" Fill="{StaticResource SecondaryTextBrush}" Margin="0,1"/>
+                        </StackPanel>
+                      </Border>
 
                       <!-- HubSpot Header -->
-                      <ComboBox Grid.Column="6"
+                      <ComboBox Grid.Column="7"
                                 ItemsSource="{Binding DataContext.HubSpotHeaders, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
                                 SelectedItem="{Binding HubSpotHeader}"
                                 VerticalAlignment="Center"/>
 
                       <!-- Remove Button -->
-                      <Button Grid.Column="7"
+                      <Button Grid.Column="8"
                               Content="Remove"
                               Command="{Binding DataContext.RemoveMappingCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
                               CommandParameter="{Binding}"
@@ -277,6 +445,7 @@
               </ItemsControl.ItemTemplate>
             </ItemsControl>
           </ScrollViewer>
+        </Grid>
 
           <!-- Add Mapping Button -->
           <Border Grid.Row="2"
@@ -290,11 +459,21 @@
                 <ColumnDefinition Width="Auto"/>
               </Grid.ColumnDefinitions>
 
-              <TextBlock Grid.Column="0"
-                         Text="{Binding MappingCount}"
-                         Foreground="{StaticResource SecondaryTextBrush}"
-                         VerticalAlignment="Center"/>
-
+              <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
+                <TextBlock Text="{Binding MappingCount}"
+                           Foreground="{StaticResource SecondaryTextBrush}"
+                           VerticalAlignment="Center"/>
+                <Border Background="#FF4C61"
+                        CornerRadius="12"
+                        Padding="8,2"
+                        Margin="10,0,0,0"
+                        Visibility="{Binding HasDuplicateMappings, Converter={StaticResource BoolToVisibilityConverter}}">
+                  <TextBlock Text="{Binding DuplicateWarning}"
+                             Foreground="White"
+                             FontWeight="SemiBold"
+                             VerticalAlignment="Center"/>
+                </Border>
+              </StackPanel>
               <StackPanel Grid.Column="1" Orientation="Horizontal">
                 <Button Content="+ Add Mapping"
                         Command="{Binding AddMappingCommand}"
@@ -351,3 +530,5 @@
     </Border>
   </Grid>
 </UserControl>
+
+

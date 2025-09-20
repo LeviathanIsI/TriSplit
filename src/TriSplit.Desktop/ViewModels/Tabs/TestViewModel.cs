@@ -183,23 +183,52 @@ public partial class TestViewModel : ViewModelBase
             {
                 var dt = new DataTable();
 
-                // Add columns (limit to prevent UI freeze with wide sheets)
-                foreach (var header in sampleData.Headers.Take(PREVIEW_COL_LIMIT))
-                {
-                    dt.Columns.Add(header);
-                }
-
-                // Add rows
-                foreach (var row in sampleData.Rows)
-                {
-                    var dataRow = dt.NewRow();
-                    foreach (var header in sampleData.Headers.Take(PREVIEW_COL_LIMIT))
-                    {
-                        dataRow[header] = row.GetValueOrDefault(header, string.Empty)?.ToString() ?? string.Empty;
-                    }
-                    dt.Rows.Add(dataRow);
-                }
-
+                // Add columns (limit to prevent UI freeze with wide sheets)
+                var mappedHeaders = new List<(string Original, string Display)>();
+                var usedColumnNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+                var limitedHeaders = sampleData.Headers.Take(PREVIEW_COL_LIMIT).ToList();
+                for (var index = 0; index < limitedHeaders.Count; index++)
+                {
+                    var original = limitedHeaders[index];
+                    var display = string.IsNullOrWhiteSpace(original)
+                        ? $"Column {index + 1}"
+                        : original.Trim();
+
+                    if (string.IsNullOrWhiteSpace(display))
+                    {
+                        display = $"Column {index + 1}";
+                    }
+
+                    var baseName = display;
+                    var suffix = 1;
+                    while (!usedColumnNames.Add(display))
+                    {
+                        display = $"{baseName}_{suffix++}";
+                    }
+
+                    dt.Columns.Add(display);
+                    mappedHeaders.Add((original, display));
+                }
+
+                // Add rows
+                foreach (var row in sampleData.Rows)
+                {
+                    var dataRow = dt.NewRow();
+                    foreach (var (Original, Display) in mappedHeaders)
+                    {
+                        if (!string.IsNullOrEmpty(Original) && row.TryGetValue(Original, out var value))
+                        {
+                            dataRow[Display] = value?.ToString() ?? string.Empty;
+                        }
+                        else
+                        {
+                            dataRow[Display] = string.Empty;
+                        }
+                    }
+                    dt.Rows.Add(dataRow);
+                }
+
                 return dt;
             }, ct).ConfigureAwait(false);
 

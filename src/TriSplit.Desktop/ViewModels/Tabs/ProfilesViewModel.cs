@@ -1,6 +1,11 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using System;
 using System.Collections.ObjectModel;
+using System.Collections.Generic;
+using System.Collections.Specialized;
+using System.ComponentModel;
+using System.Linq;
 using System.IO;
 using System.Windows.Input;
 using TriSplit.Core.Interfaces;
@@ -16,6 +21,34 @@ public partial class ProfilesViewModel : ViewModelBase
     private readonly IDialogService _dialogService;
     private readonly IAppSession _appSession;
 
+    private readonly HashSet<FieldMappingViewModel> _trackedMappings = new();
+    private bool _isUpdatingMappingState;
+
+
+
+    private int _blockSelectionStartIndex = -1;
+    private int _blockSelectionEndIndex = -1;
+    private readonly List<MappingBlockSnapshot> _blockClipboard = new();
+#if DEBUG
+    private static readonly object BlockLogSync = new();
+    private static readonly string BlockLogDirectory = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "TriSplit", "Debug");
+    private static readonly string BlockLogPath = Path.Combine(BlockLogDirectory, "block_selection.log");
+#endif
+
+    [ObservableProperty]
+    private bool _hasBlockSelection;
+
+    [ObservableProperty]
+    private int _blockSelectionCount;
+
+    [ObservableProperty]
+    private string _blockSelectionSummary = string.Empty;
+
+    [ObservableProperty]
+    private bool _hasBlockClipboard;
+
+    [ObservableProperty]
+    private bool _canPasteBlock;
     public ObservableCollection<string> AssociationLabels { get; }
     public ObservableCollection<string> HubSpotHeaders { get; }
     public ObservableCollection<string> ObjectTypes { get; }
@@ -38,6 +71,15 @@ public partial class ProfilesViewModel : ViewModelBase
     [ObservableProperty]
     private string _mappingCount = "0 mappings configured";
 
+    [ObservableProperty]
+    private bool _hasDuplicateMappings;
+
+    [ObservableProperty]
+    private string _duplicateWarning = string.Empty;
+
+
+
+
     public ProfilesViewModel(
         IProfileStore profileStore,
         IDialogService dialogService,
@@ -47,13 +89,17 @@ public partial class ProfilesViewModel : ViewModelBase
         _dialogService = dialogService;
         _appSession = appSession;
 
+        FieldMappings = new ObservableCollection<FieldMappingViewModel>();
+
         // Initialize Association Labels
         AssociationLabels = new ObservableCollection<string>
         {
             string.Empty,
             "Owner",
             "Executor",
-            "Mailing Address"
+            "Mailing Address",
+            "Relative",
+            "Associate",
         };
 
         // Initialize HubSpot Headers (alphabetically sorted)
@@ -74,6 +120,7 @@ public partial class ProfilesViewModel : ViewModelBase
             "Bathrooms",
             "Bedrooms",
             "City",
+            "Company Name",
             "Contact Data",
             "County",
             "Date of Death",
@@ -137,8 +184,351 @@ public partial class ProfilesViewModel : ViewModelBase
 
     private void UpdateMappingCount()
     {
-        var count = FieldMappings.Count(m => !string.IsNullOrWhiteSpace(m.SourceField));
-        MappingCount = $"{count} mapping{(count == 1 ? "" : "s")} configured";
+        if (_isUpdatingMappingState)
+            return;
+
+        _isUpdatingMappingState = true;
+        try
+        {
+            var populatedMappings = FieldMappings
+            .Where(m => !string.IsNullOrWhiteSpace(m.SourceField))
+            .Select(m => new { Mapping = m, Key = m.SourceField!.Trim() })
+            .ToList();
+
+        var count = populatedMappings.Count;
+        MappingCount = $"{count} mapping{(count == 1 ? string.Empty : "s")} configured";
+
+        foreach (var mapping in FieldMappings)
+        {
+            mapping.IsDuplicate = false;
+        }
+
+        var duplicateGroups = populatedMappings
+            .GroupBy(x => x.Key, StringComparer.OrdinalIgnoreCase)
+            .Where(g => g.Count() > 1)
+            .ToList();
+
+        var duplicates = duplicateGroups
+            .SelectMany(g => g.Select(x => x.Mapping))
+            .ToHashSet();
+
+        foreach (var mapping in duplicates)
+        {
+            mapping.IsDuplicate = true;
+        }
+
+        HasDuplicateMappings = duplicateGroups.Count > 0;
+        DuplicateWarning = HasDuplicateMappings
+            ? $"Duplicate source columns: {string.Join(", ", duplicateGroups.Select(g => g.Key).OrderBy(name => name, StringComparer.OrdinalIgnoreCase))}"
+            : string.Empty;
+    }
+    finally
+    {
+        _isUpdatingMappingState = false;
+    }
+}
+
+    public void BeginBlockSelection(int anchorIndex)
+    {
+        if (anchorIndex < 0 || anchorIndex >= FieldMappings.Count)
+            return;
+
+        ClearBlockSelectionMarkers();
+
+        var endIndex = anchorIndex;
+        if (_blockClipboard.Count > 1)
+        {
+            endIndex = Math.Min(anchorIndex + _blockClipboard.Count - 1, FieldMappings.Count - 1);
+        }
+
+        LogBlockAction($"BeginBlockSelection: anchor={anchorIndex}, proposedEnd={endIndex}");
+
+        _blockSelectionStartIndex = anchorIndex;
+        _blockSelectionEndIndex = endIndex;
+        ApplyBlockSelectionRange(anchorIndex, endIndex);
+    }
+
+    public void BeginBlockSelectionForPaste(int anchorIndex)
+    {
+        if (anchorIndex < 0 || anchorIndex >= FieldMappings.Count)
+            return;
+
+        if (_blockClipboard.Count <= 0)
+        {
+            BeginBlockSelection(anchorIndex);
+            return;
+        }
+
+        ClearBlockSelectionMarkers();
+
+        var endIndex = Math.Min(anchorIndex + _blockClipboard.Count - 1, FieldMappings.Count - 1);
+        LogBlockAction($"BeginBlockSelectionForPaste: anchor={anchorIndex}, end={endIndex}, clipboard={_blockClipboard.Count}");
+
+        _blockSelectionStartIndex = anchorIndex;
+        _blockSelectionEndIndex = endIndex;
+        ApplyBlockSelectionRange(anchorIndex, endIndex);
+    }
+
+    public void UpdateBlockSelection(int anchorIndex, int currentIndex)
+    {
+        if (_blockSelectionStartIndex == -1)
+        {
+            BeginBlockSelection(anchorIndex);
+            return;
+        }
+
+        var clampedIndex = Math.Clamp(currentIndex, 0, FieldMappings.Count - 1);
+        _blockSelectionEndIndex = clampedIndex;
+
+        var start = Math.Min(_blockSelectionStartIndex, clampedIndex);
+        var end = Math.Max(_blockSelectionStartIndex, clampedIndex);
+        ApplyBlockSelectionRange(start, end);
+        LogBlockAction($"UpdateBlockSelection: anchor={anchorIndex}, current={currentIndex}, range={start}-{end}");
+    }
+
+    public void CompleteBlockSelection()
+    {
+        LogBlockAction("CompleteBlockSelection");
+        UpdatePasteAvailability();
+    }
+
+    private void ApplyBlockSelectionRange(int startIndex, int endIndex)
+    {
+        if (FieldMappings.Count == 0)
+        {
+            ClearBlockSelectionMarkers();
+            LogBlockAction("ApplyBlockSelectionRange aborted: no mappings");
+            return;
+        }
+
+        startIndex = Math.Clamp(startIndex, 0, FieldMappings.Count - 1);
+        endIndex = Math.Clamp(endIndex, 0, FieldMappings.Count - 1);
+
+        foreach (var mapping in FieldMappings)
+        {
+            mapping.IsBlockSelected = false;
+        }
+
+        for (int i = startIndex; i <= endIndex; i++)
+        {
+            FieldMappings[i].IsBlockSelected = true;
+        }
+
+        _blockSelectionStartIndex = startIndex;
+        _blockSelectionEndIndex = endIndex;
+        BlockSelectionCount = (endIndex - startIndex) + 1;
+        HasBlockSelection = BlockSelectionCount > 0;
+
+        BlockSelectionSummary = HasBlockSelection
+            ? $"{BlockSelectionCount} row{(BlockSelectionCount == 1 ? string.Empty : "s")} selected"
+            : string.Empty;
+
+        LogBlockAction($"ApplyBlockSelectionRange: {startIndex}-{endIndex}, count={BlockSelectionCount}");
+        UpdatePasteAvailability();
+    }
+
+    [RelayCommand]
+    private void ClearBlockSelection()
+    {
+        ClearBlockSelectionMarkers();
+        LogBlockAction("ClearBlockSelection command");
+    }
+
+    private void ClearBlockSelectionMarkers()
+    {
+        foreach (var mapping in FieldMappings)
+        {
+            mapping.IsBlockSelected = false;
+        }
+
+        _blockSelectionStartIndex = -1;
+        _blockSelectionEndIndex = -1;
+        BlockSelectionCount = 0;
+        HasBlockSelection = false;
+        BlockSelectionSummary = string.Empty;
+        LogBlockAction("ClearBlockSelectionMarkers: state reset");
+        UpdatePasteAvailability();
+    }
+
+    [RelayCommand]
+    private void CopyBlockSelection()
+    {
+        var range = GetCurrentSelectionRange();
+        if (range == null)
+        {
+            ProfileStatus = "Select rows before copying";
+            LogBlockAction("CopyBlockSelection aborted: no selection");
+            return;
+        }
+
+        _blockClipboard.Clear();
+
+        for (int i = range.Value.Start; i <= range.Value.End; i++)
+        {
+            var mapping = FieldMappings[i];
+            _blockClipboard.Add(new MappingBlockSnapshot(
+                mapping.SourceField ?? string.Empty,
+                mapping.AssociationLabel ?? string.Empty,
+                mapping.ObjectType ?? string.Empty,
+                mapping.HubSpotHeader ?? string.Empty));
+        }
+
+        HasBlockClipboard = _blockClipboard.Count > 0;
+        LogBlockAction($"CopyBlockSelection: range={range.Value.Start}-{range.Value.End}, rows={_blockClipboard.Count}");
+        UpdatePasteAvailability();
+
+        if (HasBlockClipboard)
+        {
+            ProfileStatus = $"Copied {_blockClipboard.Count} row{(_blockClipboard.Count == 1 ? string.Empty : "s")}";
+        }
+    }
+
+    [RelayCommand]
+    private void PasteBlockSelection()
+    {
+        var range = GetCurrentSelectionRange();
+        if (range == null)
+        {
+            ProfileStatus = "Select target rows before pasting";
+            LogBlockAction("PasteBlockSelection aborted: no selection");
+            return;
+        }
+
+        if (_blockClipboard.Count == 0)
+        {
+            ProfileStatus = "Copy a block before pasting";
+            LogBlockAction("PasteBlockSelection aborted: clipboard empty");
+            return;
+        }
+
+        var length = range.Value.End - range.Value.Start + 1;
+        LogBlockAction($"PasteBlockSelection requested: targetRange={range.Value.Start}-{range.Value.End}, clipboardRows={_blockClipboard.Count}");
+
+        if (length != _blockClipboard.Count)
+        {
+            var desiredEnd = range.Value.Start + _blockClipboard.Count - 1;
+            if (desiredEnd < FieldMappings.Count)
+            {
+                LogBlockAction($"PasteBlockSelection adjusting selection to {range.Value.Start}-{desiredEnd}");
+                ApplyBlockSelectionRange(range.Value.Start, desiredEnd);
+                range = (range.Value.Start, desiredEnd);
+                length = _blockClipboard.Count;
+            }
+            else
+            {
+                ProfileStatus = $"Copied {_blockClipboard.Count} row{(_blockClipboard.Count == 1 ? string.Empty : "s")}; select {_blockClipboard.Count} row{(_blockClipboard.Count == 1 ? string.Empty : "s")} to paste";
+                LogBlockAction("PasteBlockSelection aborted: length mismatch");
+                return;
+            }
+        }
+
+        for (int i = 0; i < length; i++)
+        {
+            var targetIndex = range.Value.Start + i;
+            var target = FieldMappings[targetIndex];
+            var snapshot = _blockClipboard[i];
+            target.SourceField = snapshot.SourceField;
+            target.AssociationLabel = snapshot.AssociationLabel;
+            target.ObjectType = snapshot.ObjectType;
+            target.HubSpotHeader = snapshot.HubSpotHeader;
+        }
+
+        UpdateMappingCount();
+        LogBlockAction($"PasteBlockSelection applied: range={range.Value.Start}-{range.Value.End}, rows={length}");
+        ProfileStatus = $"Pasted {_blockClipboard.Count} row{(_blockClipboard.Count == 1 ? string.Empty : "s")}";
+    }
+
+    private (int Start, int End)? GetCurrentSelectionRange()
+    {
+        if (!HasBlockSelection || _blockSelectionStartIndex < 0 || _blockSelectionEndIndex < 0)
+            return null;
+
+        return (Math.Min(_blockSelectionStartIndex, _blockSelectionEndIndex), Math.Max(_blockSelectionStartIndex, _blockSelectionEndIndex));
+    }
+
+    private void UpdatePasteAvailability()
+    {
+        CanPasteBlock = HasBlockSelection && _blockClipboard.Count > 0 && BlockSelectionCount == _blockClipboard.Count;
+        LogBlockAction($"UpdatePasteAvailability: CanPasteBlock={CanPasteBlock}, HasSelection={HasBlockSelection}, ClipboardCount={_blockClipboard.Count}, SelectionCount={BlockSelectionCount}");
+    }
+
+#if DEBUG
+    private void LogBlockAction(string message)
+    {
+        try
+        {
+            lock (BlockLogSync)
+            {
+                Directory.CreateDirectory(BlockLogDirectory);
+                File.AppendAllText(BlockLogPath, $"{DateTime.Now:O} {message}{Environment.NewLine}");
+            }
+        }
+        catch
+        {
+            // ignored
+        }
+    }
+#else
+    private void LogBlockAction(string message)
+    {
+    }
+#endif
+
+    private sealed record MappingBlockSnapshot(string SourceField, string AssociationLabel, string ObjectType, string HubSpotHeader);
+
+    private void OnFieldMappingsCollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)
+    {
+        if (e.Action == NotifyCollectionChangedAction.Reset)
+        {
+            foreach (var mapping in _trackedMappings.ToList())
+            {
+                mapping.PropertyChanged -= OnMappingPropertyChanged;
+            }
+
+            _trackedMappings.Clear();
+            UpdateMappingCount();
+            return;
+        }
+
+        if (e.OldItems != null)
+        {
+            foreach (FieldMappingViewModel mapping in e.OldItems.Cast<FieldMappingViewModel>())
+            {
+                UntrackMapping(mapping);
+            }
+        }
+
+        if (e.NewItems != null)
+        {
+            foreach (FieldMappingViewModel mapping in e.NewItems.Cast<FieldMappingViewModel>())
+            {
+                TrackMapping(mapping);
+            }
+        }
+
+        UpdateMappingCount();
+    }
+
+    private void TrackMapping(FieldMappingViewModel mapping)
+    {
+        if (mapping == null)
+            return;
+
+        if (_trackedMappings.Add(mapping))
+        {
+            mapping.PropertyChanged += OnMappingPropertyChanged;
+        }
+    }
+
+    private void UntrackMapping(FieldMappingViewModel mapping)
+    {
+        if (mapping == null)
+            return;
+
+        if (_trackedMappings.Remove(mapping))
+        {
+            mapping.PropertyChanged -= OnMappingPropertyChanged;
+        }
     }
 
     [RelayCommand]
@@ -588,30 +978,44 @@ public partial class ProfilesViewModel : ViewModelBase
         }
     }
 
+
+    private void OnMappingPropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (_isUpdatingMappingState)
+            return;
+
+        if (e.PropertyName == nameof(FieldMappingViewModel.SourceField) || string.IsNullOrEmpty(e.PropertyName))
+        {
+            UpdateMappingCount();
+        }
+    }
+
     partial void OnFieldMappingsChanged(ObservableCollection<FieldMappingViewModel>? oldValue, ObservableCollection<FieldMappingViewModel> newValue)
     {
         if (oldValue != null)
         {
+            oldValue.CollectionChanged -= OnFieldMappingsCollectionChanged;
+
             foreach (var mapping in oldValue)
             {
-                mapping.PropertyChanged -= OnMappingPropertyChanged;
+                UntrackMapping(mapping);
             }
         }
 
         if (newValue != null)
         {
+            newValue.CollectionChanged += OnFieldMappingsCollectionChanged;
+
             foreach (var mapping in newValue)
             {
-                mapping.PropertyChanged += OnMappingPropertyChanged;
+                TrackMapping(mapping);
             }
         }
-    }
 
-    private void OnMappingPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
-    {
         UpdateMappingCount();
     }
 }
+
 
 public partial class ProfileViewModel : ObservableObject
 {
@@ -637,4 +1041,11 @@ public partial class FieldMappingViewModel : ObservableObject
 
     [ObservableProperty]
     private string? _hubSpotHeader = null;
+
+    [ObservableProperty]
+    private bool _isDuplicate;
+
+    [ObservableProperty]
+    private bool _isBlockSelected;
 }
+

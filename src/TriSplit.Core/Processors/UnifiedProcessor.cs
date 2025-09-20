@@ -46,6 +46,18 @@ public class UnifiedProcessor
     };
 
 
+    private static readonly HashSet<string> PrimaryAssociationTokens = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "Owner",
+        "Executor"
+    };
+
+    private static readonly HashSet<string> SecondaryAssociationTokens = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "Relative",
+        "Associate"
+    };
+
     public UnifiedProcessor(Profile profile, IInputReader inputReader, IProgress<ProcessingProgress>? progress = null)
     {
         _profile = profile;
@@ -123,27 +135,49 @@ public class UnifiedProcessor
                 ReportProgress($"Processing row {processedRows}/{totalRows}...", percentComplete);
             }
 
-            ReportProgress("Writing contacts file...", 80);
-            var contactsFile = await WriteContactsFileAsync(outputPath, cancellationToken);
+            ReportProgress("Writing primary contacts file...", 80);
+            var primaryContactsFile = await WriteContactsFileAsync(outputPath, "01_Primary_Contacts_Import.csv", false, cancellationToken);
 
-            ReportProgress("Writing phone numbers file...", 85);
-            var phonesFile = await WritePhonesFileAsync(outputPath, cancellationToken);
+            ReportProgress("Writing primary phone numbers file...", 85);
+            var primaryPhonesFile = await WritePhonesFileAsync(outputPath, "02_Primary_Phone_Numbers_Import.csv", false, cancellationToken);
 
-            ReportProgress("Writing properties file...", 95);
-            var propertiesFile = await WritePropertiesFileAsync(outputPath, cancellationToken);
+            ReportProgress("Writing primary properties file...", 90);
+            var primaryPropertiesFile = await WritePropertiesFileAsync(outputPath, "03_Primary_Properties_Import.csv", false, cancellationToken);
+
+            ReportProgress("Writing secondary contacts file...", 94);
+            var secondaryContactsFile = await WriteContactsFileAsync(outputPath, "04_Secondary_Contacts_Import.csv", true, cancellationToken);
+
+            ReportProgress("Writing secondary phone numbers file...", 96);
+            var secondaryPhonesFile = await WritePhonesFileAsync(outputPath, "05_Secondary_Phone_Numbers_Import.csv", true, cancellationToken);
+
+            ReportProgress("Writing secondary properties file...", 98);
+            var secondaryPropertiesFile = await WritePropertiesFileAsync(outputPath, "06_Secondary_Properties_Import.csv", true, cancellationToken);
 
             ReportProgress("Processing complete!", 100);
+
+            var primaryContactsCount = _contacts.Values.Count(c => !c.IsSecondary);
+            var secondaryContactsCount = _contacts.Values.Count(c => c.IsSecondary);
+            var primaryPhonesCount = _phones.Sum(p => p.Value.Count(phone => !phone.IsSecondary));
+            var secondaryPhonesCount = _phones.Sum(p => p.Value.Count(phone => phone.IsSecondary));
+            var primaryPropertiesCount = _properties.Values.Count(p => !p.IsSecondary);
+            var secondaryPropertiesCount = _properties.Values.Count(p => p.IsSecondary);
 
             return new ProcessingResult
             {
                 Success = true,
-                ContactsFile = contactsFile,
-                PhonesFile = phonesFile,
-                PropertiesFile = propertiesFile,
+                ContactsFile = primaryContactsFile,
+                SecondaryContactsFile = secondaryContactsFile,
+                PhonesFile = primaryPhonesFile,
+                SecondaryPhonesFile = secondaryPhonesFile,
+                PropertiesFile = primaryPropertiesFile,
+                SecondaryPropertiesFile = secondaryPropertiesFile,
                 TotalRecordsProcessed = processedRows,
-                ContactsCreated = _contacts.Count,
-                PropertiesCreated = _properties.Count,
-                PhonesCreated = _phones.Sum(p => p.Value.Count)
+                ContactsCreated = primaryContactsCount,
+                SecondaryContactsCreated = secondaryContactsCount,
+                PropertiesCreated = primaryPropertiesCount,
+                SecondaryPropertiesCreated = secondaryPropertiesCount,
+                PhonesCreated = primaryPhonesCount,
+                SecondaryPhonesCreated = secondaryPhonesCount
             };
         }
         catch (Exception ex)
@@ -165,14 +199,33 @@ public class UnifiedProcessor
 
         ApplyMailingInheritance(contexts);
 
+        var primaryContext = DeterminePrimaryContext(contexts);
+        if (primaryContext != null)
+        {
+            AssignImportId(primaryContext);
+        }
+
         foreach (var context in contexts)
         {
-            AssignImportId(context);
+            if (primaryContext == null || !ReferenceEquals(context, primaryContext))
+            {
+                AssignImportId(context);
+            }
+        }
+
+        primaryContext ??= contexts[0];
+        var primaryImportId = primaryContext.ImportId;
+
+        foreach (var context in contexts)
+        {
+            context.IsPrimary = ReferenceEquals(context, primaryContext);
+            context.IsSecondary = !context.IsPrimary && IsSecondaryAssociation(context.Association);
+            context.LinkedContactId = context.IsSecondary && !string.IsNullOrWhiteSpace(primaryImportId)
+                ? primaryImportId
+                : null;
         }
 
         ProcessPhoneNumbers(row, contexts);
-
-        var primaryContext = contexts[0];
 
         foreach (var context in contexts)
         {
@@ -269,7 +322,10 @@ public class UnifiedProcessor
                 existing.Email = context.Email;
             if (string.IsNullOrWhiteSpace(existing.Company) && !string.IsNullOrWhiteSpace(context.Company))
                 existing.Company = context.Company;
+            if (string.IsNullOrWhiteSpace(existing.LinkedContactId) && !string.IsNullOrWhiteSpace(context.LinkedContactId))
+                existing.LinkedContactId = context.LinkedContactId;
 
+            existing.IsSecondary = context.IsSecondary;
             existing.AssociationLabel = MergeAssociationLabels(existing.AssociationLabel, context.Association);
         }
         else
@@ -281,6 +337,8 @@ public class UnifiedProcessor
                 LastName = context.LastName,
                 Email = context.Email,
                 Company = context.Company,
+                LinkedContactId = context.LinkedContactId ?? string.Empty,
+                IsSecondary = context.IsSecondary,
                 AssociationLabel = context.Association,
                 Notes = string.Empty
             };
@@ -293,14 +351,18 @@ public class UnifiedProcessor
     {
         var associationLabel = DeterminePropertyAssociationLabel(context, primaryContext);
 
-        if (context.Property.HasCoreAddress)
+        if (!context.IsSecondary && context.Property.HasCoreAddress)
         {
-            PersistPropertySnapshot(context.ImportId, context.Property, associationLabel);
+            PersistPropertySnapshot(context.ImportId, context.Property, associationLabel, context.IsSecondary);
         }
 
         if (context.Mailing.HasCoreAddress)
         {
-            PersistPropertySnapshot(context.ImportId, context.Mailing, MailingAssociationLabel);
+            PersistPropertySnapshot(context.ImportId, context.Mailing, MailingAssociationLabel, context.IsSecondary);
+        }
+        else if (context.IsSecondary && context.Property.HasCoreAddress)
+        {
+            PersistPropertySnapshot(context.ImportId, context.Property, MailingAssociationLabel, context.IsSecondary);
         }
     }
     private void ProcessPhoneNumbers(Dictionary<string, object> row, List<ContactContext> contexts)
@@ -315,7 +377,7 @@ public class UnifiedProcessor
         if (phoneMappings.Count == 0)
             return;
 
-        var primaryContext = contexts[0];
+        var primaryContext = DeterminePrimaryContext(contexts) ?? contexts[0];
 
         foreach (var mapping in phoneMappings)
         {
@@ -326,29 +388,35 @@ public class UnifiedProcessor
             var owner = ResolvePhoneOwner(mapping, contexts) ?? primaryContext;
             var formatted = FormatPhoneNumber(phone);
 
-            AddPhoneRecord(owner.ImportId, formatted);
+            AddPhoneRecord(owner, formatted);
         }
     }
 
-    private void AddPhoneRecord(string importId, string phoneNumber)
+    private void AddPhoneRecord(ContactContext context, string phoneNumber)
     {
-        if (string.IsNullOrWhiteSpace(importId) || string.IsNullOrWhiteSpace(phoneNumber))
+        if (context == null || string.IsNullOrWhiteSpace(context.ImportId) || string.IsNullOrWhiteSpace(phoneNumber))
             return;
 
+        var importId = context.ImportId;
         if (!_phones.TryGetValue(importId, out var existing))
         {
             existing = new List<PhoneRecord>();
             _phones[importId] = existing;
         }
 
-        if (!existing.Any(p => p.PhoneNumber.Equals(phoneNumber, StringComparison.OrdinalIgnoreCase)))
+        var existingRecord = existing.FirstOrDefault(p => p.PhoneNumber.Equals(phoneNumber, StringComparison.OrdinalIgnoreCase));
+        if (existingRecord != null)
         {
-            existing.Add(new PhoneRecord
-            {
-                ImportId = importId,
-                PhoneNumber = phoneNumber
-            });
+            existingRecord.IsSecondary |= context.IsSecondary;
+            return;
         }
+
+        existing.Add(new PhoneRecord
+        {
+            ImportId = importId,
+            PhoneNumber = phoneNumber,
+            IsSecondary = context.IsSecondary
+        });
     }
 
     private ContactContext? ResolvePhoneOwner(FieldMapping mapping, List<ContactContext> contexts)
@@ -376,6 +444,52 @@ public class UnifiedProcessor
         }
 
         return contexts.FirstOrDefault();
+    }
+
+    private static IEnumerable<string> SplitAssociationTokens(string association)
+    {
+        if (string.IsNullOrWhiteSpace(association))
+            return Array.Empty<string>();
+
+        return association.Split(';', StringSplitOptions.RemoveEmptyEntries)
+            .Select(token => token.Trim())
+            .Where(token => !string.IsNullOrWhiteSpace(token));
+    }
+
+    private static bool AssociationContainsToken(string association, string token)
+    {
+        if (string.IsNullOrWhiteSpace(association) || string.IsNullOrWhiteSpace(token))
+            return false;
+
+        return SplitAssociationTokens(association)
+            .Any(part => string.Equals(part, token, StringComparison.OrdinalIgnoreCase));
+    }
+
+    private static bool IsPrimaryAssociation(string association)
+    {
+        return SplitAssociationTokens(association).Any(token =>
+            PrimaryAssociationTokens.Contains(token));
+    }
+
+    private static bool IsSecondaryAssociation(string association)
+    {
+        return SplitAssociationTokens(association).Any(token => SecondaryAssociationTokens.Contains(token));
+    }
+
+    private static ContactContext? DeterminePrimaryContext(List<ContactContext> contexts)
+    {
+        if (contexts.Count == 0)
+            return null;
+
+        var explicitPrimary = contexts.FirstOrDefault(c => IsPrimaryAssociation(c.Association));
+        if (explicitPrimary != null)
+            return explicitPrimary;
+
+        var mailingPrimary = contexts.FirstOrDefault(c => AssociationContainsToken(c.Association, MailingAssociationLabel));
+        if (mailingPrimary != null)
+            return mailingPrimary;
+
+        return contexts[0];
     }
 
     private static bool TryGetOwnerIndexFromHeader(string header, out int index)
@@ -453,7 +567,7 @@ public class UnifiedProcessor
     }
 
 
-    private void PersistPropertySnapshot(string importId, PropertySnapshot snapshot, string associationLabel)
+    private void PersistPropertySnapshot(string importId, PropertySnapshot snapshot, string associationLabel, bool isSecondary)
     {
         if (!snapshot.HasCoreAddress)
             return;
@@ -463,6 +577,7 @@ public class UnifiedProcessor
         if (_properties.TryGetValue(key, out var existing))
         {
             existing.AssociationLabel = MergeAssociationLabels(existing.AssociationLabel, associationLabel);
+            existing.IsSecondary = existing.IsSecondary || isSecondary;
 
             if (string.IsNullOrWhiteSpace(existing.Address))
                 existing.Address = snapshot.Address;
@@ -499,7 +614,7 @@ public class UnifiedProcessor
             return;
         }
 
-        var record = snapshot.ToPropertyRecord(importId, associationLabel);
+        var record = snapshot.ToPropertyRecord(importId, associationLabel, isSecondary);
         foreach (var fieldName in record.AdditionalFields.Keys)
         {
             RegisterAdditionalPropertyField(fieldName);
@@ -703,6 +818,9 @@ public class UnifiedProcessor
 
     private string DeterminePropertyAssociationLabel(ContactContext context, ContactContext primaryContext)
     {
+        if (context.IsSecondary)
+            return string.Empty;
+
         if (!string.IsNullOrWhiteSpace(context.Association))
         {
             return context.Association.Trim();
@@ -885,6 +1003,7 @@ public class UnifiedProcessor
 
     private static string GenerateImportId() => Guid.NewGuid().ToString();
 
+
     private static string NormalizeKeyPart(string? value) => (value ?? string.Empty).Trim().ToUpperInvariant();
     private static string CleanName(string value)
     {
@@ -1041,9 +1160,10 @@ public class UnifiedProcessor
 
         return string.Join("; ", labels);
     }
-    private async Task<string> WriteContactsFileAsync(string outputPath, CancellationToken cancellationToken)
+
+    private async Task<string> WriteContactsFileAsync(string outputPath, string fileName, bool isSecondary, CancellationToken cancellationToken)
     {
-        var filePath = Path.Combine(outputPath, "01_Contacts_Import.csv");
+        var filePath = Path.Combine(outputPath, fileName);
 
         using var writer = new StreamWriter(filePath, false, Encoding.UTF8);
         using var csv = new CsvWriter(writer, new CsvConfiguration(CultureInfo.InvariantCulture)
@@ -1056,15 +1176,24 @@ public class UnifiedProcessor
         csv.WriteField("Last Name");
         csv.WriteField("Email");
         csv.WriteField("Company");
+        csv.WriteField("Linked Contact ID");
         await csv.NextRecordAsync();
 
-        foreach (var contact in _contacts.Values.OrderBy(c => c.LastName).ThenBy(c => c.FirstName))
+        var contacts = _contacts.Values
+            .Where(c => c.IsSecondary == isSecondary)
+            .OrderBy(c => c.LastName)
+            .ThenBy(c => c.FirstName);
+
+        foreach (var contact in contacts)
         {
+            cancellationToken.ThrowIfCancellationRequested();
+
             csv.WriteField(contact.ImportId);
             csv.WriteField(contact.FirstName);
             csv.WriteField(contact.LastName);
             csv.WriteField(contact.Email);
             csv.WriteField(contact.Company);
+            csv.WriteField(contact.LinkedContactId ?? string.Empty);
             await csv.NextRecordAsync();
         }
 
@@ -1072,9 +1201,9 @@ public class UnifiedProcessor
         return filePath;
     }
 
-    private async Task<string> WritePhonesFileAsync(string outputPath, CancellationToken cancellationToken)
+    private async Task<string> WritePhonesFileAsync(string outputPath, string fileName, bool isSecondary, CancellationToken cancellationToken)
     {
-        var filePath = Path.Combine(outputPath, "02_Phone_Numbers_Import.csv");
+        var filePath = Path.Combine(outputPath, fileName);
 
         using var writer = new StreamWriter(filePath, false, Encoding.UTF8);
         using var csv = new CsvWriter(writer, new CsvConfiguration(CultureInfo.InvariantCulture)
@@ -1086,23 +1215,28 @@ public class UnifiedProcessor
         csv.WriteField("Phone Number");
         await csv.NextRecordAsync();
 
-        foreach (var phoneEntry in _phones.OrderBy(p => p.Key))
+        var phones = _phones
+            .SelectMany(entry => entry.Value)
+            .Where(phone => phone.IsSecondary == isSecondary)
+            .OrderBy(phone => phone.ImportId)
+            .ThenBy(phone => phone.PhoneNumber);
+
+        foreach (var phone in phones)
         {
-            foreach (var phone in phoneEntry.Value)
-            {
-                csv.WriteField(phone.ImportId);
-                csv.WriteField(phone.PhoneNumber);
-                await csv.NextRecordAsync();
-            }
+            cancellationToken.ThrowIfCancellationRequested();
+
+            csv.WriteField(phone.ImportId);
+            csv.WriteField(phone.PhoneNumber);
+            await csv.NextRecordAsync();
         }
 
         await writer.FlushAsync();
         return filePath;
     }
 
-    private async Task<string> WritePropertiesFileAsync(string outputPath, CancellationToken cancellationToken)
+    private async Task<string> WritePropertiesFileAsync(string outputPath, string fileName, bool isSecondary, CancellationToken cancellationToken)
     {
-        var filePath = Path.Combine(outputPath, "03_Properties_Import.csv");
+        var filePath = Path.Combine(outputPath, fileName);
 
         using var writer = new StreamWriter(filePath, false, Encoding.UTF8);
         using var csv = new CsvWriter(writer, new CsvConfiguration(CultureInfo.InvariantCulture)
@@ -1127,8 +1261,15 @@ public class UnifiedProcessor
         csv.WriteField("Association Label");
         await csv.NextRecordAsync();
 
-        foreach (var property in _properties.Values.OrderBy(p => p.Address))
+        var properties = _properties.Values
+            .Where(p => p.IsSecondary == isSecondary)
+            .OrderBy(p => p.Address)
+            .ThenBy(p => p.ImportId);
+
+        foreach (var property in properties)
         {
+            cancellationToken.ThrowIfCancellationRequested();
+
             csv.WriteField(property.ImportId);
             csv.WriteField(property.Address);
             csv.WriteField(property.City);
@@ -1178,6 +1319,8 @@ public class UnifiedProcessor
         public string Email { get; set; } = string.Empty;
         public string Company { get; set; } = string.Empty;
         public bool IsPrimary { get; set; }
+        public bool IsSecondary { get; set; }
+        public string? LinkedContactId { get; set; }
         public string ImportId { get; set; } = string.Empty;
         public PropertySnapshot Property { get; set; } = PropertySnapshot.Empty;
         public PropertySnapshot Mailing { get; set; } = PropertySnapshot.Empty;
@@ -1225,7 +1368,7 @@ public class UnifiedProcessor
                 && string.Equals(Normalize(Zip), Normalize(other.Zip), StringComparison.OrdinalIgnoreCase);
         }
 
-        public PropertyRecord ToPropertyRecord(string importId, string associationLabel)
+        public PropertyRecord ToPropertyRecord(string importId, string associationLabel, bool isSecondary)
         {
             return new PropertyRecord
             {
@@ -1238,9 +1381,11 @@ public class UnifiedProcessor
                 AssociationLabel = associationLabel,
                 PropertyType = PropertyType,
                 PropertyValue = PropertyValue,
+                IsSecondary = isSecondary,
                 AdditionalFields = new Dictionary<string, string>(AdditionalFields, StringComparer.OrdinalIgnoreCase)
             };
         }
+
 
         private static string Normalize(string? value) => (value ?? string.Empty).Trim();
     }
@@ -1254,6 +1399,8 @@ public class ContactRecord
     public string LastName { get; set; } = string.Empty;
     public string Email { get; set; } = string.Empty;
     public string Company { get; set; } = string.Empty;
+    public string LinkedContactId { get; set; } = string.Empty;
+    public bool IsSecondary { get; set; }
     public string AssociationLabel { get; set; } = string.Empty;
     public string Notes { get; set; } = string.Empty;
 }
@@ -1262,6 +1409,7 @@ public class PhoneRecord
 {
     public string ImportId { get; set; } = string.Empty;
     public string PhoneNumber { get; set; } = string.Empty;
+    public bool IsSecondary { get; set; }
 }
 
 public class PropertyRecord
@@ -1275,6 +1423,7 @@ public class PropertyRecord
     public string AssociationLabel { get; set; } = string.Empty;
     public string PropertyType { get; set; } = string.Empty;
     public string PropertyValue { get; set; } = string.Empty;
+    public bool IsSecondary { get; set; }
     public Dictionary<string, string> AdditionalFields { get; set; } = new(StringComparer.OrdinalIgnoreCase);
 }
 
@@ -1283,11 +1432,17 @@ public class ProcessingResult
     public bool Success { get; set; }
     public string ContactsFile { get; set; } = string.Empty;
     public string PhonesFile { get; set; } = string.Empty;
+    public string SecondaryContactsFile { get; set; } = string.Empty;
+    public string SecondaryPhonesFile { get; set; } = string.Empty;
+    public string SecondaryPropertiesFile { get; set; } = string.Empty;
     public string PropertiesFile { get; set; } = string.Empty;
     public int TotalRecordsProcessed { get; set; }
     public int ContactsCreated { get; set; }
     public int PropertiesCreated { get; set; }
     public int PhonesCreated { get; set; }
+    public int SecondaryContactsCreated { get; set; }
+    public int SecondaryPropertiesCreated { get; set; }
+    public int SecondaryPhonesCreated { get; set; }
     public string? ErrorMessage { get; set; }
 }
 
