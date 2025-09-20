@@ -18,10 +18,6 @@ public class NullToPlaceholderTextConverter : IValueConverter
 
     public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
     {
-        if (value?.ToString() == parameter?.ToString() || value?.ToString() == PlaceholderText)
-        {
-            return null;
-        }
-        return value;
+        return Binding.DoNothing;
     }
 }
