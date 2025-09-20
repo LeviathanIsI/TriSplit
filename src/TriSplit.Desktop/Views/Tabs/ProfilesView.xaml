@@ -262,7 +262,7 @@
                         <Setter Property="BorderBrush" Value="{StaticResource BorderBrush}"/>
                         <Style.Triggers>
                           <DataTrigger Binding="{Binding IsBlockSelected}" Value="True">
-                            <Setter Property="Background" Value="#FF265C8F"/>
+                            <Setter Property="Background" Value="#1A4BA3FF"/>
                             <Setter Property="BorderBrush" Value="#FF4BA3FF"/>
                           </DataTrigger>
                         </Style.Triggers>
@@ -285,18 +285,18 @@
                               HorizontalAlignment="Center"
                               VerticalAlignment="Center"
                               behaviors:BlockSelectionBehavior.Enable="True">
-                        <Ellipse Width="10" Height="10">
-                          <Ellipse.Style>
-                            <Style TargetType="Ellipse">
-                              <Setter Property="Fill" Value="{StaticResource SecondaryTextBrush}"/>
+                        <Border Width="12" Height="12" CornerRadius="3" Background="{StaticResource SecondaryTextBrush}">
+                          <Border.Style>
+                            <Style TargetType="Border">
+                              <Setter Property="Background" Value="{StaticResource SecondaryTextBrush}"/>
                               <Style.Triggers>
                                 <DataTrigger Binding="{Binding IsBlockSelected}" Value="True">
-                                  <Setter Property="Fill" Value="#FF4BA3FF"/>
+                                  <Setter Property="Background" Value="#FF4BA3FF"/>
                                 </DataTrigger>
                               </Style.Triggers>
                             </Style>
-                          </Ellipse.Style>
-                        </Ellipse>
+                          </Border.Style>
+                        </Border>
                       </Border>
 
                       <!-- Source Data Field -->
@@ -307,6 +307,10 @@
                         <TextBox.Style>
                           <Style TargetType="TextBox" BasedOn="{StaticResource {x:Type TextBox}}">
                             <Style.Triggers>
+                              <DataTrigger Binding="{Binding DataContext.IsBlockSelected, RelativeSource={RelativeSource AncestorType=Border}}" Value="True">
+                                <Setter Property="BorderBrush" Value="#FF4BA3FF"/>
+                                <Setter Property="BorderThickness" Value="2"/>
+                              </DataTrigger>
                               <DataTrigger Binding="{Binding IsDuplicate}" Value="True">
                                 <Setter Property="BorderBrush" Value="#FF4C61"/>
                                 <Setter Property="BorderThickness" Value="2"/>
@@ -338,6 +342,10 @@
                         <ComboBox.Style>
                           <Style TargetType="ComboBox" BasedOn="{StaticResource {x:Type ComboBox}}">
                             <Style.Triggers>
+                              <DataTrigger Binding="{Binding DataContext.IsBlockSelected, RelativeSource={RelativeSource AncestorType=Border}}" Value="True">
+                                <Setter Property="BorderBrush" Value="#FF4BA3FF"/>
+                                <Setter Property="BorderThickness" Value="2"/>
+                              </DataTrigger>
                               <Trigger Property="behaviors:ComboBoxDragFillBehavior.IsDragHighlighted" Value="True">
                                 <Setter Property="BorderBrush" Value="{StaticResource AccentBrush}"/>
                                 <Setter Property="BorderThickness" Value="2"/>
@@ -359,6 +367,10 @@
                             <Setter Property="Background" Value="Transparent"/>
                             <Setter Property="CornerRadius" Value="2"/>
                             <Style.Triggers>
+                              <DataTrigger Binding="{Binding DataContext.IsBlockSelected, RelativeSource={RelativeSource AncestorType=Border}}" Value="True">
+                                <Setter Property="BorderBrush" Value="#FF4BA3FF"/>
+                                <Setter Property="BorderThickness" Value="2"/>
+                              </DataTrigger>
                               <Trigger Property="behaviors:ComboBoxDragFillBehavior.IsDragHighlighted" Value="True">
                                 <Setter Property="Background" Value="{StaticResource AccentBrush}"/>
                               </Trigger>
@@ -384,6 +396,10 @@
                         <ComboBox.Style>
                           <Style TargetType="ComboBox" BasedOn="{StaticResource {x:Type ComboBox}}">
                             <Style.Triggers>
+                              <DataTrigger Binding="{Binding DataContext.IsBlockSelected, RelativeSource={RelativeSource AncestorType=Border}}" Value="True">
+                                <Setter Property="BorderBrush" Value="#FF4BA3FF"/>
+                                <Setter Property="BorderThickness" Value="2"/>
+                              </DataTrigger>
                               <Trigger Property="behaviors:ComboBoxDragFillBehavior.IsDragHighlighted" Value="True">
                                 <Setter Property="BorderBrush" Value="{StaticResource AccentBrush}"/>
                                 <Setter Property="BorderThickness" Value="2"/>
@@ -405,6 +421,10 @@
                             <Setter Property="Background" Value="Transparent"/>
                             <Setter Property="CornerRadius" Value="2"/>
                             <Style.Triggers>
+                              <DataTrigger Binding="{Binding DataContext.IsBlockSelected, RelativeSource={RelativeSource AncestorType=Border}}" Value="True">
+                                <Setter Property="BorderBrush" Value="#FF4BA3FF"/>
+                                <Setter Property="BorderThickness" Value="2"/>
+                              </DataTrigger>
                               <Trigger Property="behaviors:ComboBoxDragFillBehavior.IsDragHighlighted" Value="True">
                                 <Setter Property="Background" Value="{StaticResource AccentBrush}"/>
                               </Trigger>
