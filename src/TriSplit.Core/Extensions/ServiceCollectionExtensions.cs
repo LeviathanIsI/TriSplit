@@ -14,8 +14,8 @@ public static class ServiceCollectionExtensions
         services.AddScoped<ISampleLoader, SampleLoader>();
 
         // Register readers
-        services.AddTransient<CsvInputReader>();
-        services.AddTransient<ExcelInputReader>();
+        services.AddTransient<IInputReader, CsvInputReader>();
+        services.AddTransient<IInputReader, ExcelInputReader>();
 
         return services;
     }

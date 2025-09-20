@@ -4,15 +4,16 @@ namespace TriSplit.Core.Services;
 
 public class InputReaderFactory : IInputReaderFactory
 {
-    private readonly IEnumerable<IInputReader> _readers;
+    private readonly IReadOnlyList<IInputReader> _readers;
 
-    public InputReaderFactory()
+    public InputReaderFactory(IEnumerable<IInputReader> readers)
     {
-        _readers = new List<IInputReader>
+        _readers = readers?.ToArray() ?? throw new ArgumentNullException(nameof(readers));
+
+        if (_readers.Count == 0)
         {
-            new CsvInputReader(),
-            new ExcelInputReader()
-        };
+            throw new InvalidOperationException("At least one input reader must be registered.");
+        }
     }
 
     public IInputReader GetReader(string filePath)

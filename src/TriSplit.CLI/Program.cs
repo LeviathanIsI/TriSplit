@@ -1,4 +1,6 @@
-using TriSplit.Core.Services;
+using Microsoft.Extensions.DependencyInjection;
+using TriSplit.Core.Extensions;
+using TriSplit.Core.Interfaces;
 
 namespace TriSplit.CLI;
 
@@ -68,8 +70,13 @@ class Program
         {
             Console.WriteLine($"Loading file: {filePath}");
 
-            var readerFactory = new InputReaderFactory();
-            var sampleLoader = new SampleLoader(readerFactory);
+            var services = new ServiceCollection();
+            services.AddTriSplitCore();
+
+            using var serviceProvider = services.BuildServiceProvider();
+            using var scope = serviceProvider.CreateScope();
+
+            var sampleLoader = scope.ServiceProvider.GetRequiredService<ISampleLoader>();
 
             var data = await sampleLoader.LoadSampleWithLimitAsync(filePath, 10);
 
@@ -96,7 +103,13 @@ class Program
     {
         try
         {
-            var profileStore = new ProfileStore();
+            var services = new ServiceCollection();
+            services.AddTriSplitCore();
+
+            using var serviceProvider = services.BuildServiceProvider();
+            using var scope = serviceProvider.CreateScope();
+
+            var profileStore = scope.ServiceProvider.GetRequiredService<IProfileStore>();
             var profiles = await profileStore.GetAllProfilesAsync();
 
             if (!profiles.Any())
