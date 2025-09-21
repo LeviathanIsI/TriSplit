@@ -87,19 +87,12 @@
                      Foreground="{StaticResource TextBrush}"
                      VerticalAlignment="Center"/>
 
-          <Border Grid.Column="1"
-                  Background="{StaticResource BackgroundBrush}"
-                  BorderBrush="{StaticResource BorderBrush}"
-                  BorderThickness="1"
-                  CornerRadius="4"
-                  Height="36"
-                  Margin="0,0,10,0">
-            <TextBlock Text="{Binding DetectedSourceDisplay}"
-                       Foreground="{StaticResource TextBrush}"
-                       VerticalAlignment="Center"
-                       Margin="10,0"
-                       TextTrimming="CharacterEllipsis"/>
-          </Border>
+          <TextBlock Grid.Column="1"
+                     Text="{Binding DetectedSourceDisplay}"
+                     Foreground="{StaticResource AccentBrush}"
+                     VerticalAlignment="Center"
+                     Margin="0,0,10,0"
+                     TextTrimming="CharacterEllipsis"/>
 
           <TextBlock Grid.Column="2"
                      Text="Output Format:"
