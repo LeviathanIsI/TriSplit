@@ -30,6 +30,7 @@ public partial class ProfilesViewModel : ViewModelBase
     private readonly List<(string Property, string Normalized)> _normalizedHubSpotHeaders = new();
     private string? _currentHeaderSourcePath;
     private List<string> _pendingHeaderSignature = new();
+    private bool _suppressNewSourcePrompt;
 
     private static readonly Dictionary<string, string> SynonymMap = new(StringComparer.OrdinalIgnoreCase)
     {
@@ -171,6 +172,7 @@ public partial class ProfilesViewModel : ViewModelBase
         _appSession = appSession;
         _sampleLoader = sampleLoader;
         _profileMetadataRepository = profileMetadataRepository;
+        _appSession.NewSourceRequested += OnNewSourceRequested;
         _profileDetectionService = profileDetectionService;
 
         FieldMappings = new ObservableCollection<FieldMappingViewModel>();
@@ -1375,6 +1377,40 @@ public partial class ProfilesViewModel : ViewModelBase
         }
     }
 
+    private async void OnNewSourceRequested(object? sender, NewSourceRequestedEventArgs e)
+    {
+        if (e == null || string.IsNullOrWhiteSpace(e.FilePath))
+        {
+            return;
+        }
+
+        if (!File.Exists(e.FilePath))
+        {
+            await _dialogService.ShowMessageAsync("File Not Found", $"We couldn\"t find {Path.GetFileName(e.FilePath)}. Select the file again from Processing.");
+            return;
+        }
+
+        try
+        {
+            _suppressNewSourcePrompt = true;
+            NewProfile();
+            ProfileName = GenerateProfileNameFromFile(e.FilePath);
+            await LoadHeaderSuggestionsAsync(e.FilePath);
+            ProfileStatus = $"Review mappings for {Path.GetFileName(e.FilePath)} and save this profile before processing.";
+        }
+        catch (Exception ex)
+        {
+            await _dialogService.ShowMessageAsync("Error", $"Unable to prepare the new profile: {ex.Message}");
+        }
+    }
+
+    private static string GenerateProfileNameFromFile(string filePath)
+    {
+        var name = Path.GetFileNameWithoutExtension(filePath);
+        return string.IsNullOrWhiteSpace(name) ? "New Data Profile" : name;
+    }
+
+
     private async Task HandleDetectionResultAsync(ProfileDetectionResult detectionResult, IReadOnlyList<string> headers, string filePath)
     {
         switch (detectionResult.Outcome)
@@ -1390,10 +1426,39 @@ public partial class ProfilesViewModel : ViewModelBase
                 }
                 break;
             case ProfileDetectionOutcome.NewSource:
+            {
                 PopulateSuggestions(headers);
                 ProfileStatus = detectionResult.StatusMessage;
                 UpdateSuggestionState();
+
+                if (_suppressNewSourcePrompt)
+                {
+                    _suppressNewSourcePrompt = false;
+                    break;
+                }
+
+                var decision = await _dialogService.ShowNewSourceDecisionAsync(Path.GetFileName(filePath));
+                switch (decision)
+                {
+                    case NewSourceDecision.CreateNew:
+                        NewProfile();
+                        ProfileName = GenerateProfileNameFromFile(filePath);
+                        PopulateSuggestions(headers);
+                        ProfileStatus = $"Mapping headers from {Path.GetFileName(filePath)}. Save this profile before processing.";
+                        break;
+                    case NewSourceDecision.UpdateExisting:
+                        ProfileStatus = "Select a saved profile on the left to update with these headers.";
+                        break;
+                    default:
+                        ClearSuggestions();
+                        SetPendingHeaderSignature(null);
+                        _appSession.LoadedFilePath = null;
+                        ProfileStatus = "New source cancelled.";
+                        break;
+                }
+
                 break;
+            }
             case ProfileDetectionOutcome.Cancelled:
                 ProfileStatus = detectionResult.StatusMessage;
                 ClearSuggestions();

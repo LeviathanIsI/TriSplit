@@ -49,6 +49,7 @@ public partial class MainWindowViewModel : ViewModelBase
         TestViewModel = testViewModel;
         ProcessingViewModel = processingViewModel;
         _appSession = appSession;
+        _appSession.NavigationRequested += OnNavigationRequested;
 
         // Subscribe to app session changes
         _appSession.PropertyChanged += (s, e) =>
@@ -81,6 +82,17 @@ public partial class MainWindowViewModel : ViewModelBase
         {
             SelectedTabIndex = tabIndex;
         }
+    }
+
+    private void OnNavigationRequested(AppTab tab)
+    {
+        SelectedTabIndex = tab switch
+        {
+            AppTab.Profiles => 0,
+            AppTab.Test => 1,
+            AppTab.Processing => 2,
+            _ => SelectedTabIndex
+        };
     }
 
     private void ProfilesViewModelOnPropertyChanged(object? sender, PropertyChangedEventArgs e)

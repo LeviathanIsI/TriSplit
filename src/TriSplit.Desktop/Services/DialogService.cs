@@ -105,6 +105,20 @@ public class DialogService : IDialogService
         });
     }
 
+    public Task<NewSourceDecision> ShowNewSourceDecisionAsync(string sourceFileName)
+    {
+        return InvokeOnDispatcherAsync(() =>
+        {
+            var dialog = new NewSourceDecisionDialog(sourceFileName)
+            {
+                Owner = GetActiveWindow()
+            };
+
+            var result = dialog.ShowDialog();
+            return result == true ? dialog.Result : NewSourceDecision.Cancel;
+        });
+    }
+
     public Task<string?> ShowInputDialogAsync(string title, string prompt, string defaultValue = "")
     {
         return InvokeOnDispatcherAsync(() =>

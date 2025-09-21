@@ -1,5 +1,6 @@
 using System;
 using System.ComponentModel;
+using System.Collections.Generic;
 using TriSplit.Core.Interfaces;
 using TriSplit.Core.Models;
 
@@ -15,4 +16,8 @@ public interface IAppSession : INotifyPropertyChanged
     bool OutputJson { get; set; }
     Guid? LastProfileId { get; }
     event EventHandler? SessionUpdated;
+    event Action<AppTab>? NavigationRequested;
+    void RequestNavigation(AppTab tab);
+    event EventHandler<NewSourceRequestedEventArgs>? NewSourceRequested;
+    void NotifyNewSourceRequested(string filePath, IReadOnlyList<string> headers);
 }

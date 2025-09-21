@@ -1,0 +1,53 @@
+<Window x:Class="TriSplit.Desktop.Views.Dialogs.NewSourceDecisionDialog"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="New Data Source Detected"
+        SizeToContent="WidthAndHeight"
+        WindowStartupLocation="CenterOwner"
+        ResizeMode="NoResize"
+        ShowInTaskbar="False"
+        MinWidth="520"
+        Background="{DynamicResource SurfaceBrush}"
+        Foreground="{DynamicResource TextBrush}">
+  <Border Padding="24"
+          Background="{DynamicResource SurfaceBrush}"
+          BorderBrush="{DynamicResource BorderBrush}"
+          BorderThickness="1"
+          CornerRadius="12">
+    <StackPanel>
+      <TextBlock x:Name="MessageText"
+                 TextWrapping="Wrap"
+                 FontSize="15"
+                 Margin="0,0,0,18"/>
+
+      <StackPanel Orientation="Vertical"
+                  Margin="0,0,0,18">
+        <TextBlock Text="How would you like to handle this file?"
+                   FontWeight="SemiBold"/>
+        <TextBlock Text="You can update an existing data source or capture these headers as a brand-new profile before processing."
+                   Foreground="{DynamicResource SecondaryTextBrush}"
+                   TextWrapping="Wrap"
+                   FontSize="13"/>
+      </StackPanel>
+
+      <StackPanel Orientation="Horizontal"
+                  HorizontalAlignment="Right">
+        <Button Content="Update Known Data Source"
+                Style="{StaticResource PrimaryButton}"
+                Width="210"
+                Margin="0,0,12,0"
+                Click="OnUpdateClick"/>
+        <Button Content="Create New Profile"
+                Style="{StaticResource SecondaryButton}"
+                Width="170"
+                Margin="0,0,12,0"
+                Click="OnCreateClick"/>
+        <Button Content="Cancel"
+                Style="{StaticResource SecondaryButton}"
+                Width="110"
+                IsCancel="True"
+                Click="OnCancelClick"/>
+      </StackPanel>
+    </StackPanel>
+  </Border>
+</Window>

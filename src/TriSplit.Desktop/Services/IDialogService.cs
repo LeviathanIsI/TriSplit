@@ -11,6 +11,7 @@ public interface IDialogService
     Task<ProfileMatchCandidate?> ShowProfileSelectionDialogAsync(IReadOnlyList<ProfileMatchCandidate> candidates);
     Task<PartialMatchDecision> ShowPartialMatchDialogAsync(ProfileMatchCandidate candidate);
     Task<string?> ShowInputDialogAsync(string title, string prompt, string defaultValue = "");
+    Task<NewSourceDecision> ShowNewSourceDecisionAsync(string sourceFileName);
 }
 
 public enum PartialMatchDecision

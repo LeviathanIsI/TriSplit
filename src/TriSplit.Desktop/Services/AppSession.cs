@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
 using System.IO;
@@ -134,7 +135,26 @@ public class AppSession : IAppSession
     public Guid? LastProfileId => _lastProfileId;
 
     public event EventHandler? SessionUpdated;
+    public event Action<AppTab>? NavigationRequested;
+    public event EventHandler<NewSourceRequestedEventArgs>? NewSourceRequested;
     public event PropertyChangedEventHandler? PropertyChanged;
+
+    public void RequestNavigation(AppTab tab)
+    {
+        NavigationRequested?.Invoke(tab);
+    }
+
+    public void NotifyNewSourceRequested(string filePath, IReadOnlyList<string> headers)
+    {
+        if (string.IsNullOrWhiteSpace(filePath))
+        {
+            return;
+        }
+
+        var headerSnapshot = headers ?? Array.Empty<string>();
+        LoadedFilePath = filePath;
+        NewSourceRequested?.Invoke(this, new NewSourceRequestedEventArgs(filePath, headerSnapshot));
+    }
 
     private void LoadSnapshot()
     {
