@@ -53,7 +53,7 @@
                 <DataTemplate>
                   <TextBlock Margin="0,2,0,2">
                     <Run Text="- " />
-                    <Run Text="{Binding}" />
+                    <Run Text="{Binding .}" />
                   </TextBlock>
                 </DataTemplate>
               </ItemsControl.ItemTemplate>
@@ -91,7 +91,7 @@
                 <DataTemplate>
                   <TextBlock Margin="0,2,0,2">
                     <Run Text="- " />
-                    <Run Text="{Binding}" />
+                    <Run Text="{Binding .}" />
                   </TextBlock>
                 </DataTemplate>
               </ItemsControl.ItemTemplate>

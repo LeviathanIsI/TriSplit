@@ -40,55 +40,50 @@
                    BorderThickness="0"
                    Foreground="{DynamicResource TextBrush}"
                    SelectionMode="Single">
-            <ListBox.Resources>
+            <ListBox.ItemContainerStyle>
               <Style TargetType="ListBoxItem">
                 <Setter Property="Padding" Value="0" />
                 <Setter Property="Margin" Value="0,0,0,10" />
                 <Setter Property="Background" Value="Transparent" />
                 <Setter Property="HorizontalContentAlignment" Value="Stretch" />
-                <Setter Property="Template">
-                  <Setter.Value>
-                    <ControlTemplate TargetType="ListBoxItem">
-                      <Border x:Name="Container"
-                              Background="{DynamicResource SurfaceBrush}"
-                              BorderBrush="{DynamicResource BorderBrush}"
-                              BorderThickness="1"
-                              CornerRadius="8"
-                              Padding="12">
-                        <ContentPresenter />
-                      </Border>
-                      <ControlTemplate.Triggers>
-                        <Trigger Property="IsSelected" Value="True">
-                          <Setter TargetName="Container"
-                                  Property="BorderBrush"
-                                  Value="{DynamicResource AccentBrush}" />
-                          <Setter TargetName="Container"
-                                  Property="BorderThickness"
-                                  Value="2" />
-                        </Trigger>
-                        <Trigger Property="IsMouseOver" Value="True">
-                          <Setter TargetName="Container"
-                                  Property="Background"
-                                  Value="{DynamicResource HoverBrush}" />
-                        </Trigger>
-                      </ControlTemplate.Triggers>
-                    </ControlTemplate>
-                  </Setter.Value>
-                </Setter>
               </Style>
-            </ListBox.Resources>
+            </ListBox.ItemContainerStyle>
             <ListBox.ItemTemplate>
               <DataTemplate>
-                <StackPanel>
-                  <TextBlock Text="{Binding Title}"
-                             FontWeight="SemiBold"
-                             FontSize="14" />
-                  <TextBlock Text="{Binding Details}"
-                             Foreground="{DynamicResource SecondaryTextBrush}"
-                             FontSize="12"
-                             TextWrapping="Wrap"
-                             Margin="0,4,0,0" />
-                </StackPanel>
+                <Border x:Name="Card"
+                        Background="{DynamicResource SurfaceBrush}"
+                        BorderBrush="{DynamicResource BorderBrush}"
+                        BorderThickness="1"
+                        CornerRadius="8"
+                        Padding="12">
+                  <StackPanel>
+                    <TextBlock Text="{Binding Title}"
+                               FontWeight="SemiBold"
+                               FontSize="14" />
+                    <TextBlock Text="{Binding Details}"
+                               Foreground="{DynamicResource SecondaryTextBrush}"
+                               FontSize="12"
+                               TextWrapping="Wrap"
+                               Margin="0,4,0,0" />
+                  </StackPanel>
+                </Border>
+                <DataTemplate.Triggers>
+                  <DataTrigger Binding="{Binding IsMouseOver, RelativeSource={RelativeSource AncestorType=ListBoxItem}}"
+                               Value="True">
+                    <Setter TargetName="Card"
+                            Property="Background"
+                            Value="{DynamicResource HoverBrush}" />
+                  </DataTrigger>
+                  <DataTrigger Binding="{Binding IsSelected, RelativeSource={RelativeSource AncestorType=ListBoxItem}}"
+                               Value="True">
+                    <Setter TargetName="Card"
+                            Property="BorderBrush"
+                            Value="{DynamicResource AccentBrush}" />
+                    <Setter TargetName="Card"
+                            Property="BorderThickness"
+                            Value="2" />
+                  </DataTrigger>
+                </DataTemplate.Triggers>
               </DataTemplate>
             </ListBox.ItemTemplate>
           </ListBox>
