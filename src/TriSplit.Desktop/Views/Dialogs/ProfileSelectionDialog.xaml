@@ -1,1 +1,116 @@
-<Window x:Class="TriSplit.Desktop.Views.Dialogs.ProfileSelectionDialog"        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"        Title="Select Data Profile"        SizeToContent="WidthAndHeight"        WindowStartupLocation="CenterOwner"        ResizeMode="NoResize"        MinWidth="520"        Background="{DynamicResource SurfaceBrush}"        Foreground="{DynamicResource TextBrush}">    <Border Padding="24"            Background="{DynamicResource SurfaceBrush}"            BorderBrush="{DynamicResource BorderBrush}"            BorderThickness="1"            CornerRadius="12"            SnapsToDevicePixels="True">        <Grid>            <Grid.RowDefinitions>                <RowDefinition Height="Auto" />                <RowDefinition Height="Auto" />                <RowDefinition Height="Auto" />            </Grid.RowDefinitions>            <TextBlock Text="Multiple saved profiles match these headers. Choose one to continue."                       FontSize="16"                       FontWeight="SemiBold"                       TextWrapping="Wrap"                       Margin="0,0,0,18" />            <Border Grid.Row="1"                    Background="{DynamicResource BackgroundBrush}"                    BorderBrush="{DynamicResource BorderBrush}"                    BorderThickness="1"                    CornerRadius="8">                <ScrollViewer MaxHeight="260" VerticalScrollBarVisibility="Auto">                    <ListBox x:Name="MatchesList"                             Margin="0"                             Background="Transparent"                             BorderThickness="0"                             Foreground="{DynamicResource TextBrush}"                             SelectionMode="Single">                        <ListBox.Resources>                            <Style TargetType="ListBoxItem">                                <Setter Property="Padding" Value="0" />                                <Setter Property="Margin" Value="0,0,0,10" />                                <Setter Property="Background" Value="Transparent" />                                <Setter Property="HorizontalContentAlignment" Value="Stretch" />                                <Setter Property="Template">                                    <Setter.Value>                                        <ControlTemplate TargetType="ListBoxItem">                                            <Border x:Name="Container"                                                    Background="{DynamicResource SurfaceBrush}"                                                    BorderBrush="{DynamicResource BorderBrush}"                                                    BorderThickness="1"                                                    CornerRadius="8"                                                    Padding="12">                                                <ContentPresenter />                                            </Border>                                            <ControlTemplate.Triggers>                                                <Trigger Property="IsSelected" Value="True">                                                    <Setter TargetName="Container" Property="BorderBrush" Value="{DynamicResource AccentBrush}" />                                                    <Setter TargetName="Container" Property="BorderThickness" Value="2" />                                                </Trigger>                                                <Trigger Property="IsMouseOver" Value="True">                                                    <Setter TargetName="Container" Property="Background" Value="{DynamicResource HoverBrush}" />                                                </Trigger>                                            </ControlTemplate.Triggers>                                        </ControlTemplate>                                    </Setter.Value>                                </Setter>                            </Style>                        </ListBox.Resources>                        <ListBox.ItemTemplate>                            <DataTemplate>                                <StackPanel>                                    <TextBlock Text="{Binding Title}" FontWeight="SemiBold" FontSize="14" />                                    <TextBlock Text="{Binding Details}"                                               Foreground="{DynamicResource SecondaryTextBrush}"                                               FontSize="12"                                               TextWrapping="Wrap"                                               Margin="0,4,0,0" />                                </StackPanel>                            </DataTemplate>                        </ListBox.ItemTemplate>                    </ListBox>                </ScrollViewer>            </Border>            <StackPanel Grid.Row="2"                        Orientation="Horizontal"                        HorizontalAlignment="Right"                        Margin="0,18,0,0"                        >                <Button x:Name="SelectButton"                        Content="Use Profile"                        Width="130" Margin="0,0,12,0"                        Style="{StaticResource PrimaryButton}"                        IsDefault="True"                        Click="OnSelectClick" />                <Button Content="Cancel"                        Width="110"                        Style="{StaticResource SecondaryButton}"                        IsCancel="True" />            </StackPanel>        </Grid>    </Border></Window>
+<Window x:Class="TriSplit.Desktop.Views.Dialogs.ProfileSelectionDialog"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Select Data Profile"
+        SizeToContent="WidthAndHeight"
+        WindowStartupLocation="CenterOwner"
+        ResizeMode="NoResize"
+        MinWidth="520"
+        Background="{DynamicResource SurfaceBrush}"
+        Foreground="{DynamicResource TextBrush}">
+  <Border Padding="24"
+          Background="{DynamicResource SurfaceBrush}"
+          BorderBrush="{DynamicResource BorderBrush}"
+          BorderThickness="1"
+          CornerRadius="12"
+          SnapsToDevicePixels="True">
+    <Grid>
+      <Grid.RowDefinitions>
+        <RowDefinition Height="Auto" />
+        <RowDefinition Height="Auto" />
+        <RowDefinition Height="Auto" />
+      </Grid.RowDefinitions>
+
+      <TextBlock Text="Multiple saved profiles match these headers. Choose one to continue."
+                 FontSize="16"
+                 FontWeight="SemiBold"
+                 TextWrapping="Wrap"
+                 Margin="0,0,0,18" />
+
+      <Border Grid.Row="1"
+              Background="{DynamicResource BackgroundBrush}"
+              BorderBrush="{DynamicResource BorderBrush}"
+              BorderThickness="1"
+              CornerRadius="8">
+        <ScrollViewer MaxHeight="260"
+                      VerticalScrollBarVisibility="Auto">
+          <ListBox x:Name="MatchesList"
+                   Margin="0"
+                   Background="Transparent"
+                   BorderThickness="0"
+                   Foreground="{DynamicResource TextBrush}"
+                   SelectionMode="Single">
+            <ListBox.Resources>
+              <Style TargetType="ListBoxItem">
+                <Setter Property="Padding" Value="0" />
+                <Setter Property="Margin" Value="0,0,0,10" />
+                <Setter Property="Background" Value="Transparent" />
+                <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+                <Setter Property="Template">
+                  <Setter.Value>
+                    <ControlTemplate TargetType="ListBoxItem">
+                      <Border x:Name="Container"
+                              Background="{DynamicResource SurfaceBrush}"
+                              BorderBrush="{DynamicResource BorderBrush}"
+                              BorderThickness="1"
+                              CornerRadius="8"
+                              Padding="12">
+                        <ContentPresenter />
+                      </Border>
+                      <ControlTemplate.Triggers>
+                        <Trigger Property="IsSelected" Value="True">
+                          <Setter TargetName="Container"
+                                  Property="BorderBrush"
+                                  Value="{DynamicResource AccentBrush}" />
+                          <Setter TargetName="Container"
+                                  Property="BorderThickness"
+                                  Value="2" />
+                        </Trigger>
+                        <Trigger Property="IsMouseOver" Value="True">
+                          <Setter TargetName="Container"
+                                  Property="Background"
+                                  Value="{DynamicResource HoverBrush}" />
+                        </Trigger>
+                      </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                  </Setter.Value>
+                </Setter>
+              </Style>
+            </ListBox.Resources>
+            <ListBox.ItemTemplate>
+              <DataTemplate>
+                <StackPanel>
+                  <TextBlock Text="{Binding Title}"
+                             FontWeight="SemiBold"
+                             FontSize="14" />
+                  <TextBlock Text="{Binding Details}"
+                             Foreground="{DynamicResource SecondaryTextBrush}"
+                             FontSize="12"
+                             TextWrapping="Wrap"
+                             Margin="0,4,0,0" />
+                </StackPanel>
+              </DataTemplate>
+            </ListBox.ItemTemplate>
+          </ListBox>
+        </ScrollViewer>
+      </Border>
+
+      <StackPanel Grid.Row="2"
+                  Orientation="Horizontal"
+                  HorizontalAlignment="Right"
+                  Margin="0,18,0,0">
+        <Button x:Name="SelectButton"
+                Content="Use Profile"
+                Width="130"
+                Margin="0,0,12,0"
+                Style="{StaticResource PrimaryButton}"
+                IsDefault="True"
+                Click="OnSelectClick" />
+        <Button Content="Cancel"
+                Width="110"
+                Style="{StaticResource SecondaryButton}"
+                IsCancel="True" />
+      </StackPanel>
+    </Grid>
+  </Border>
+</Window>

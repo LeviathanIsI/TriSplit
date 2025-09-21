@@ -9,35 +9,35 @@
         MinWidth="420"
         Background="{DynamicResource SurfaceBrush}"
         Foreground="{DynamicResource TextBrush}">
-    <Border Padding="24"
-            Background="{DynamicResource SurfaceBrush}"
-            BorderBrush="{DynamicResource BorderBrush}"
-            BorderThickness="1"
-            CornerRadius="12">
-        <StackPanel>
-            <TextBlock x:Name="MessageText"
-                       TextWrapping="Wrap"
-                       FontSize="15"
-                       TextTrimming="CharacterEllipsis"
-                       Margin="0,0,0,18" />
+  <Border Padding="24"
+          Background="{DynamicResource SurfaceBrush}"
+          BorderBrush="{DynamicResource BorderBrush}"
+          BorderThickness="1"
+          CornerRadius="12">
+    <StackPanel>
+      <TextBlock x:Name="MessageText"
+                 TextWrapping="Wrap"
+                 FontSize="15"
+                 TextTrimming="CharacterEllipsis"
+                 Margin="0,0,0,18" />
 
-            <StackPanel Orientation="Horizontal"
-                        HorizontalAlignment="Right">
-                <Button x:Name="PrimaryButton"
-                        Content="OK"
-                        Style="{StaticResource PrimaryButton}"
-                        Width="110"
-                        Margin="0,0,12,0"
-                        IsDefault="True"
-                        Click="OnPrimaryClick" />
-                <Button x:Name="SecondaryButton"
-                        Content="Cancel"
-                        Style="{StaticResource SecondaryButton}"
-                        Width="110"
-                        IsCancel="True"
-                        Click="OnSecondaryClick"
-                        Visibility="Collapsed" />
-            </StackPanel>
-        </StackPanel>
-    </Border>
+      <StackPanel Orientation="Horizontal"
+                  HorizontalAlignment="Right">
+        <Button x:Name="PrimaryButton"
+                Content="OK"
+                Style="{StaticResource PrimaryButton}"
+                Width="110"
+                Margin="0,0,12,0"
+                IsDefault="True"
+                Click="OnPrimaryClick" />
+        <Button x:Name="SecondaryButton"
+                Content="Cancel"
+                Style="{StaticResource SecondaryButton}"
+                Width="110"
+                IsCancel="True"
+                Click="OnSecondaryClick"
+                Visibility="Collapsed" />
+      </StackPanel>
+    </StackPanel>
+  </Border>
 </Window>

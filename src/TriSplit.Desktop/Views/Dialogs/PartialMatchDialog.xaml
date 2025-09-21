@@ -1,1 +1,129 @@
-<Window x:Class="TriSplit.Desktop.Views.Dialogs.PartialMatchDialog"        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"        Title="Confirm Header Changes"        SizeToContent="WidthAndHeight"        WindowStartupLocation="CenterOwner"        ResizeMode="NoResize"        MinWidth="480"        Background="{DynamicResource SurfaceBrush}"        Foreground="{DynamicResource TextBrush}">    <Border Padding="24"            Background="{DynamicResource SurfaceBrush}"            BorderBrush="{DynamicResource BorderBrush}"            BorderThickness="1"            CornerRadius="12"            SnapsToDevicePixels="True">        <Grid>            <Grid.RowDefinitions>                <RowDefinition Height="Auto" />                <RowDefinition Height="Auto" />                <RowDefinition Height="Auto" />                <RowDefinition Height="Auto" />            </Grid.RowDefinitions>            <TextBlock x:Name="IntroText"                       FontSize="16"                       FontWeight="SemiBold"                       TextWrapping="Wrap"                       Margin="0,0,0,18" />            <StackPanel Grid.Row="1" Margin="0,0,0,16">                <TextBlock Text="Headers that disappeared from this file:"                           FontWeight="SemiBold"                           Foreground="{DynamicResource AccentBrush}"/>                <Border x:Name="MissingContainer"                        Background="{DynamicResource BackgroundBrush}"                        BorderBrush="{DynamicResource BorderBrush}"                        BorderThickness="1"                        CornerRadius="8"                        Padding="12"                        Margin="0,6,0,0">                    <ScrollViewer MaxHeight="180" VerticalScrollBarVisibility="Auto">                        <ItemsControl x:Name="MissingItems"                                      ItemsSource="{Binding MissingHeaders}">                            <ItemsControl.ItemsPanel>                                <ItemsPanelTemplate>                                    <StackPanel />                                </ItemsPanelTemplate>                            </ItemsControl.ItemsPanel>                            <ItemsControl.ItemTemplate>                                <DataTemplate>                                    <TextBlock Margin="0,2,0,2">                                        <Run Text="- " />                                        <Run Text="{Binding}" />                                    </TextBlock>                                </DataTemplate>                            </ItemsControl.ItemTemplate>                        </ItemsControl>                    </ScrollViewer>                </Border>                <TextBlock x:Name="NoMissingText"                           Text="(none)"                           Margin="0,8,0,0"                           Foreground="{DynamicResource SecondaryTextBrush}" />            </StackPanel>            <StackPanel Grid.Row="2" Margin="0,0,0,16">                <TextBlock Text="New headers found in this file:"                           FontWeight="SemiBold"                           Foreground="{DynamicResource AccentBrush}"/>                <Border x:Name="AdditionalContainer"                        Background="{DynamicResource BackgroundBrush}"                        BorderBrush="{DynamicResource BorderBrush}"                        BorderThickness="1"                        CornerRadius="8"                        Padding="12"                        Margin="0,6,0,0">                    <ScrollViewer MaxHeight="180" VerticalScrollBarVisibility="Auto">                        <ItemsControl x:Name="AdditionalItems"                                      ItemsSource="{Binding AdditionalHeaders}">                            <ItemsControl.ItemsPanel>                                <ItemsPanelTemplate>                                    <StackPanel />                                </ItemsPanelTemplate>                            </ItemsControl.ItemsPanel>                            <ItemsControl.ItemTemplate>                                <DataTemplate>                                    <TextBlock Margin="0,2,0,2">                                        <Run Text="- " />                                        <Run Text="{Binding}" />                                    </TextBlock>                                </DataTemplate>                            </ItemsControl.ItemTemplate>                        </ItemsControl>                    </ScrollViewer>                </Border>                <TextBlock x:Name="NoAdditionalText"                           Text="(none)"                           Margin="0,8,0,0"                           Foreground="{DynamicResource SecondaryTextBrush}" />            </StackPanel>            <StackPanel Grid.Row="3"                        Orientation="Horizontal"                        HorizontalAlignment="Right"                        Margin="0,12,0,0"                        >                <Button Content="Update Profile"                        Width="140" Margin="0,0,12,0"                        Style="{StaticResource PrimaryButton}"                        IsDefault="True"                        Click="OnUpdateClick" />                <Button Content="Create New"                        Width="120" Margin="0,0,12,0"                        Style="{StaticResource SecondaryButton}"                        Click="OnCreateNewClick" />                <Button Content="Cancel"                        Width="100"                        Style="{StaticResource SecondaryButton}"                        IsCancel="True" />            </StackPanel>        </Grid>    </Border></Window>
+<Window x:Class="TriSplit.Desktop.Views.Dialogs.PartialMatchDialog"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Confirm Header Changes"
+        SizeToContent="WidthAndHeight"
+        WindowStartupLocation="CenterOwner"
+        ResizeMode="NoResize"
+        MinWidth="480"
+        Background="{DynamicResource SurfaceBrush}"
+        Foreground="{DynamicResource TextBrush}">
+  <Border Padding="24"
+          Background="{DynamicResource SurfaceBrush}"
+          BorderBrush="{DynamicResource BorderBrush}"
+          BorderThickness="1"
+          CornerRadius="12"
+          SnapsToDevicePixels="True">
+    <Grid>
+      <Grid.RowDefinitions>
+        <RowDefinition Height="Auto" />
+        <RowDefinition Height="Auto" />
+        <RowDefinition Height="Auto" />
+        <RowDefinition Height="Auto" />
+      </Grid.RowDefinitions>
+
+      <TextBlock x:Name="IntroText"
+                 FontSize="16"
+                 FontWeight="SemiBold"
+                 TextWrapping="Wrap"
+                 Margin="0,0,0,18" />
+
+      <StackPanel Grid.Row="1"
+                  Margin="0,0,0,16">
+        <TextBlock Text="Headers that disappeared from this file:"
+                   FontWeight="SemiBold"
+                   Foreground="{DynamicResource AccentBrush}" />
+        <Border x:Name="MissingContainer"
+                Background="{DynamicResource BackgroundBrush}"
+                BorderBrush="{DynamicResource BorderBrush}"
+                BorderThickness="1"
+                CornerRadius="8"
+                Padding="12"
+                Margin="0,6,0,0">
+          <ScrollViewer MaxHeight="180"
+                        VerticalScrollBarVisibility="Auto">
+            <ItemsControl x:Name="MissingItems"
+                          ItemsSource="{Binding MissingHeaders}">
+              <ItemsControl.ItemsPanel>
+                <ItemsPanelTemplate>
+                  <StackPanel />
+                </ItemsPanelTemplate>
+              </ItemsControl.ItemsPanel>
+              <ItemsControl.ItemTemplate>
+                <DataTemplate>
+                  <TextBlock Margin="0,2,0,2">
+                    <Run Text="- " />
+                    <Run Text="{Binding}" />
+                  </TextBlock>
+                </DataTemplate>
+              </ItemsControl.ItemTemplate>
+            </ItemsControl>
+          </ScrollViewer>
+        </Border>
+        <TextBlock x:Name="NoMissingText"
+                   Text="(none)"
+                   Margin="0,8,0,0"
+                   Foreground="{DynamicResource SecondaryTextBrush}" />
+      </StackPanel>
+
+      <StackPanel Grid.Row="2"
+                  Margin="0,0,0,16">
+        <TextBlock Text="New headers found in this file:"
+                   FontWeight="SemiBold"
+                   Foreground="{DynamicResource AccentBrush}" />
+        <Border x:Name="AdditionalContainer"
+                Background="{DynamicResource BackgroundBrush}"
+                BorderBrush="{DynamicResource BorderBrush}"
+                BorderThickness="1"
+                CornerRadius="8"
+                Padding="12"
+                Margin="0,6,0,0">
+          <ScrollViewer MaxHeight="180"
+                        VerticalScrollBarVisibility="Auto">
+            <ItemsControl x:Name="AdditionalItems"
+                          ItemsSource="{Binding AdditionalHeaders}">
+              <ItemsControl.ItemsPanel>
+                <ItemsPanelTemplate>
+                  <StackPanel />
+                </ItemsPanelTemplate>
+              </ItemsControl.ItemsPanel>
+              <ItemsControl.ItemTemplate>
+                <DataTemplate>
+                  <TextBlock Margin="0,2,0,2">
+                    <Run Text="- " />
+                    <Run Text="{Binding}" />
+                  </TextBlock>
+                </DataTemplate>
+              </ItemsControl.ItemTemplate>
+            </ItemsControl>
+          </ScrollViewer>
+        </Border>
+        <TextBlock x:Name="NoAdditionalText"
+                   Text="(none)"
+                   Margin="0,8,0,0"
+                   Foreground="{DynamicResource SecondaryTextBrush}" />
+      </StackPanel>
+
+      <StackPanel Grid.Row="3"
+                  Orientation="Horizontal"
+                  HorizontalAlignment="Right"
+                  Margin="0,12,0,0">
+        <Button Content="Update Profile"
+                Width="140"
+                Margin="0,0,12,0"
+                Style="{StaticResource PrimaryButton}"
+                IsDefault="True"
+                Click="OnUpdateClick" />
+        <Button Content="Create New"
+                Width="120"
+                Margin="0,0,12,0"
+                Style="{StaticResource SecondaryButton}"
+                Click="OnCreateNewClick" />
+        <Button Content="Cancel"
+                Width="100"
+                Style="{StaticResource SecondaryButton}"
+                IsCancel="True" />
+      </StackPanel>
+    </Grid>
+  </Border>
+</Window>
