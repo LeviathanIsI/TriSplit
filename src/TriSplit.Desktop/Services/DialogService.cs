@@ -1,7 +1,10 @@
+using System;
 using System.Collections.Generic;
 using System.Linq;
-using Microsoft.Win32;
+using System.Threading.Tasks;
 using System.Windows;
+using System.Windows.Threading;
+using Microsoft.Win32;
 using TriSplit.Core.Interfaces;
 using TriSplit.Desktop.Views.Dialogs;
 
@@ -11,44 +14,55 @@ public class DialogService : IDialogService
 {
     public Task<string?> ShowOpenFileDialogAsync(string title, string filter)
     {
-        var dialog = new OpenFileDialog
+        return InvokeOnDispatcherAsync(() =>
         {
-            Title = title,
-            Filter = filter
-        };
+            var dialog = new OpenFileDialog
+            {
+                Title = title,
+                Filter = filter
+            };
 
-        var result = dialog.ShowDialog();
-        return Task.FromResult(result == true ? dialog.FileName : null);
+            var result = dialog.ShowDialog();
+            return result == true ? dialog.FileName : null;
+        });
     }
 
     public Task<string?> ShowSaveFileDialogAsync(string title, string filter, string defaultFileName = "")
     {
-        var dialog = new SaveFileDialog
+        return InvokeOnDispatcherAsync(() =>
         {
-            Title = title,
-            Filter = filter,
-            FileName = defaultFileName
-        };
+            var dialog = new SaveFileDialog
+            {
+                Title = title,
+                Filter = filter,
+                FileName = defaultFileName
+            };
 
-        var result = dialog.ShowDialog();
-        return Task.FromResult(result == true ? dialog.FileName : null);
+            var result = dialog.ShowDialog();
+            return result == true ? dialog.FileName : null;
+        });
     }
 
     public Task<bool> ShowConfirmationDialogAsync(string title, string message)
     {
-        var result = MessageBox.Show(
-            message,
-            title,
-            MessageBoxButton.YesNo,
-            MessageBoxImage.Question);
+        return InvokeOnDispatcherAsync(() =>
+        {
+            var result = MessageBox.Show(
+                message,
+                title,
+                MessageBoxButton.YesNo,
+                MessageBoxImage.Question);
 
-        return Task.FromResult(result == MessageBoxResult.Yes);
+            return result == MessageBoxResult.Yes;
+        });
     }
 
     public Task ShowMessageAsync(string title, string message)
     {
-        MessageBox.Show(message, title, MessageBoxButton.OK, MessageBoxImage.Information);
-        return Task.CompletedTask;
+        return InvokeOnDispatcherAsync(() =>
+        {
+            MessageBox.Show(message, title, MessageBoxButton.OK, MessageBoxImage.Information);
+        });
     }
 
     public Task<ProfileMatchCandidate?> ShowProfileSelectionDialogAsync(IReadOnlyList<ProfileMatchCandidate> candidates)
@@ -58,97 +72,107 @@ public class DialogService : IDialogService
             return Task.FromResult<ProfileMatchCandidate?>(null);
         }
 
-        var dialog = new ProfileSelectionDialog(candidates)
+        return InvokeOnDispatcherAsync(() =>
         {
-            Owner = GetActiveWindow()
-        };
+            var dialog = new ProfileSelectionDialog(candidates)
+            {
+                Owner = GetActiveWindow()
+            };
 
-        var result = dialog.ShowDialog();
-        return Task.FromResult(result == true ? dialog.Result : null);
+            var result = dialog.ShowDialog();
+            return result == true ? dialog.Result : null;
+        });
     }
 
     public Task<PartialMatchDecision> ShowPartialMatchDialogAsync(ProfileMatchCandidate candidate)
     {
-        var dialog = new PartialMatchDialog(candidate)
+        return InvokeOnDispatcherAsync(() =>
         {
-            Owner = GetActiveWindow()
-        };
+            var dialog = new PartialMatchDialog(candidate)
+            {
+                Owner = GetActiveWindow()
+            };
 
-        var result = dialog.ShowDialog();
-        return Task.FromResult(result == true ? dialog.Decision : PartialMatchDecision.Cancel);
+            var result = dialog.ShowDialog();
+            return result == true ? dialog.Decision : PartialMatchDecision.Cancel;
+        });
     }
 
     public Task<string?> ShowInputDialogAsync(string title, string prompt, string defaultValue = "")
     {
-        var window = new Window
+        return InvokeOnDispatcherAsync(() =>
         {
-            Title = title,
-            Width = 400,
-            Height = 150,
-            WindowStartupLocation = WindowStartupLocation.CenterScreen,
-            ResizeMode = ResizeMode.NoResize
-        };
+            var window = new Window
+            {
+                Title = title,
+                Width = 400,
+                Height = 150,
+                WindowStartupLocation = WindowStartupLocation.CenterScreen,
+                ResizeMode = ResizeMode.NoResize,
+                Owner = GetActiveWindow()
+            };
 
-        var panel = new System.Windows.Controls.StackPanel
-        {
-            Margin = new Thickness(10)
-        };
+            var panel = new System.Windows.Controls.StackPanel
+            {
+                Margin = new Thickness(10)
+            };
 
-        var label = new System.Windows.Controls.Label
-        {
-            Content = prompt
-        };
+            var label = new System.Windows.Controls.Label
+            {
+                Content = prompt
+            };
 
-        var textBox = new System.Windows.Controls.TextBox
-        {
-            Text = defaultValue,
-            Margin = new Thickness(0, 5, 0, 10)
-        };
+            var textBox = new System.Windows.Controls.TextBox
+            {
+                Text = defaultValue,
+                Margin = new Thickness(0, 5, 0, 10)
+            };
 
-        var buttonPanel = new System.Windows.Controls.StackPanel
-        {
-            Orientation = System.Windows.Controls.Orientation.Horizontal,
-            HorizontalAlignment = HorizontalAlignment.Right
-        };
+            var buttonPanel = new System.Windows.Controls.StackPanel
+            {
+                Orientation = System.Windows.Controls.Orientation.Horizontal,
+                HorizontalAlignment = HorizontalAlignment.Right
+            };
 
-        var okButton = new System.Windows.Controls.Button
-        {
-            Content = "OK",
-            Width = 75,
-            Margin = new Thickness(0, 0, 5, 0),
-            IsDefault = true
-        };
+            var okButton = new System.Windows.Controls.Button
+            {
+                Content = "OK",
+                Width = 75,
+                Margin = new Thickness(0, 0, 5, 0),
+                IsDefault = true
+            };
 
-        var cancelButton = new System.Windows.Controls.Button
-        {
-            Content = "Cancel",
-            Width = 75,
-            IsCancel = true
-        };
+            var cancelButton = new System.Windows.Controls.Button
+            {
+                Content = "Cancel",
+                Width = 75,
+                IsCancel = true
+            };
 
-        string? result = null;
+            string? result = null;
 
-        okButton.Click += (s, e) =>
-        {
-            result = textBox.Text;
-            window.DialogResult = true;
-        };
+            okButton.Click += (s, e) =>
+            {
+                result = textBox.Text;
+                window.DialogResult = true;
+            };
 
-        cancelButton.Click += (s, e) =>
-        {
-            window.DialogResult = false;
-        };
+            cancelButton.Click += (s, e) =>
+            {
+                window.DialogResult = false;
+            };
 
-        buttonPanel.Children.Add(okButton);
-        buttonPanel.Children.Add(cancelButton);
+            buttonPanel.Children.Add(okButton);
+            buttonPanel.Children.Add(cancelButton);
 
-        panel.Children.Add(label);
-        panel.Children.Add(textBox);
-        panel.Children.Add(buttonPanel);
+            panel.Children.Add(label);
+            panel.Children.Add(textBox);
+            panel.Children.Add(buttonPanel);
 
-        window.Content = panel;
+            window.Content = panel;
 
-        return Task.FromResult(window.ShowDialog() == true ? result : null);
+            return window.ShowDialog() == true ? result : null;
+        });
     }
 
     private static Window? GetActiveWindow()
@@ -161,6 +185,29 @@ public class DialogService : IDialogService
 
         var active = app.Windows.OfType<Window>().FirstOrDefault(w => w.IsActive);
         return active ?? app.MainWindow;
+    }
+
+    private static Task InvokeOnDispatcherAsync(Action callback)
+    {
+        var dispatcher = Application.Current?.Dispatcher;
+        if (dispatcher == null || dispatcher.CheckAccess())
+        {
+            callback();
+            return Task.CompletedTask;
+        }
+
+        return dispatcher.InvokeAsync(callback).Task;
+    }
+
+    private static Task<TResult> InvokeOnDispatcherAsync<TResult>(Func<TResult> callback)
+    {
+        var dispatcher = Application.Current?.Dispatcher;
+        if (dispatcher == null || dispatcher.CheckAccess())
+        {
+            return Task.FromResult(callback());
+        }
+
+        return dispatcher.InvokeAsync(callback).Task;
     }
 }
 
