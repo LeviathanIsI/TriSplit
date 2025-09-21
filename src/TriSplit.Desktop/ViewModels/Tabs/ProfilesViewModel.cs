@@ -1437,24 +1437,38 @@ public partial class ProfilesViewModel : ViewModelBase
                     break;
                 }
 
-                var decision = await _dialogService.ShowNewSourceDecisionAsync(Path.GetFileName(filePath));
-                switch (decision)
+                if (!_appSession.TryEnterNewSourcePrompt(filePath))
                 {
-                    case NewSourceDecision.CreateNew:
-                        NewProfile();
-                        ProfileName = GenerateProfileNameFromFile(filePath);
-                        PopulateSuggestions(headers);
-                        ProfileStatus = $"Mapping headers from {Path.GetFileName(filePath)}. Save this profile before processing.";
-                        break;
-                    case NewSourceDecision.UpdateExisting:
-                        ProfileStatus = "Select a saved profile on the left to update with these headers.";
-                        break;
-                    default:
-                        ClearSuggestions();
-                        SetPendingHeaderSignature(null);
-                        _appSession.LoadedFilePath = null;
-                        ProfileStatus = "New source cancelled.";
-                        break;
+                    break;
+                }
+
+                try
+                {
+                    var decision = await _dialogService.ShowNewSourceDecisionAsync(Path.GetFileName(filePath));
+                    switch (decision)
+                    {
+                        case NewSourceDecision.CreateNew:
+                            NewProfile();
+                            ProfileName = GenerateProfileNameFromFile(filePath);
+                            PopulateSuggestions(headers);
+                            SetPendingHeaderSignature(headers);
+                            ProfileStatus = $"Mapping headers from {Path.GetFileName(filePath)}. Save this profile before processing.";
+                            break;
+                        case NewSourceDecision.UpdateExisting:
+                            SetPendingHeaderSignature(headers);
+                            ProfileStatus = "Select a saved profile on the left to update with these headers.";
+                            break;
+                        default:
+                            ClearSuggestions();
+                            SetPendingHeaderSignature(null);
+                            _appSession.LoadedFilePath = null;
+                            ProfileStatus = "New source cancelled.";
+                            break;
+                    }
+                }
+                finally
+                {
+                    _appSession.CompleteNewSourcePrompt();
                 }
 
                 break;
