@@ -248,7 +248,7 @@ public partial class ProcessingViewModel : ViewModelBase
                     DetectedSourceDisplay = "Data source detected";
                 }
                 return true;
-            case ProfileDetectionOutcome.NewSource:
+                        case ProfileDetectionOutcome.NewSource:
                 _appSession.SelectedProfile = null;
                 SelectedProfile = null;
                 DetectedSourceDisplay = "Data source not recognized";
@@ -256,52 +256,60 @@ public partial class ProcessingViewModel : ViewModelBase
                 ProcessingStatus = "New source detected. Choose how to proceed.";
                 StatusColor = Brushes.Orange;
 
-                var decision = await _dialogService.ShowNewSourceDecisionAsync(Path.GetFileName(filePath));
-                switch (decision)
+                if (!_appSession.TryEnterNewSourcePrompt(filePath))
                 {
-                    case NewSourceDecision.UpdateExisting:
-                        if (AvailableProfiles.Count == 0)
-                        {
+                    return false;
+                }
+
+                try
+                {
+                    var decision = await _dialogService.ShowNewSourceDecisionAsync(Path.GetFileName(filePath));
+                    switch (decision)
+                    {
+                        case NewSourceDecision.UpdateExisting:
+                            if (AvailableProfiles.Count == 0)
+                            {
+                                RequiresProfileSetup = true;
+                                _appSession.NotifyNewSourceRequested(filePath, headers);
+                                _appSession.RequestNavigation(AppTab.Profiles);
+                                InputFilePath = filePath;
+                                ProcessingStatus = "Create and save a new profile before processing.";
+                                AddLogEntry("No saved profiles exist yet. Redirecting to create a new profile.", LogLevel.Info);
+                            }
+                            else
+                            {
+                                RequiresProfileSetup = false;
+                                _appSession.LoadedFilePath = filePath;
+                                InputFilePath = filePath;
+                                BeginOverride();
+                                ProcessingStatus = "Select a saved profile to update this source.";
+                                AddLogEntry("Select an existing data profile to map this source.", LogLevel.Info);
+                            }
+                            RefreshSourceActionState();
+                            return false;
+
+                        case NewSourceDecision.CreateNew:
                             RequiresProfileSetup = true;
                             _appSession.NotifyNewSourceRequested(filePath, headers);
                             _appSession.RequestNavigation(AppTab.Profiles);
-                            InputFilePath = filePath;
-                            ProcessingStatus = "Create and save a new profile before processing.";
-                            AddLogEntry("No saved profiles exist yet. Redirecting to create a new profile.", LogLevel.Info);
-                        }
-                        else
-                        {
-                            RequiresProfileSetup = false;
                             _appSession.LoadedFilePath = filePath;
                             InputFilePath = filePath;
-                            BeginOverride();
-                            ProcessingStatus = "Select a saved profile to update this source.";
-                            AddLogEntry("Select an existing data profile to map this source.", LogLevel.Info);
-                        }
-                        RefreshSourceActionState();
-        CancelOverrideCommand.NotifyCanExecuteChanged();
-                        return false;
+                            ProcessingStatus = "Create and save a new profile before processing.";
+                            AddLogEntry("Navigated to Profiles tab to capture a new data source.", LogLevel.Info);
+                            RefreshSourceActionState();
+                            return false;
 
-                    case NewSourceDecision.CreateNew:
-                        RequiresProfileSetup = true;
-                        _appSession.NotifyNewSourceRequested(filePath, headers);
-                        _appSession.RequestNavigation(AppTab.Profiles);
-                        _appSession.LoadedFilePath = filePath;
-                        InputFilePath = filePath;
-                        ProcessingStatus = "Create and save a new profile before processing.";
-                        AddLogEntry("Navigated to Profiles tab to capture a new data source.", LogLevel.Info);
-                        RefreshSourceActionState();
-        CancelOverrideCommand.NotifyCanExecuteChanged();
-                        return false;
-
-                    default:
-                        ProcessingStatus = "Profile detection cancelled.";
-                        StatusColor = Brushes.Orange;
-                        RefreshSourceActionState();
-        CancelOverrideCommand.NotifyCanExecuteChanged();
-                        return false;
+                        default:
+                            ProcessingStatus = "Profile detection cancelled.";
+                            StatusColor = Brushes.Orange;
+                            RefreshSourceActionState();
+                            return false;
+                    }
                 }
-            case ProfileDetectionOutcome.Cancelled:
+                finally
+                {
+                    _appSession.CompleteNewSourcePrompt();
+                }case ProfileDetectionOutcome.Cancelled:
                 _appSession.SelectedProfile = null;
                 SelectedProfile = null;
                 DetectedSourceDisplay = "Data source detection cancelled";

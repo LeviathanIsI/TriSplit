@@ -1425,7 +1425,7 @@ public partial class ProfilesViewModel : ViewModelBase
                     ProfileStatus = detectionResult.StatusMessage;
                 }
                 break;
-            case ProfileDetectionOutcome.NewSource:
+                        case ProfileDetectionOutcome.NewSource:
             {
                 PopulateSuggestions(headers);
                 ProfileStatus = detectionResult.StatusMessage;
@@ -1472,8 +1472,7 @@ public partial class ProfilesViewModel : ViewModelBase
                 }
 
                 break;
-            }
-            case ProfileDetectionOutcome.Cancelled:
+            }case ProfileDetectionOutcome.Cancelled:
                 ProfileStatus = detectionResult.StatusMessage;
                 ClearSuggestions();
                 SetPendingHeaderSignature(null);
