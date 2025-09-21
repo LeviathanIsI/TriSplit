@@ -202,7 +202,23 @@ public static class ApplicationLogger
 
     public static void LogShutdown()
     {
-        Instance.LogInfo("TriSplit Application Shutdown");
-        Instance.LogInfo("===========================================");
+        try
+        {
+            Instance.LogInfo("TriSplit Application Shutdown");
+            Instance.LogInfo("===========================================");
+        }
+        finally
+        {
+            Dispose();
+        }
+    }
+
+    public static void Dispose()
+    {
+        lock (_lock)
+        {
+            _instance?.Dispose();
+            _instance = null;
+        }
     }
 }

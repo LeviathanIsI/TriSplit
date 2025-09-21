@@ -86,6 +86,7 @@ public partial class App : Application
         }
 
         ApplicationLogger.LogShutdown();
+        ApplicationLogger.Dispose();
         _host?.StopAsync();
         _host?.Dispose();
         base.OnExit(e);
