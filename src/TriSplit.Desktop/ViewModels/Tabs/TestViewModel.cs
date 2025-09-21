@@ -1,17 +1,21 @@
-using CommunityToolkit.Mvvm.ComponentModel;
-using CommunityToolkit.Mvvm.Input;
+using System.ComponentModel;
 using System.Collections.ObjectModel;
 using System.Data;
 using System.IO;
+using System.Threading;
+using System.Threading.Tasks;
 using System.Windows;
+using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.Input;
 using TriSplit.Core.Interfaces;
 using TriSplit.Core.Models;
 using TriSplit.Desktop.Models;
 using TriSplit.Desktop.Services;
 
+
 namespace TriSplit.Desktop.ViewModels.Tabs;
 
-public partial class TestViewModel : ViewModelBase
+public partial class TestViewModel : ViewModelBase, IDisposable
 {
     private readonly IDialogService _dialogService;
     private readonly ISampleLoader _sampleLoader;
@@ -99,30 +103,32 @@ public partial class TestViewModel : ViewModelBase
         _profileDetectionService = profileDetectionService;
 
         // Subscribe to profile changes
-        _appSession.PropertyChanged += (s, e) =>
-        {
-            if (e.PropertyName == nameof(IAppSession.SelectedProfile))
-            {
-                UpdateActiveProfile();
-                if (IsFileLoaded)
-                {
-                    UpdateColumnMappingStatus();
-                    UpdateStatistics();
-                }
-            }
-            else if (e.PropertyName == nameof(IAppSession.LoadedFilePath))
-            {
-                if (!string.IsNullOrEmpty(_appSession.LoadedFilePath))
-                {
-                    _currentFilePath = _appSession.LoadedFilePath;
-                    SelectedFileName = Path.GetFileName(_currentFilePath);
-                    IsFileSelected = true;
-                    _ = UploadAndTestAsync();
-                }
-            }
-        };
+        _appSession.PropertyChanged += OnSessionPropertyChanged;
 
         UpdateActiveProfile();
+    }
+
+    private void OnSessionPropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(IAppSession.SelectedProfile))
+        {
+            UpdateActiveProfile();
+            if (IsFileLoaded)
+            {
+                UpdateColumnMappingStatus();
+                UpdateStatistics();
+            }
+        }
+        else if (e.PropertyName == nameof(IAppSession.LoadedFilePath))
+        {
+            if (!string.IsNullOrEmpty(_appSession.LoadedFilePath))
+            {
+                _currentFilePath = _appSession.LoadedFilePath;
+                SelectedFileName = Path.GetFileName(_currentFilePath);
+                IsFileSelected = true;
+                _ = UploadAndTestAsync();
+            }
+        }
     }
 
     private void UpdateActiveProfile()
@@ -654,6 +660,23 @@ public partial class TestViewModel : ViewModelBase
         else
             ProcessingTimeEstimate = $"{estimatedSeconds / 3600:F1} hours";
     }
+
+    public void Dispose()
+    {
+        _loadCts?.Cancel();
+        _loadCts?.Dispose();
+        _loadCts = null;
+
+        _transformCts?.Cancel();
+        _transformCts?.Dispose();
+        _transformCts = null;
+
+        _loadGate.Dispose();
+        _transformGate.Dispose();
+
+        _appSession.PropertyChanged -= OnSessionPropertyChanged;
+    }
+
 }
 
 public partial class ColumnMappingStatus : ObservableObject
@@ -673,3 +696,4 @@ public partial class ColumnMappingStatus : ObservableObject
     [ObservableProperty]
     private string? _associationType;
 }
+
