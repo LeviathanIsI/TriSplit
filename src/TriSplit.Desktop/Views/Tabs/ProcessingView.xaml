@@ -281,6 +281,14 @@
         </StackPanel>
 
         <StackPanel Grid.Column="1" Orientation="Horizontal">
+          <Button Content="Copy Diagnostics"
+                  Command="{Binding CopyDiagnosticsCommand}"
+                  Style="{StaticResource SecondaryButton}"
+                  Margin="0,0,10,0"/>
+          <Button Content="Open Run Log"
+                  Command="{Binding OpenRunLogCommand}"
+                  Style="{StaticResource SecondaryButton}"
+                  Margin="0,0,10,0"/>
           <Button Content="Open Output Folder"
                   Command="{Binding OpenOutputFolderCommand}"
                   Style="{StaticResource SecondaryButton}"

@@ -1,9 +1,11 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Diagnostics;
 using System.IO;
 using System.IO.Compression;
+using System.Windows;
 using System.Linq;
 using System.Windows.Media;
 using TriSplit.Core.Interfaces;
@@ -90,7 +92,11 @@ public partial class ProcessingViewModel : ViewModelBase
     [ObservableProperty]
     private bool _hasRunLog;
 
+    [ObservableProperty]
+    private string? _lastSummaryReportPath;
+
     private string? _outputDirectory;
+    private string? _lastProfilePath;
 
     public ProcessingViewModel(
         IDialogService dialogService,
@@ -244,12 +250,23 @@ public partial class ProcessingViewModel : ViewModelBase
             return;
         }
 
+        LastSummaryReportPath = null;
+        _lastProfilePath = SelectedProfile?.FilePath;
+        CopyDiagnosticsCommand.NotifyCanExecuteChanged();
+
         try
         {
             IsProcessing = true;
             ProcessingProgress = 0;
             _cancellationTokenSource = new CancellationTokenSource();
             var token = _cancellationTokenSource.Token;
+
+            BeginRunLog();
+            WriteRunLog($"Input file: {InputFilePath}");
+            if (SelectedProfile != null)
+            {
+                WriteRunLog($"Profile: {SelectedProfile.Name}");
+            }
 
             AddLogEntry("Starting processing...", LogLevel.Info);
             ProcessingStatus = "Processing...";
@@ -308,6 +325,12 @@ public partial class ProcessingViewModel : ViewModelBase
                 OutputJson = OutputJson
             };
 
+            var selectedOutputs = new List<string>();
+            if (options.OutputCsv) selectedOutputs.Add("CSV");
+            if (options.OutputExcel) selectedOutputs.Add("Excel");
+            if (options.OutputJson) selectedOutputs.Add("JSON");
+            WriteRunLog($"Outputs: {string.Join(", ", selectedOutputs)}");
+
             // Process the file and generate export files based on selected formats
             var result = await processor.ProcessAsync(InputFilePath, _outputDirectory ?? string.Empty, options, token);
 
@@ -321,6 +344,8 @@ public partial class ProcessingViewModel : ViewModelBase
                 ProcessingStatus = "Completed successfully";
                 StatusColor = Brushes.LimeGreen;
                 HasOutput = result.CsvFiles.Count > 0 || result.ExcelFiles.Count > 0 || result.JsonFiles.Count > 0;
+                LastSummaryReportPath = result.SummaryReportPath;
+                CopyDiagnosticsCommand.NotifyCanExecuteChanged();
 
                 AddLogEntry($"Processing complete!", LogLevel.Success);
                 AddLogEntry($"  Total records processed: {result.TotalRecordsProcessed}", LogLevel.Success);
@@ -360,6 +385,11 @@ public partial class ProcessingViewModel : ViewModelBase
                 {
                     AddLogEntry($"Summary: {Path.GetFileName(result.SummaryReportPath)}", LogLevel.Info);
                 }
+
+                if (!string.IsNullOrWhiteSpace(_currentRunLogPath))
+                {
+                    AddLogEntry($"Run log saved to {Path.GetFileName(_currentRunLogPath)}", LogLevel.Info);
+                }
             }
             else
             {
@@ -368,8 +398,14 @@ public partial class ProcessingViewModel : ViewModelBase
                 ProcessingStatus = $"Failed: {result.ErrorMessage}";
                 StatusColor = Brushes.Red;
                 HasOutput = false;
+                LastSummaryReportPath = null;
+                CopyDiagnosticsCommand.NotifyCanExecuteChanged();
 
                 AddLogEntry($"Processing failed: {result.ErrorMessage}", LogLevel.Error);
+                if (!string.IsNullOrWhiteSpace(_currentRunLogPath))
+                {
+                    AddLogEntry($"Run log saved to {Path.GetFileName(_currentRunLogPath)}", LogLevel.Info);
+                }
             }
 
             if (result.Success)
@@ -381,17 +417,22 @@ public partial class ProcessingViewModel : ViewModelBase
         {
             ProcessingStatus = "Cancelled";
             StatusColor = Brushes.Orange;
+            LastSummaryReportPath = null;
+            CopyDiagnosticsCommand.NotifyCanExecuteChanged();
             AddLogEntry("Processing cancelled by user", LogLevel.Warning);
         }
         catch (Exception ex)
         {
             ProcessingStatus = "Failed";
             StatusColor = Brushes.Red;
+            LastSummaryReportPath = null;
+            CopyDiagnosticsCommand.NotifyCanExecuteChanged();
             AddLogEntry($"Processing failed: {ex.Message}", LogLevel.Error);
             await _dialogService.ShowMessageAsync("Error", $"Processing failed: {ex.Message}");
         }
         finally
         {
+            EndRunLog();
             IsProcessing = false;
             _cancellationTokenSource?.Dispose();
             _cancellationTokenSource = null;
@@ -429,6 +470,100 @@ public partial class ProcessingViewModel : ViewModelBase
                 await _dialogService.ShowMessageAsync("Error", $"Could not open folder: {ex.Message}");
             }
         }
+    }
+
+    [RelayCommand(CanExecute = nameof(CanOpenRunLog))]
+    private void OpenRunLog()
+    {
+        if (string.IsNullOrWhiteSpace(LastRunLogPath) || !File.Exists(LastRunLogPath))
+        {
+            return;
+        }
+
+        try
+        {
+            Process.Start(new ProcessStartInfo
+            {
+                FileName = LastRunLogPath,
+                UseShellExecute = true
+            });
+        }
+        catch (Exception ex)
+        {
+            _ = _dialogService.ShowMessageAsync("Error", $"Could not open run log: {ex.Message}");
+        }
+    }
+
+    private bool CanOpenRunLog()
+    {
+        return !IsProcessing && HasRunLog && !string.IsNullOrWhiteSpace(LastRunLogPath) && File.Exists(LastRunLogPath);
+    }
+
+    [RelayCommand(CanExecute = nameof(CanCopyDiagnostics))]
+    private async Task CopyDiagnosticsAsync()
+    {
+        var artifacts = new List<(string Path, string Label)>
+        {
+            (LastRunLogPath ?? string.Empty, "run-log")
+        };
+
+        if (!string.IsNullOrWhiteSpace(_lastProfilePath))
+        {
+            artifacts.Add((_lastProfilePath!, "profile"));
+        }
+
+        if (!string.IsNullOrWhiteSpace(LastSummaryReportPath))
+        {
+            artifacts.Add((LastSummaryReportPath!, "summary"));
+        }
+
+        var existingArtifacts = artifacts
+            .Where(a => !string.IsNullOrWhiteSpace(a.Path) && File.Exists(a.Path))
+            .ToList();
+
+        if (existingArtifacts.Count == 0)
+        {
+            await _dialogService.ShowMessageAsync("Diagnostics", "No diagnostic artifacts are available yet. Run processing first.");
+            return;
+        }
+
+        var diagnosticsDirectory = ApplicationPaths.TempPath;
+        Directory.CreateDirectory(diagnosticsDirectory);
+        var zipPath = Path.Combine(diagnosticsDirectory, $"TriSplit_Diagnostics_{DateTime.Now:yyyyMMdd_HHmmss}.zip");
+
+        try
+        {
+            using (var archive = ZipFile.Open(zipPath, ZipArchiveMode.Create))
+            {
+                foreach (var (path, label) in existingArtifacts)
+                {
+                    var entryName = $"{label}_{Path.GetFileName(path)}";
+                    archive.CreateEntryFromFile(path, entryName, CompressionLevel.Optimal);
+                }
+            }
+
+            try
+            {
+                Clipboard.SetText(zipPath);
+            }
+            catch
+            {
+                // Ignore clipboard errors
+            }
+
+            AddLogEntry($"Diagnostics bundle created at {zipPath}", LogLevel.Info);
+            await _dialogService.ShowMessageAsync("Diagnostics Ready", $"Saved to:\n{zipPath}\n\nPath copied to clipboard.");
+        }
+        catch (Exception ex)
+        {
+            AddLogEntry($"Failed to collect diagnostics: {ex.Message}", LogLevel.Error);
+            await _dialogService.ShowMessageAsync("Diagnostics Failed", $"Could not create diagnostics bundle: {ex.Message}");
+        }
+    }
+
+    private bool CanCopyDiagnostics()
+    {
+        return !IsProcessing && HasRunLog && !string.IsNullOrWhiteSpace(LastRunLogPath) && File.Exists(LastRunLogPath);
     }
 
     private void BeginRunLog()
@@ -503,9 +638,16 @@ public partial class ProcessingViewModel : ViewModelBase
         UpdateCanStartProcessing();
     }
 
+    partial void OnLastSummaryReportPathChanged(string? value)
+    {
+        CopyDiagnosticsCommand.NotifyCanExecuteChanged();
+    }
+
     partial void OnLastRunLogPathChanged(string? value)
     {
         HasRunLog = !string.IsNullOrWhiteSpace(value) && File.Exists(value);
+        OpenRunLogCommand.NotifyCanExecuteChanged();
+        CopyDiagnosticsCommand.NotifyCanExecuteChanged();
     }
 
     partial void OnSelectedProfileChanged(Profile? value)
@@ -523,10 +665,14 @@ public partial class ProcessingViewModel : ViewModelBase
     partial void OnIsProcessingChanged(bool value)
     {
         UpdateCanStartProcessing();
+        OpenRunLogCommand.NotifyCanExecuteChanged();
+        CopyDiagnosticsCommand.NotifyCanExecuteChanged();
     }
 
     private void AddLogEntry(string message, LogLevel level)
     {
+        WriteRunLog($"[{level}] {message}");
+
         var color = level switch
         {
             LogLevel.Success => Brushes.LimeGreen,
