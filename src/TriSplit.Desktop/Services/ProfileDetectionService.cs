@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using System.Text;
 using TriSplit.Core.Interfaces;
 using TriSplit.Core.Models;
 
@@ -18,6 +19,12 @@ public class ProfileDetectionService : IProfileDetectionService
     private readonly IProfileSignatureService _signatureService;
     private readonly IDialogService _dialogService;
 
+    private string? _lastDetectionSignature;
+    private ProfileDetectionResult? _lastDetectionResult;
+    private string? _inFlightDetectionSignature;
+    private Task<ProfileDetectionResult>? _inFlightDetectionTask;
+
+
     private const double PartialMatchThreshold = 0.65;
 
     public ProfileDetectionService(IProfileSignatureService signatureService, IDialogService dialogService)
@@ -26,51 +33,132 @@ public class ProfileDetectionService : IProfileDetectionService
         _dialogService = dialogService;
     }
 
-    public async Task<ProfileDetectionResult> DetectProfileAsync(IReadOnlyList<string> headers, string? sourceFilePath, CancellationToken cancellationToken = default)
+    public Task<ProfileDetectionResult> DetectProfileAsync(IReadOnlyList<string> headers, string? sourceFilePath, CancellationToken cancellationToken = default)
     {
-        var matchResult = await _signatureService.FindBestMatchAsync(headers, cancellationToken).ConfigureAwait(false);
+        var signature = BuildDetectionSignature(headers, sourceFilePath);
 
-        if (matchResult.UniqueExactMatch is { } exactMatch)
+        if (_lastDetectionSignature != null && _lastDetectionResult != null &&
+            string.Equals(_lastDetectionSignature, signature, StringComparison.Ordinal))
         {
-            return ProfileDetectionResult.Matched(exactMatch.Profile, shouldUpdateMetadata: false,
-                $"Matched saved source '{exactMatch.Profile.Name}'. Profile loaded automatically.");
+            return Task.FromResult(_lastDetectionResult);
         }
 
-        if (matchResult.ExactMatches.Count > 1)
+        if (_inFlightDetectionTask != null &&
+            string.Equals(_inFlightDetectionSignature, signature, StringComparison.Ordinal))
         {
-            var selection = await _dialogService.ShowProfileSelectionDialogAsync(matchResult.ExactMatches).ConfigureAwait(false);
-            if (selection != null)
+            return _inFlightDetectionTask;
+        }
+
+        return StartDetectionAsync(signature, headers, sourceFilePath, cancellationToken);
+    }
+
+    private Task<ProfileDetectionResult> StartDetectionAsync(string signature, IReadOnlyList<string> headers, string? sourceFilePath, CancellationToken cancellationToken)
+    {
+        async Task<ProfileDetectionResult> ExecuteAsync()
+        {
+            try
             {
-                return ProfileDetectionResult.Matched(selection.Profile, shouldUpdateMetadata: false,
-                    $"Matched saved source '{selection.Profile.Name}'. Profile loaded automatically.");
+                var matchResult = await _signatureService.FindBestMatchAsync(headers, cancellationToken)
+                    .ConfigureAwait(false);
+
+                if (matchResult.UniqueExactMatch is { } exactMatch)
+                {
+                    var shouldSwitch = await _dialogService.ShowConfirmationDialogAsync(
+                        "Profile Match Found",
+                        $"The uploaded file matches the saved profile '{exactMatch.Profile.Name}'.\n\nWould you like to switch to that profile? Choose No to create a new profile instead.")
+                        .ConfigureAwait(false);
+
+                    if (shouldSwitch)
+                    {
+                        return CacheResult(signature, ProfileDetectionResult.Matched(exactMatch.Profile, shouldUpdateMetadata: false,
+                            $"Matched saved source '{exactMatch.Profile.Name}'. Profile loaded automatically."));
+                    }
+
+                    return CacheResult(signature, ProfileDetectionResult.NewSource(BuildNewSourceMessage(sourceFilePath)));
+                }
+
+                if (matchResult.ExactMatches.Count > 1)
+                {
+                    var selection = await _dialogService.ShowProfileSelectionDialogAsync(matchResult.ExactMatches)
+                        .ConfigureAwait(false);
+                    if (selection != null)
+                    {
+                        return CacheResult(signature, ProfileDetectionResult.Matched(selection.Profile, shouldUpdateMetadata: false,
+                            $"Matched saved source '{selection.Profile.Name}'. Profile loaded automatically."));
+                    }
+
+                    return CacheResult(signature, ProfileDetectionResult.Cancelled("Profile detection cancelled."));
+                }
+
+                var bestCandidate = matchResult.Candidates.FirstOrDefault();
+                if (bestCandidate != null && bestCandidate.Score >= PartialMatchThreshold &&
+                    (bestCandidate.MissingHeaders.Count > 0 || bestCandidate.AdditionalHeaders.Count > 0))
+                {
+                    var decision = await _dialogService.ShowPartialMatchDialogAsync(bestCandidate)
+                        .ConfigureAwait(false);
+                    switch (decision)
+                    {
+                        case PartialMatchDecision.UpdateExisting:
+                            return CacheResult(signature, ProfileDetectionResult.Matched(bestCandidate.Profile, shouldUpdateMetadata: true,
+                                $"Header differences detected. '{bestCandidate.Profile.Name}' will be updated when you save."));
+                        case PartialMatchDecision.CreateNew:
+                            break;
+                        default:
+                            return CacheResult(signature, ProfileDetectionResult.Cancelled("Profile detection cancelled."));
+                    }
+                }
+
+                return CacheResult(signature, ProfileDetectionResult.NewSource(BuildNewSourceMessage(sourceFilePath)));
             }
-
-            return ProfileDetectionResult.Cancelled("Profile detection cancelled.");
-        }
-
-        var bestCandidate = matchResult.Candidates.FirstOrDefault();
-        if (bestCandidate != null && bestCandidate.Score >= PartialMatchThreshold &&
-            (bestCandidate.MissingHeaders.Count > 0 || bestCandidate.AdditionalHeaders.Count > 0))
-        {
-            var decision = await _dialogService.ShowPartialMatchDialogAsync(bestCandidate).ConfigureAwait(false);
-            switch (decision)
+            finally
             {
-                case PartialMatchDecision.UpdateExisting:
-                    return ProfileDetectionResult.Matched(bestCandidate.Profile, shouldUpdateMetadata: true,
-                        $"Header differences detected. '{bestCandidate.Profile.Name}' will be updated when you save.");
-                case PartialMatchDecision.CreateNew:
-                    break;
-                default:
-                    return ProfileDetectionResult.Cancelled("Profile detection cancelled.");
+                _inFlightDetectionSignature = null;
+                _inFlightDetectionTask = null;
             }
         }
 
-        var fileLabel = string.IsNullOrWhiteSpace(sourceFilePath)
+        var task = ExecuteAsync();
+        _inFlightDetectionSignature = signature;
+        _inFlightDetectionTask = task;
+        return task;
+    }
+
+    private ProfileDetectionResult CacheResult(string signature, ProfileDetectionResult result)
+    {
+        _lastDetectionSignature = signature;
+        _lastDetectionResult = result;
+        return result;
+    }
+
+    private static string BuildDetectionSignature(IReadOnlyList<string> headers, string? sourceFilePath)
+    {
+        var builder = new StringBuilder();
+        if (!string.IsNullOrWhiteSpace(sourceFilePath))
+        {
+            builder.Append(sourceFilePath.Trim().ToLowerInvariant());
+        }
+
+        builder.Append('|');
+
+        foreach (var header in headers)
+        {
+            if (!string.IsNullOrWhiteSpace(header))
+            {
+                builder.Append(header.Trim().ToLowerInvariant());
+                builder.Append('|');
+            }
+        }
+
+        return builder.ToString();
+    }
+
+    private static string BuildNewSourceMessage(string? sourceFilePath)
+    {
+        return string.IsNullOrWhiteSpace(sourceFilePath)
             ? "New source detected. Select the columns you want to map."
             : $"New source detected from {System.IO.Path.GetFileName(sourceFilePath)}. Select the columns you want to map.";
-
-        return ProfileDetectionResult.NewSource(fileLabel);
     }
+
 }
 
 public enum ProfileDetectionOutcome
