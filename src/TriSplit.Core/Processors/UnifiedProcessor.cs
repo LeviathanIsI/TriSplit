@@ -186,7 +186,7 @@ public class UnifiedProcessor
         }
         catch (Exception ex)
         {
-            ReportProgress($"Error: {ex.Message}", -1);
+            ReportProgress($"Error: {ex.Message}", -1, ProcessingProgressSeverity.Error);
             return new ProcessingResult
             {
                 Success = false,
@@ -410,7 +410,7 @@ public class UnifiedProcessor
         var existingLabel = string.IsNullOrWhiteSpace(existing.AssociationLabel) ? "Primary" : existing.AssociationLabel;
         var incomingLabel = string.IsNullOrWhiteSpace(incoming.Association) ? "Primary" : incoming.Association;
         var message = $"Primary contact conflict detected for Import ID {existing.ImportId}. Kept '{existingLabel}' as primary and demoted '{incomingLabel}' (Import ID {incoming.ImportId}) to secondary.";
-        ReportProgress(message, 0);
+        ReportProgress(message, 0, ProcessingProgressSeverity.Warning);
     }
 
     private void PersistProperties(ContactContext context, ContactContext primaryContext)
@@ -1077,7 +1077,7 @@ public class UnifiedProcessor
             message = $"Flagged phone number for '{displayName}': '{value}' -> truncated to '{truncated}' (expected 10 digits)";
             if (_flaggedPhoneMessages.Add(message))
             {
-                ReportProgress(message, 0);
+                ReportProgress(message, 0, ProcessingProgressSeverity.Warning);
             }
             return truncated;
         }
@@ -1085,7 +1085,7 @@ public class UnifiedProcessor
         message = $"Flagged phone number for '{displayName}': '{value}' (only {digits.Length} digits after cleaning)";
         if (_flaggedPhoneMessages.Add(message))
         {
-            ReportProgress(message, 0);
+            ReportProgress(message, 0, ProcessingProgressSeverity.Warning);
         }
 
         return digits;
@@ -1576,13 +1576,14 @@ public class UnifiedProcessor
     }
 
 
-    private void ReportProgress(string message, int percentComplete)
+    private void ReportProgress(string message, int percentComplete, ProcessingProgressSeverity severity = ProcessingProgressSeverity.Info)
     {
         _progress?.Report(new ProcessingProgress
         {
             Message = message,
             PercentComplete = percentComplete,
-            Timestamp = DateTime.Now
+            Timestamp = DateTime.Now,
+            Severity = severity
         });
     }
 
@@ -1737,6 +1738,14 @@ public class ProcessingProgress
     public string Message { get; set; } = string.Empty;
     public int PercentComplete { get; set; }
     public DateTime Timestamp { get; set; }
+    public ProcessingProgressSeverity Severity { get; set; } = ProcessingProgressSeverity.Info;
+}
+
+public enum ProcessingProgressSeverity
+{
+    Info,
+    Warning,
+    Error
 }
 
 

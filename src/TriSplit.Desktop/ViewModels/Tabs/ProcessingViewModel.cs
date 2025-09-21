@@ -116,6 +116,9 @@ public partial class ProcessingViewModel : ViewModelBase
     private string? _outputDirectory;
     private string? _lastProfilePath;
 
+    private static readonly int[] _progressMilestones = new[] { 25, 50, 75 };
+    private int _nextProgressMilestoneIndex;
+
     public ProcessingViewModel(
         IDialogService dialogService,
         ISampleLoader sampleLoader,
@@ -438,6 +441,7 @@ public partial class ProcessingViewModel : ViewModelBase
         {
             IsProcessing = true;
             ProcessingProgress = 0;
+            _nextProgressMilestoneIndex = 0;
             _cancellationTokenSource = new CancellationTokenSource();
             var token = _cancellationTokenSource.Token;
 
@@ -471,7 +475,27 @@ public partial class ProcessingViewModel : ViewModelBase
             {
                 ProgressText = p.Message;
                 ProcessingProgress = p.PercentComplete;
-                AddLogEntry(p.Message, p.PercentComplete < 0 ? LogLevel.Error : LogLevel.Info);
+
+                var entryLevel = p.Severity switch
+                {
+                    ProcessingProgressSeverity.Warning => LogLevel.Warning,
+                    ProcessingProgressSeverity.Error => LogLevel.Error,
+                    _ => LogLevel.Info
+                };
+
+                if (entryLevel != LogLevel.Info)
+                {
+                    AddLogEntry(p.Message, entryLevel);
+                    return;
+                }
+
+                while (_nextProgressMilestoneIndex < _progressMilestones.Length &&
+                       p.PercentComplete >= _progressMilestones[_nextProgressMilestoneIndex])
+                {
+                    var milestone = _progressMilestones[_nextProgressMilestoneIndex];
+                    AddLogEntry($"Processing {milestone}% complete", LogLevel.Info);
+                    _nextProgressMilestoneIndex++;
+                }
             });
 
             // Determine input reader type based on file extension
