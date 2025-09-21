@@ -286,7 +286,9 @@
                               </Grid.ColumnDefinitions>
                               <CheckBox IsChecked="{Binding IsAccepted}"
                                         Content="{Binding SourceHeader}"
-                                        VerticalAlignment="Center"/>
+                                        VerticalAlignment="Center"
+                                        Foreground="{StaticResource TextBrush}"
+                                        FocusVisualStyle="{x:Null}"/>
                               <TextBlock Grid.Column="1"
                                          Text="{Binding SuggestedProperty}"
                                          VerticalAlignment="Center"
