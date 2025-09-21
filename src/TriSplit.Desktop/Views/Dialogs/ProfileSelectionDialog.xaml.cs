@@ -75,9 +75,19 @@ public partial class ProfileSelectionDialog : Window
 
         private static string FormatList(IReadOnlyList<string> values)
         {
-            var preview = values.Take(3).ToList();
-            var suffix = values.Count > 3 ? ", …" : string.Empty;
-            return string.Join(", ", preview) + suffix;
+            if (values == null || values.Count == 0)
+            {
+                return string.Empty;
+            }
+
+            if (values.Count <= 3)
+            {
+                return string.Join(", ", values);
+            }
+
+            var preview = string.Join(", ", values.Take(3));
+            var remaining = values.Count - 3;
+            return $"{preview} (+{remaining} more)";
         }
     }
 }
