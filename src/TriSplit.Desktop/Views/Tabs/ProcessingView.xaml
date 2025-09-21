@@ -75,6 +75,11 @@
 
         <!-- Profile Selection -->
         <Grid Grid.Row="1" Margin="0,15,0,0">
+          <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+          </Grid.RowDefinitions>
           <Grid.ColumnDefinitions>
             <ColumnDefinition Width="120"/>
             <ColumnDefinition Width="300"/>
@@ -116,6 +121,45 @@
                          Foreground="{StaticResource TextBrush}"
                          VerticalAlignment="Center"/>
           </StackPanel>
+
+          <StackPanel Grid.Row="1"
+                      Grid.Column="1"
+                      Orientation="Horizontal"
+                      Margin="0,10,0,0"
+                      Visibility="{Binding ShowSourceActions, Converter={StaticResource BoolToVisibilityConverter}}">
+            <Button Content="Accept"
+                    Command="{Binding AcceptDetectedSourceCommand}"
+                    Style="{StaticResource PrimaryButton}"
+                    Width="110"
+                    Margin="0,0,12,0"/>
+            <Button Content="Override"
+                    Command="{Binding BeginOverrideCommand}"
+                    Style="{StaticResource SecondaryButton}"
+                    Width="110"/>
+          </StackPanel>
+
+          <StackPanel Grid.Row="2"
+                      Grid.Column="1"
+                      Grid.ColumnSpan="3"
+                      Orientation="Horizontal"
+                      Margin="0,10,0,0"
+                      Visibility="{Binding IsOverrideMode, Converter={StaticResource BoolToVisibilityConverter}}">
+            <ComboBox ItemsSource="{Binding AvailableProfiles}"
+                      SelectedItem="{Binding OverrideProfile}"
+                      DisplayMemberPath="Name"
+                      Width="260"
+                      Margin="0,0,12,0"/>
+            <Button Content="Apply"
+                    Command="{Binding ApplyOverrideCommand}"
+                    Style="{StaticResource PrimaryButton}"
+                    Width="110"
+                    Margin="0,0,12,0"/>
+            <Button Content="Cancel"
+                    Command="{Binding CancelOverrideCommand}"
+                    Style="{StaticResource SecondaryButton}"
+                    Width="110"/>
+          </StackPanel>
+
         </Grid>
 
         <!-- Processing Options -->

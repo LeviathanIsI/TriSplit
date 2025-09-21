@@ -45,6 +45,18 @@ public partial class ProcessingViewModel : ViewModelBase
     private string _detectedSourceDisplay = "Upload a file to detect the data source";
 
     [ObservableProperty]
+    private bool _showSourceActions;
+
+    [ObservableProperty]
+    private bool _isSourceConfirmed;
+
+    [ObservableProperty]
+    private bool _isOverrideMode;
+
+    [ObservableProperty]
+    private Profile? _overrideProfile;
+
+    [ObservableProperty]
     private bool _outputCsv = true;
 
     [ObservableProperty]
@@ -154,6 +166,7 @@ public partial class ProcessingViewModel : ViewModelBase
         {
             InputFilePath = _appSession.LoadedFilePath;
             _ = DetectProfileForFileAsync(_appSession.LoadedFilePath);
+        RefreshSourceActionState();
         }
     }
 
@@ -197,6 +210,10 @@ public partial class ProcessingViewModel : ViewModelBase
     private async Task<bool> DetectProfileForFileAsync(string filePath)
     {
         DetectedSourceDisplay = "Identifying Data Source";
+        IsOverrideMode = false;
+        IsSourceConfirmed = false;
+        ShowSourceActions = false;
+
 
         var headers = (await _sampleLoader.GetColumnHeadersAsync(filePath)).ToList();
         if (headers.Count == 0)
@@ -218,6 +235,7 @@ public partial class ProcessingViewModel : ViewModelBase
                     AddLogEntry(detectionResult.StatusMessage, LogLevel.Info);
                     ProcessingStatus = detectionResult.StatusMessage;
                     StatusColor = Brushes.LightGray;
+                    RefreshSourceActionState();
                 }
                 else
                 {
@@ -246,6 +264,70 @@ public partial class ProcessingViewModel : ViewModelBase
                 return false;
         }
     }
+
+    [RelayCommand(CanExecute = nameof(CanAcceptDetectedSource))]
+    private void AcceptDetectedSource()
+    {
+        if (SelectedProfile == null)
+        {
+            return;
+        }
+
+        IsSourceConfirmed = true;
+        IsOverrideMode = false;
+        ProcessingStatus = $"Data source accepted: {SelectedProfile.Name}";
+        StatusColor = Brushes.LightGray;
+        AddLogEntry($"Accepted data source: {SelectedProfile.Name}", LogLevel.Success);
+    }
+
+    private bool CanAcceptDetectedSource() => SelectedProfile != null && !IsSourceConfirmed && !IsOverrideMode;
+
+    [RelayCommand(CanExecute = nameof(CanBeginOverride))]
+    private void BeginOverride()
+    {
+        if (AvailableProfiles.Count == 0)
+        {
+            return;
+        }
+
+        IsOverrideMode = true;
+        IsSourceConfirmed = false;
+        OverrideProfile = SelectedProfile ?? AvailableProfiles.FirstOrDefault();
+        ProcessingStatus = "Override data source and apply to continue.";
+        StatusColor = Brushes.Orange;
+    }
+
+    private bool CanBeginOverride() => SelectedProfile != null;
+
+    [RelayCommand(CanExecute = nameof(CanApplyOverride))]
+    private void ApplyOverride()
+    {
+        if (OverrideProfile == null)
+        {
+            return;
+        }
+
+        SelectedProfile = OverrideProfile;
+        DetectedSourceDisplay = OverrideProfile.Name;
+        IsSourceConfirmed = true;
+        IsOverrideMode = false;
+        ProcessingStatus = $"Data source overridden to {OverrideProfile.Name}";
+        StatusColor = Brushes.LightGray;
+        AddLogEntry($"Data source overridden to {OverrideProfile.Name}", LogLevel.Info);
+    }
+
+    private bool CanApplyOverride() => OverrideProfile != null;
+
+    [RelayCommand(CanExecute = nameof(CanCancelOverride))]
+    private void CancelOverride()
+    {
+        IsOverrideMode = false;
+        ProcessingStatus = "Review detected data source.";
+        OverrideProfile = null;
+        StatusColor = Brushes.LightGray;
+    }
+
+    private bool CanCancelOverride() => IsOverrideMode;
 
     [RelayCommand]
     private async Task SelectFileAsync()
@@ -655,6 +737,7 @@ public partial class ProcessingViewModel : ViewModelBase
                             !string.IsNullOrEmpty(InputFilePath) &&
                             InputFilePath != "No file selected" &&
                             SelectedProfile != null &&
+                            IsSourceConfirmed &&
                             (OutputCsv || OutputExcel || OutputJson);
     }
 
@@ -688,10 +771,9 @@ public partial class ProcessingViewModel : ViewModelBase
         CopyDiagnosticsCommand.NotifyCanExecuteChanged();
     }
 
+
     partial void OnSelectedProfileChanged(Profile? value)
     {
-        UpdateCanStartProcessing();
-
         if (value != null && InputFilePath != "No file selected")
         {
             DetectedSourceDisplay = value.Name;
@@ -701,12 +783,21 @@ public partial class ProcessingViewModel : ViewModelBase
             DetectedSourceDisplay = "Upload a file to detect the data source";
         }
 
-        // Only update session and log if this change didn't come from the session
+        if (value == null)
+        {
+            IsSourceConfirmed = false;
+            IsOverrideMode = false;
+        }
+
+        RefreshSourceActionState();
+
         if (!_updatingFromSession && value != null)
         {
             _appSession.SelectedProfile = value;
             AddLogEntry($"Selected data profile: {value.Name}", LogLevel.Info);
         }
+
+        UpdateCanStartProcessing();
     }
 
     partial void OnIsProcessingChanged(bool value)
@@ -714,6 +805,55 @@ public partial class ProcessingViewModel : ViewModelBase
         UpdateCanStartProcessing();
         OpenRunLogCommand.NotifyCanExecuteChanged();
         CopyDiagnosticsCommand.NotifyCanExecuteChanged();
+    }
+
+
+    partial void OnInputFilePathChanged(string value)
+    {
+        if (string.IsNullOrWhiteSpace(value) || value == "No file selected")
+        {
+            IsSourceConfirmed = false;
+            IsOverrideMode = false;
+        }
+
+        RefreshSourceActionState();
+    }
+
+    partial void OnOverrideProfileChanged(Profile? value)
+    {
+        ApplyOverrideCommand.NotifyCanExecuteChanged();
+    }
+
+    partial void OnIsSourceConfirmedChanged(bool value)
+    {
+        UpdateCanStartProcessing();
+        AcceptDetectedSourceCommand.NotifyCanExecuteChanged();
+    }
+
+    partial void OnIsOverrideModeChanged(bool value)
+    {
+        if (!value)
+        {
+            OverrideProfile = null;
+        }
+
+        RefreshSourceActionState();
+    }
+
+    partial void OnShowSourceActionsChanged(bool value)
+    {
+        BeginOverrideCommand.NotifyCanExecuteChanged();
+    }
+
+    private void RefreshSourceActionState()
+    {
+        var hasFile = !string.IsNullOrWhiteSpace(InputFilePath) && InputFilePath != "No file selected";
+        ShowSourceActions = SelectedProfile != null && hasFile;
+
+        AcceptDetectedSourceCommand.NotifyCanExecuteChanged();
+        BeginOverrideCommand.NotifyCanExecuteChanged();
+        ApplyOverrideCommand.NotifyCanExecuteChanged();
+        CancelOverrideCommand.NotifyCanExecuteChanged();
     }
 
     private void AddLogEntry(string message, LogLevel level)
