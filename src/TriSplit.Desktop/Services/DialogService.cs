@@ -1,5 +1,9 @@
+using System.Collections.Generic;
+using System.Linq;
 using Microsoft.Win32;
 using System.Windows;
+using TriSplit.Core.Interfaces;
+using TriSplit.Desktop.Views.Dialogs;
 
 namespace TriSplit.Desktop.Services;
 
@@ -47,9 +51,35 @@ public class DialogService : IDialogService
         return Task.CompletedTask;
     }
 
+    public Task<ProfileMatchCandidate?> ShowProfileSelectionDialogAsync(IReadOnlyList<ProfileMatchCandidate> candidates)
+    {
+        if (candidates == null || candidates.Count == 0)
+        {
+            return Task.FromResult<ProfileMatchCandidate?>(null);
+        }
+
+        var dialog = new ProfileSelectionDialog(candidates)
+        {
+            Owner = GetActiveWindow()
+        };
+
+        var result = dialog.ShowDialog();
+        return Task.FromResult(result == true ? dialog.Result : null);
+    }
+
+    public Task<PartialMatchDecision> ShowPartialMatchDialogAsync(ProfileMatchCandidate candidate)
+    {
+        var dialog = new PartialMatchDialog(candidate)
+        {
+            Owner = GetActiveWindow()
+        };
+
+        var result = dialog.ShowDialog();
+        return Task.FromResult(result == true ? dialog.Decision : PartialMatchDecision.Cancel);
+    }
+
     public Task<string?> ShowInputDialogAsync(string title, string prompt, string defaultValue = "")
     {
-        // Simple input dialog using a basic window
         var window = new Window
         {
             Title = title,
@@ -120,4 +150,17 @@ public class DialogService : IDialogService
 
         return Task.FromResult(window.ShowDialog() == true ? result : null);
     }
+
+    private static Window? GetActiveWindow()
+    {
+        var app = Application.Current;
+        if (app == null)
+        {
+            return null;
+        }
+
+        var active = app.Windows.OfType<Window>().FirstOrDefault(w => w.IsActive);
+        return active ?? app.MainWindow;
+    }
 }
+

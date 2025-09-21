@@ -7,6 +7,8 @@ using System.Collections.Specialized;
 using System.ComponentModel;
 using System.Linq;
 using System.IO;
+using System.Text;
+using System.Globalization;
 using System.Threading.Tasks;
 using System.Windows.Input;
 using System.Windows.Threading;
@@ -22,6 +24,42 @@ public partial class ProfilesViewModel : ViewModelBase
     private readonly IProfileStore _profileStore;
     private readonly IDialogService _dialogService;
     private readonly IAppSession _appSession;
+    private readonly ISampleLoader _sampleLoader;
+    private readonly IProfileMetadataRepository _profileMetadataRepository;
+    private readonly IProfileDetectionService _profileDetectionService;
+    private readonly List<(string Property, string Normalized)> _normalizedHubSpotHeaders = new();
+    private string? _currentHeaderSourcePath;
+    private List<string> _pendingHeaderSignature = new();
+
+    private static readonly Dictionary<string, string> SynonymMap = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ["ownerphone"] = "Phone Number",
+        ["ownerphone1"] = "Phone Number",
+        ["phone1"] = "Phone Number",
+        ["phone"] = "Phone Number",
+        ["primaryphone"] = "Phone Number",
+        ["mobilephone"] = "Phone Number",
+        ["workphone"] = "Phone Number",
+        ["ownerfirstname"] = "First Name",
+        ["ownerlastname"] = "Last Name",
+        ["firstname"] = "First Name",
+        ["lastname"] = "Last Name",
+        ["contactfirstname"] = "First Name",
+        ["contactlastname"] = "Last Name",
+        ["emailaddress"] = "Email",
+        ["owneremail"] = "Email",
+        ["postalcode"] = "Postal Code",
+        ["zipcode"] = "Postal Code",
+        ["zip"] = "Postal Code",
+        ["mailingzip"] = "Postal Code",
+        ["mailingpostalcode"] = "Postal Code",
+        ["mailingstreet"] = "Address",
+        ["mailingaddress"] = "Address",
+        ["mailingcity"] = "City",
+        ["mailingstate"] = "State",
+        ["mailingapn"] = "APN",
+        ["apnnumber"] = "APN"
+    };
 
     private readonly HashSet<FieldMappingViewModel> _trackedMappings = new();
     private bool _isUpdatingMappingState;
@@ -97,13 +135,25 @@ public partial class ProfilesViewModel : ViewModelBase
 
     [ObservableProperty]
     private string _autosaveStatus = string.Empty;
-[ObservableProperty]
-private bool _hasAutosaveStatus;
 
-partial void OnAutosaveStatusChanged(string value)
-{
-    HasAutosaveStatus = !string.IsNullOrWhiteSpace(value);
-}
+    [ObservableProperty]
+    private bool _hasAutosaveStatus;
+
+    [ObservableProperty]
+    private string _headerSuggestionFileName = "Drop a CSV or Excel file to suggest mappings";
+
+    [ObservableProperty]
+    private string _suggestionSummary = string.Empty;
+
+    public ObservableCollection<MappingSuggestionViewModel> MappingSuggestions { get; } = new();
+
+    [ObservableProperty]
+    private bool _hasMappingSuggestions;
+
+    partial void OnAutosaveStatusChanged(string value)
+    {
+        HasAutosaveStatus = !string.IsNullOrWhiteSpace(value);
+    }
 
 
 
@@ -111,13 +161,21 @@ partial void OnAutosaveStatusChanged(string value)
     public ProfilesViewModel(
         IProfileStore profileStore,
         IDialogService dialogService,
-        IAppSession appSession)
+        IAppSession appSession,
+        ISampleLoader sampleLoader,
+        IProfileMetadataRepository profileMetadataRepository,
+        IProfileDetectionService profileDetectionService)
     {
         _profileStore = profileStore;
         _dialogService = dialogService;
         _appSession = appSession;
+        _sampleLoader = sampleLoader;
+        _profileMetadataRepository = profileMetadataRepository;
+        _profileDetectionService = profileDetectionService;
 
         FieldMappings = new ObservableCollection<FieldMappingViewModel>();
+
+        MappingSuggestions.CollectionChanged += (s, e) => UpdateSuggestionState();
 
         // Initialize Association Labels
         AssociationLabels = new ObservableCollection<string>
@@ -186,6 +244,15 @@ partial void OnAutosaveStatusChanged(string value)
             "Taxes Delinquent Date",
             "Year Built"
         };
+
+        foreach (var header in HubSpotHeaders)
+        {
+            var normalized = NormalizeForMatching(header);
+            if (!string.IsNullOrWhiteSpace(normalized))
+            {
+                _normalizedHubSpotHeaders.Add((header, normalized));
+            }
+        }
 
         ObjectTypes = new ObservableCollection<string>
         {
@@ -270,6 +337,14 @@ partial void OnAutosaveStatusChanged(string value)
             _isAutosaving = false;
         }
     }
+    private void SetPendingHeaderSignature(IEnumerable<string>? headers)
+    {
+        _pendingHeaderSignature = headers?
+            .Where(h => !string.IsNullOrWhiteSpace(h))
+            .Select(h => h.Trim())
+            .ToList() ?? new List<string>();
+    }
+
 
     private void UpdateAutosaveStatus(bool clearIfClean = false)
     {
@@ -774,6 +849,12 @@ partial void OnAutosaveStatusChanged(string value)
 
             var totalMappings = profile.ContactMappings.Count + profile.PropertyMappings.Count + profile.PhoneMappings.Count;
 
+            if (_pendingHeaderSignature.Count > 0)
+            {
+                await _profileMetadataRepository.SaveMetadataAsync(profile, _pendingHeaderSignature);
+                profile.SourceHeaders = _pendingHeaderSignature.ToList();
+            }
+
             await _profileStore.SaveProfileAsync(profile);
 
             if (!isAutoSave)
@@ -820,12 +901,16 @@ partial void OnAutosaveStatusChanged(string value)
         try
         {
             _isLoadingProfile = true;
+            ClearSuggestions();
             var profile = SelectedProfile.Profile;
             ProfileName = profile.Name;
 
+            await LoadMetadataForProfileAsync(profile);
+
             FieldMappings.Clear();
 
-            // Load Contact mappings
+            var loadedMappings = 0;
+
             foreach (var mapping in profile.ContactMappings)
             {
                 FieldMappings.Add(new FieldMappingViewModel
@@ -837,9 +922,9 @@ partial void OnAutosaveStatusChanged(string value)
                         ? string.Empty
                         : MappingObjectTypes.Normalize(mapping.ObjectType)
                 });
+                loadedMappings++;
             }
 
-            // Load Property mappings
             foreach (var mapping in profile.PropertyMappings)
             {
                 FieldMappings.Add(new FieldMappingViewModel
@@ -851,10 +936,9 @@ partial void OnAutosaveStatusChanged(string value)
                         ? string.Empty
                         : MappingObjectTypes.Normalize(mapping.ObjectType)
                 });
+                loadedMappings++;
             }
 
-
-            // Load Phone mappings (if any exist for backward compatibility)
             foreach (var mapping in profile.PhoneMappings)
             {
                 FieldMappings.Add(new FieldMappingViewModel
@@ -866,16 +950,16 @@ partial void OnAutosaveStatusChanged(string value)
                         ? string.Empty
                         : MappingObjectTypes.Normalize(mapping.ObjectType)
                 });
+                loadedMappings++;
             }
 
-            // Add a few empty rows for new mappings
             for (int i = 0; i < 3; i++)
             {
                 FieldMappings.Add(new FieldMappingViewModel());
             }
 
             UpdateMappingCount();
-            ProfileStatus = $"Data profile '{profile.Name}' loaded";
+            ProfileStatus = $"Data profile '{profile.Name}' loaded with {loadedMappings} mappings";
             _appSession.SelectedProfile = profile;
             IsDirty = false;
             _autosaveTimer?.Stop();
@@ -889,6 +973,167 @@ partial void OnAutosaveStatusChanged(string value)
         {
             _isLoadingProfile = false;
         }
+    }
+
+
+    private void PopulateSuggestions(IEnumerable<string> headers)
+    {
+        MappingSuggestions.Clear();
+
+        var list = headers?
+            .Where(h => !string.IsNullOrWhiteSpace(h))
+            .Select(h => h.Trim())
+            .Where(h => !string.IsNullOrWhiteSpace(h))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList() ?? new List<string>();
+
+        foreach (var header in list)
+        {
+            var suggestion = BuildSuggestion(header);
+            if (suggestion != null)
+            {
+                MappingSuggestions.Add(suggestion);
+            }
+        }
+
+        if (MappingSuggestions.Count > 0)
+        {
+            SuggestionSummary = $"Found {MappingSuggestions.Count} suggested mapping(s) from {HeaderSuggestionFileName}.";
+        }
+        else
+        {
+            SuggestionSummary = $"No confident suggestions found in {HeaderSuggestionFileName}.";
+        }
+
+        UpdateSuggestionState();
+    }
+
+    private MappingSuggestionViewModel? BuildSuggestion(string header)
+    {
+        var normalizedHeader = NormalizeForMatching(header);
+        if (string.IsNullOrWhiteSpace(normalizedHeader))
+            return null;
+
+        if (SynonymMap.TryGetValue(normalizedHeader, out var synonymProperty))
+        {
+            return new MappingSuggestionViewModel(header, synonymProperty, 1.0);
+        }
+
+        string? bestProperty = null;
+        double bestScore = 0;
+
+        foreach (var (property, normalizedProperty) in _normalizedHubSpotHeaders)
+        {
+            if (string.IsNullOrWhiteSpace(normalizedProperty))
+                continue;
+
+            var score = CalculateSimilarity(normalizedHeader, normalizedProperty);
+            if (score > bestScore)
+            {
+                bestScore = score;
+                bestProperty = property;
+            }
+        }
+
+        if (bestProperty != null && bestScore >= 0.65)
+        {
+            return new MappingSuggestionViewModel(header, bestProperty, bestScore);
+        }
+
+        return null;
+    }
+
+    private void ApplySuggestionToMappings(MappingSuggestionViewModel suggestion)
+    {
+        var existing = FieldMappings.FirstOrDefault(m =>
+            string.Equals(m.SourceField, suggestion.SourceHeader, StringComparison.OrdinalIgnoreCase));
+
+        if (existing == null)
+        {
+            existing = FieldMappings.FirstOrDefault(m => string.IsNullOrWhiteSpace(m.SourceField));
+            if (existing == null)
+            {
+                existing = new FieldMappingViewModel();
+                FieldMappings.Add(existing);
+            }
+
+            existing.SourceField = suggestion.SourceHeader;
+        }
+
+        existing.HubSpotHeader = suggestion.SuggestedProperty;
+    }
+
+    private void ClearSuggestions()
+    {
+        MappingSuggestions.Clear();
+        SuggestionSummary = string.Empty;
+        HeaderSuggestionFileName = "Drop a CSV or Excel file to suggest mappings";
+        _currentHeaderSourcePath = null;
+        UpdateSuggestionState();
+    }
+
+    private void UpdateSuggestionState()
+    {
+        HasMappingSuggestions = MappingSuggestions.Count > 0 || !string.IsNullOrWhiteSpace(SuggestionSummary);
+    }
+
+    private static string NormalizeForMatching(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+            return string.Empty;
+
+        var sb = new StringBuilder(value.Length);
+        foreach (var ch in value)
+        {
+            if (char.IsLetterOrDigit(ch))
+            {
+                sb.Append(char.ToLowerInvariant(ch));
+            }
+        }
+        return sb.ToString();
+    }
+
+    private static double CalculateSimilarity(string a, string b)
+    {
+        if (string.IsNullOrEmpty(a) || string.IsNullOrEmpty(b))
+            return 0;
+
+        if (a.Equals(b, StringComparison.OrdinalIgnoreCase))
+            return 1.0;
+
+        var distance = LevenshteinDistance(a, b);
+        var maxLength = Math.Max(a.Length, b.Length);
+        return maxLength == 0 ? 1.0 : 1.0 - (double)distance / maxLength;
+    }
+
+    private static int LevenshteinDistance(string a, string b)
+    {
+        var n = a.Length;
+        var m = b.Length;
+        var d = new int[n + 1, m + 1];
+
+        for (int i = 0; i <= n; i++)
+        {
+            d[i, 0] = i;
+        }
+
+        for (int j = 0; j <= m; j++)
+        {
+            d[0, j] = j;
+        }
+
+        for (int i = 1; i <= n; i++)
+        {
+            for (int j = 1; j <= m; j++)
+            {
+                var cost = char.ToLowerInvariant(a[i - 1]) == char.ToLowerInvariant(b[j - 1]) ? 0 : 1;
+                d[i, j] = Math.Min(
+                    Math.Min(d[i - 1, j] + 1, d[i, j - 1] + 1),
+                    d[i - 1, j - 1] + cost);
+            }
+        }
+
+        return d[n, m];
     }
 
     [RelayCommand]
@@ -933,6 +1178,8 @@ partial void OnAutosaveStatusChanged(string value)
         IsDirty = false;
         _autosaveTimer?.Stop();
         AutosaveStatus = string.Empty;
+        ClearSuggestions();
+        SetPendingHeaderSignature(null);
         ProfileStatus = "Creating new data profile";
     }
 
@@ -957,6 +1204,7 @@ partial void OnAutosaveStatusChanged(string value)
         {
             try
             {
+                await _profileMetadataRepository.DeleteMetadataAsync(profile.Profile);
                 await _profileStore.DeleteProfileAsync(profile.Id);
                 await LoadProfilesAsync();
                 ProfileStatus = $"Data profile '{profileName}' deleted";
@@ -971,6 +1219,128 @@ partial void OnAutosaveStatusChanged(string value)
             {
                 ProfileStatus = $"Error deleting data profile: {ex.Message}";
             }
+        }
+    }
+
+    [RelayCommand]
+    private async Task LoadHeaderSuggestionsAsync(string? filePath = null)
+    {
+        if (string.IsNullOrWhiteSpace(filePath))
+        {
+            filePath = await _dialogService.ShowOpenFileDialogAsync(
+                "Select CSV/Excel File",
+                "CSV Files|*.csv|Excel Files|*.xlsx;*.xls|All Files|*.*");
+        }
+
+        if (string.IsNullOrWhiteSpace(filePath) || !File.Exists(filePath))
+        {
+            return;
+        }
+
+        try
+        {
+            var headers = (await _sampleLoader.GetColumnHeadersAsync(filePath)).ToList();
+            if (headers.Count == 0)
+            {
+                await _dialogService.ShowMessageAsync("No Headers Found", $"No headers were detected in {Path.GetFileName(filePath)}.");
+                return;
+            }
+
+            _currentHeaderSourcePath = filePath;
+            _appSession.LoadedFilePath = filePath;
+            HeaderSuggestionFileName = Path.GetFileName(filePath);
+            SetPendingHeaderSignature(headers);
+
+            var detectionResult = await _profileDetectionService.DetectProfileAsync(headers, filePath);
+            await HandleDetectionResultAsync(detectionResult, headers, filePath);
+        }
+        catch (Exception ex)
+        {
+            ProfileStatus = $"Error reading headers: {ex.Message}";
+            await _dialogService.ShowMessageAsync("Header Load Error", $"We couldn't read the headers: {ex.Message}");
+        }
+    }
+
+    private async Task LoadMetadataForProfileAsync(Profile profile)
+    {
+        if (profile == null)
+        {
+            return;
+        }
+
+        var metadata = await _profileMetadataRepository.GetMetadataAsync(profile);
+        if (metadata != null)
+        {
+            if (!string.IsNullOrWhiteSpace(metadata.FilePath))
+            {
+                profile.MetadataFileName = Path.GetFileName(metadata.FilePath);
+            }
+
+            profile.SourceHeaders = metadata.Headers;
+            SetPendingHeaderSignature(metadata.Headers);
+        }
+        else
+        {
+            SetPendingHeaderSignature(null);
+        }
+    }
+
+    private async Task HandleDetectionResultAsync(ProfileDetectionResult detectionResult, IReadOnlyList<string> headers, string filePath)
+    {
+        switch (detectionResult.Outcome)
+        {
+            case ProfileDetectionOutcome.Matched:
+                if (detectionResult.Profile != null)
+                {
+                    await ApplyMatchedProfileAsync(detectionResult.Profile, headers, filePath, detectionResult.ShouldUpdateMetadata, detectionResult.StatusMessage);
+                }
+                else
+                {
+                    ProfileStatus = detectionResult.StatusMessage;
+                }
+                break;
+            case ProfileDetectionOutcome.NewSource:
+                PopulateSuggestions(headers);
+                ProfileStatus = detectionResult.StatusMessage;
+                UpdateSuggestionState();
+                break;
+            case ProfileDetectionOutcome.Cancelled:
+                ProfileStatus = detectionResult.StatusMessage;
+                ClearSuggestions();
+                SetPendingHeaderSignature(null);
+                _appSession.LoadedFilePath = null;
+                break;
+        }
+    }
+
+    private async Task ApplyMatchedProfileAsync(Profile matchedProfile, IReadOnlyList<string> headers, string sourcePath, bool markDirty, string statusMessage)
+    {
+        var targetProfile = SavedProfiles.FirstOrDefault(p => p.Id == matchedProfile.Id);
+        if (targetProfile == null)
+        {
+            await LoadProfilesAsync();
+            targetProfile = SavedProfiles.FirstOrDefault(p => p.Id == matchedProfile.Id);
+        }
+
+        if (targetProfile == null)
+        {
+            await _dialogService.ShowMessageAsync("Profile Not Found", $"The matched profile '{matchedProfile.Name}' is no longer available.");
+            return;
+        }
+
+        SelectedProfile = targetProfile;
+        await LoadProfileAsync();
+
+        _currentHeaderSourcePath = sourcePath;
+        _appSession.LoadedFilePath = sourcePath;
+        SetPendingHeaderSignature(headers);
+        AutosaveStatus = string.Empty;
+
+        ProfileStatus = statusMessage;
+
+        if (markDirty)
+        {
+            MarkDirty();
         }
     }
 
@@ -1188,3 +1558,25 @@ public partial class FieldMappingViewModel : ObservableObject
     private bool _isBlockSelected;
 }
 
+
+
+public partial class MappingSuggestionViewModel : ObservableObject
+{
+    public MappingSuggestionViewModel(string sourceHeader, string suggestedProperty, double confidence)
+    {
+        SourceHeader = sourceHeader;
+        SuggestedProperty = suggestedProperty;
+        Confidence = confidence;
+    }
+
+    public string SourceHeader { get; }
+    public string SuggestedProperty { get; }
+    public double Confidence { get; }
+
+    public string ConfidenceDisplay => Confidence >= 1
+        ? "100%"
+        : string.Format(CultureInfo.CurrentCulture, "{0:P0}", Confidence);
+
+    [ObservableProperty]
+    private bool _isAccepted = true;
+}

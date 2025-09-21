@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Text.RegularExpressions;
 using System.Threading;
@@ -12,10 +13,12 @@ namespace TriSplit.Core.Services;
 public class ProfileSignatureService : IProfileSignatureService
 {
     private readonly IProfileStore _profileStore;
+    private readonly IProfileMetadataRepository _metadataRepository;
 
-    public ProfileSignatureService(IProfileStore profileStore)
+    public ProfileSignatureService(IProfileStore profileStore, IProfileMetadataRepository metadataRepository)
     {
         _profileStore = profileStore;
+        _metadataRepository = metadataRepository;
     }
 
     public async Task<ProfileSignatureMatchResult> FindBestMatchAsync(IEnumerable<string> headers, CancellationToken cancellationToken = default)
@@ -34,17 +37,20 @@ public class ProfileSignatureService : IProfileSignatureService
         var incomingSet = new HashSet<string>(incomingMap.Keys, StringComparer.OrdinalIgnoreCase);
         var candidates = new List<ProfileMatchCandidate>();
 
-        var profiles = await _profileStore.GetAllProfilesAsync();
+        var profiles = await _profileStore.GetAllProfilesAsync().ConfigureAwait(false);
+        var metadataItems = await _metadataRepository.GetAllMetadataAsync(cancellationToken).ConfigureAwait(false);
+        var metadataLookup = metadataItems.ToDictionary(m => m.ProfileId);
+
         foreach (var profile in profiles)
         {
             cancellationToken.ThrowIfCancellationRequested();
 
-            if (profile.SourceHeaders == null || profile.SourceHeaders.Count == 0)
+            if (!metadataLookup.TryGetValue(profile.Id, out var metadata) || metadata.Headers.Count == 0)
             {
                 continue;
             }
 
-            var storedMap = NormalizeToDictionary(profile.SourceHeaders);
+            var storedMap = NormalizeToDictionary(metadata.Headers);
             if (storedMap.Count == 0)
             {
                 continue;
@@ -78,6 +84,17 @@ public class ProfileSignatureService : IProfileSignatureService
 
             var score = unionCount == 0 ? 0 : (double)intersectionCount / unionCount;
 
+            if (!string.IsNullOrWhiteSpace(metadata.FilePath))
+            {
+                var fileName = Path.GetFileName(metadata.FilePath);
+                if (!string.IsNullOrWhiteSpace(fileName))
+                {
+                    profile.MetadataFileName = fileName;
+                }
+            }
+
+            profile.SourceHeaders = metadata.Headers;
+
             candidates.Add(new ProfileMatchCandidate(profile, score, missing, additional));
         }
 
@@ -101,11 +118,6 @@ public class ProfileSignatureService : IProfileSignatureService
     private static Dictionary<string, string> NormalizeToDictionary(IEnumerable<string> headers)
     {
         var result = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-
-        if (headers == null)
-        {
-            return result;
-        }
 
         foreach (var header in headers)
         {

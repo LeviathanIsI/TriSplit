@@ -19,7 +19,10 @@ public class Profile
     public List<Transform> Transforms { get; set; } = new();
     public Dictionary<string, bool> ProcessingRules { get; set; } = new Dictionary<string, bool>(StringComparer.OrdinalIgnoreCase);
 
-    public List<string> SourceHeaders { get; set; } = new();
+    public string MetadataFileName { get; set; } = string.Empty;
+
+    [JsonIgnore]
+    public IReadOnlyList<string> SourceHeaders { get; set; } = Array.Empty<string>();
 
     [JsonIgnore]
     public string FilePath { get; set; } = string.Empty;

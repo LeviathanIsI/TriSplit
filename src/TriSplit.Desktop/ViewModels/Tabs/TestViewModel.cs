@@ -16,6 +16,7 @@ public partial class TestViewModel : ViewModelBase
     private readonly IDialogService _dialogService;
     private readonly ISampleLoader _sampleLoader;
     private readonly IAppSession _appSession;
+    private readonly IProfileDetectionService _profileDetectionService;
     private const int PREVIEW_ROW_LIMIT = 20;
     private const int PREVIEW_COL_LIMIT = 100;
     private CancellationTokenSource? _loadCts;
@@ -89,11 +90,13 @@ public partial class TestViewModel : ViewModelBase
     public TestViewModel(
         IDialogService dialogService,
         ISampleLoader sampleLoader,
-        IAppSession appSession)
+        IAppSession appSession,
+        IProfileDetectionService profileDetectionService)
     {
         _dialogService = dialogService;
         _sampleLoader = sampleLoader;
         _appSession = appSession;
+        _profileDetectionService = profileDetectionService;
 
         // Subscribe to profile changes
         _appSession.PropertyChanged += (s, e) =>
@@ -152,6 +155,38 @@ public partial class TestViewModel : ViewModelBase
     {
         if (string.IsNullOrEmpty(_currentFilePath))
             return;
+
+        var headers = (await _sampleLoader.GetColumnHeadersAsync(_currentFilePath)).ToList();
+        if (headers.Count == 0)
+        {
+            TestStatus = $"No headers were detected in {Path.GetFileName(_currentFilePath)}.";
+            await _dialogService.ShowMessageAsync("No Headers Found", $"No headers were detected in {Path.GetFileName(_currentFilePath)}.");
+            return;
+        }
+
+        var detectionResult = await _profileDetectionService.DetectProfileAsync(headers, _currentFilePath);
+        if (detectionResult.Outcome == ProfileDetectionOutcome.Cancelled)
+        {
+            TestStatus = detectionResult.StatusMessage;
+            return;
+        }
+
+        if (detectionResult.Outcome == ProfileDetectionOutcome.NewSource)
+        {
+            TestStatus = detectionResult.StatusMessage;
+            _appSession.SelectedProfile = null;
+            ActiveProfileName = "No data profile selected";
+            return;
+        }
+
+        Profile? detectedProfile = detectionResult.Profile;
+        if (detectedProfile != null)
+        {
+            _appSession.SelectedProfile = detectedProfile;
+            UpdateActiveProfile();
+        }
+
+        var detectionMessage = detectionResult.StatusMessage;
 
         var opId = System.Threading.Interlocked.Increment(ref _loadCount);
 
@@ -255,7 +290,8 @@ public partial class TestViewModel : ViewModelBase
                     // Update shared session
                     _appSession.LoadedFilePath = _currentFilePath;
 
-                    TestStatus = $"Loaded {RowCount:N0} rows, {ColumnCount} columns (showing first {PreviewRowCount})";
+                    var loadMessage = $"Loaded {RowCount:N0} rows, {ColumnCount} columns (showing first {PreviewRowCount})";
+                    TestStatus = string.IsNullOrWhiteSpace(detectionMessage) ? loadMessage : $"{detectionMessage} | {loadMessage}";
 
                     // Update mapping status and statistics
                     UpdateColumnMappingStatus();

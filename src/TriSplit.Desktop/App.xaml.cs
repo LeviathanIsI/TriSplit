@@ -32,6 +32,7 @@ public partial class App : Application
                 services.AddSingleton<IApplicationBootstrapper, ApplicationBootstrapper>();
                 services.AddSingleton<IDialogService, DialogService>();
                 services.AddSingleton<IAppSession, AppSession>();
+                services.AddSingleton<IProfileDetectionService, ProfileDetectionService>();
 
                 // Register ViewModels as singletons for state preservation
                 services.AddSingleton<MainWindowViewModel>();

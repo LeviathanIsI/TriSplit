@@ -7,6 +7,7 @@ public interface IApplicationBootstrapper
     void Initialize();
     string GetAppDataPath();
     string GetProfilesPath();
+    string GetProfileMetadataPath();
     string GetTemplatesPath();
     string GetTempPath();
     string GetExportsPath();
@@ -21,19 +22,18 @@ public class ApplicationBootstrapper : IApplicationBootstrapper
     {
         _appDataPath = Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-            "TriSplit"
-        );
+            "TriSplit");
     }
 
     public void Initialize()
     {
         try
         {
-            // Create the data corruption cathedral structure
             var directories = new[]
             {
                 _appDataPath,
                 GetProfilesPath(),
+                GetProfileMetadataPath(),
                 GetTemplatesPath(),
                 GetTempPath(),
                 GetExportsPath(),
@@ -50,12 +50,13 @@ public class ApplicationBootstrapper : IApplicationBootstrapper
         }
         catch
         {
-            // Continue even if directories can't be created
+            // Continue even if directories cannot be created
         }
     }
 
     public string GetAppDataPath() => _appDataPath;
     public string GetProfilesPath() => Path.Combine(_appDataPath, "Profiles");
+    public string GetProfileMetadataPath() => Path.Combine(GetProfilesPath(), "ProfileMetadata");
     public string GetTemplatesPath() => Path.Combine(_appDataPath, "Templates");
     public string GetTempPath() => Path.Combine(_appDataPath, "Temp");
     public string GetExportsPath() => Path.Combine(_appDataPath, "Exports");
@@ -72,13 +73,13 @@ public static class ApplicationPaths
         {
             _appDataPath ??= Path.Combine(
                 Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-                "TriSplit"
-            );
+                "TriSplit");
             return _appDataPath;
         }
     }
 
     public static string ProfilesPath => Path.Combine(AppDataPath, "Profiles");
+    public static string ProfileMetadataPath => Path.Combine(ProfilesPath, "ProfileMetadata");
     public static string TemplatesPath => Path.Combine(AppDataPath, "Templates");
     public static string TempPath => Path.Combine(AppDataPath, "Temp");
     public static string ExportsPath => Path.Combine(AppDataPath, "Exports");
@@ -92,7 +93,6 @@ public static class ApplicationPaths
             basePath = Path.Combine(basePath, subfolder);
         }
 
-        // Create timestamped folder
         var timestamp = DateTime.Now.ToString("yyyyMMdd_HHmmss");
         return Path.Combine(basePath, timestamp);
     }

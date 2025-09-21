@@ -3,6 +3,7 @@ using CommunityToolkit.Mvvm.Input;
 using System.Collections.ObjectModel;
 using System.Diagnostics;
 using System.IO;
+using System.Linq;
 using System.Windows.Media;
 using TriSplit.Core.Interfaces;
 using TriSplit.Core.Models;
@@ -20,6 +21,7 @@ public partial class ProcessingViewModel : ViewModelBase
     private readonly ExcelInputReader _excelReader;
     private readonly IAppSession _appSession;
     private readonly IProfileStore _profileStore;
+    private readonly IProfileDetectionService _profileDetectionService;
 
     private CancellationTokenSource? _cancellationTokenSource;
     private bool _updatingFromSession = false;
@@ -84,12 +86,14 @@ public partial class ProcessingViewModel : ViewModelBase
         IDialogService dialogService,
         ISampleLoader sampleLoader,
         IAppSession appSession,
-        IProfileStore profileStore)
+        IProfileStore profileStore,
+        IProfileDetectionService profileDetectionService)
     {
         _dialogService = dialogService;
         _sampleLoader = sampleLoader;
         _appSession = appSession;
         _profileStore = profileStore;
+        _profileDetectionService = profileDetectionService;
         _csvReader = new CsvInputReader();
         _excelReader = new ExcelInputReader();
 
@@ -107,7 +111,15 @@ public partial class ProcessingViewModel : ViewModelBase
             {
                 if (!string.IsNullOrEmpty(_appSession.LoadedFilePath))
                 {
-                    InputFilePath = _appSession.LoadedFilePath;
+                    var path = _appSession.LoadedFilePath;
+                    if (!string.IsNullOrEmpty(path) && await DetectProfileForFileAsync(path))
+                    {
+                        InputFilePath = path;
+                    }
+                    else
+                    {
+                        InputFilePath = "No file selected";
+                    }
                     UpdateCanStartProcessing();
                 }
             }
@@ -140,6 +152,48 @@ public partial class ProcessingViewModel : ViewModelBase
         }
     }
 
+    private async Task<bool> DetectProfileForFileAsync(string filePath)
+    {
+        var headers = (await _sampleLoader.GetColumnHeadersAsync(filePath)).ToList();
+        if (headers.Count == 0)
+        {
+            AddLogEntry($"No headers were detected in {Path.GetFileName(filePath)}.", LogLevel.Warning);
+            await _dialogService.ShowMessageAsync("No Headers Found", $"No headers were detected in {Path.GetFileName(filePath)}.");
+            return false;
+        }
+
+        var detectionResult = await _profileDetectionService.DetectProfileAsync(headers, filePath);
+        switch (detectionResult.Outcome)
+        {
+            case ProfileDetectionOutcome.Matched:
+                if (detectionResult.Profile != null)
+                {
+                    _appSession.SelectedProfile = detectionResult.Profile;
+                    AddLogEntry(detectionResult.StatusMessage, LogLevel.Info);
+                    ProcessingStatus = detectionResult.StatusMessage;
+                    StatusColor = Brushes.LightGray;
+                }
+                return true;
+            case ProfileDetectionOutcome.NewSource:
+                _appSession.SelectedProfile = null;
+                SelectedProfile = null;
+                AddLogEntry(detectionResult.StatusMessage, LogLevel.Warning);
+                ProcessingStatus = detectionResult.StatusMessage;
+                StatusColor = Brushes.Orange;
+                await _dialogService.ShowMessageAsync("Unrecognized Source", detectionResult.StatusMessage + " Please configure a profile in the Profiles tab before processing.");
+                return false;
+            case ProfileDetectionOutcome.Cancelled:
+                _appSession.SelectedProfile = null;
+                SelectedProfile = null;
+                AddLogEntry(detectionResult.StatusMessage, LogLevel.Warning);
+                ProcessingStatus = detectionResult.StatusMessage;
+                StatusColor = Brushes.Orange;
+                return false;
+            default:
+                return false;
+        }
+    }
+
     [RelayCommand]
     private async Task SelectFileAsync()
     {
@@ -149,6 +203,13 @@ public partial class ProcessingViewModel : ViewModelBase
 
         if (!string.IsNullOrEmpty(filePath))
         {
+            if (!await DetectProfileForFileAsync(filePath))
+            {
+                InputFilePath = "No file selected";
+                UpdateCanStartProcessing();
+                return;
+            }
+
             InputFilePath = filePath;
             _appSession.LoadedFilePath = filePath;
             UpdateCanStartProcessing();
@@ -258,7 +319,10 @@ public partial class ProcessingViewModel : ViewModelBase
                 AddLogEntry($"Processing failed: {result.ErrorMessage}", LogLevel.Error);
             }
 
-            AddLogEntry($"Processing completed successfully in {_outputDirectory}", LogLevel.Success);
+            if (result.Success)
+            {
+                AddLogEntry($"Processing completed successfully in {_outputDirectory}", LogLevel.Success);
+            }
         }
         catch (OperationCanceledException)
         {
@@ -377,6 +441,7 @@ public enum LogLevel
     Warning,
     Error
 }
+
 
 
 

@@ -4,6 +4,9 @@
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:behaviors="clr-namespace:TriSplit.Desktop.Behaviors"
+             AllowDrop="True"
+             PreviewDragOver="ProfilesView_OnPreviewDragOver"
+             Drop="ProfilesView_OnDrop"
              mc:Ignorable="d"
              d:DesignHeight="800" d:DesignWidth="1400"
              Background="{StaticResource BackgroundBrush}">
@@ -60,6 +63,11 @@
                 Padding="15,8"/>
         <Button Content="Load Data Profile"
                 Command="{Binding LoadProfileCommand}"
+                Style="{StaticResource SecondaryButton}"
+                Padding="15,8"
+                Margin="0,0,10,0"/>
+        <Button Content="Load Headers for Suggestions"
+                Command="{Binding LoadHeaderSuggestionsCommand}"
                 Style="{StaticResource SecondaryButton}"
                 Padding="15,8"/>
       </StackPanel>
@@ -253,10 +261,62 @@
             <ScrollViewer Margin="15,15,15,0"
                           VerticalScrollBarVisibility="Auto"
                           HorizontalScrollBarVisibility="Hidden">
-              <ItemsControl ItemsSource="{Binding FieldMappings}"
-                            Margin="15">
-              <ItemsControl.ItemTemplate>
-                <DataTemplate>
+              <StackPanel>
+                <Border Background="#12202C"
+                        BorderBrush="{StaticResource AccentBrush}"
+                        BorderThickness="1"
+                        CornerRadius="6"
+                        Padding="12"
+                        Margin="15,0,15,15"
+                        Visibility="{Binding HasMappingSuggestions, Converter={StaticResource BoolToVisibilityConverter}}">
+                  <StackPanel>
+                    <TextBlock Text="{Binding SuggestionSummary}"
+                               Foreground="{StaticResource AccentBrush}"
+                               FontWeight="SemiBold"
+                               Margin="0,0,0,8"/>
+                    <ItemsControl ItemsSource="{Binding MappingSuggestions}" Margin="0,0,0,10">
+                      <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                          <Border Background="{StaticResource BackgroundBrush}" CornerRadius="4" Padding="8" Margin="0,0,0,6">
+                            <Grid>
+                              <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="2*"/>
+                                <ColumnDefinition Width="2*"/>
+                                <ColumnDefinition Width="Auto"/>
+                              </Grid.ColumnDefinitions>
+                              <CheckBox IsChecked="{Binding IsAccepted}"
+                                        Content="{Binding SourceHeader}"
+                                        VerticalAlignment="Center"/>
+                              <TextBlock Grid.Column="1"
+                                         Text="{Binding SuggestedProperty}"
+                                         VerticalAlignment="Center"
+                                         Foreground="{StaticResource TextBrush}"/>
+                              <TextBlock Grid.Column="2"
+                                         Text="{Binding ConfidenceDisplay}"
+                                         Foreground="{StaticResource SecondaryTextBrush}"
+                                         VerticalAlignment="Center"
+                                         Margin="12,0,0,0"/>
+                            </Grid>
+                          </Border>
+                        </DataTemplate>
+                      </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                      <Button Content="Apply Suggestions"
+                              Command="{Binding ApplySuggestionsCommand}"
+                              Style="{StaticResource PrimaryButton}"
+                              Margin="0,0,8,0"/>
+                      <Button Content="Dismiss"
+                              Command="{Binding DismissSuggestionsCommand}"
+                              Style="{StaticResource SecondaryButton}"/>
+                    </StackPanel>
+                  </StackPanel>
+                </Border>
+
+                <ItemsControl ItemsSource="{Binding FieldMappings}"
+                              Margin="15">
+                <ItemsControl.ItemTemplate>
+                  <DataTemplate>
                   <Border Margin="0,0,0,10"
                           Background="{StaticResource BackgroundBrush}"
                           BorderBrush="{StaticResource BorderBrush}"
@@ -475,10 +535,11 @@
                               HorizontalAlignment="Center"/>
                     </Grid>
                   </Border>
-                </DataTemplate>
-              </ItemsControl.ItemTemplate>
-            </ItemsControl>
-          </ScrollViewer>
+                  </DataTemplate>
+                </ItemsControl.ItemTemplate>
+              </ItemsControl>
+              </StackPanel>
+            </ScrollViewer>
         </Grid>
 
           <!-- Add Mapping Button -->

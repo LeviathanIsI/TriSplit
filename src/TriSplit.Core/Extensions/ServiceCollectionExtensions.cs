@@ -12,6 +12,7 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<IProfileStore, ProfileStore>();
         services.AddSingleton<IInputReaderFactory, InputReaderFactory>();
         services.AddSingleton<ISampleLoader, SampleLoader>();
+        services.AddSingleton<IProfileMetadataRepository, ProfileMetadataRepository>();
         services.AddSingleton<IProfileSignatureService, ProfileSignatureService>();
 
         // Register readers
@@ -21,3 +22,4 @@ public static class ServiceCollectionExtensions
         return services;
     }
 }
+
