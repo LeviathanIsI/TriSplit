@@ -3,6 +3,8 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Media;
 using System.Windows.Threading;
 using Microsoft.Win32;
 using TriSplit.Core.Interfaces;
@@ -47,13 +49,13 @@ public class DialogService : IDialogService
     {
         return InvokeOnDispatcherAsync(() =>
         {
-            var result = MessageBox.Show(
-                message,
-                title,
-                MessageBoxButton.YesNo,
-                MessageBoxImage.Question);
+            var dialog = new MessageDialog(title, message, "Yes", "No")
+            {
+                Owner = GetActiveWindow()
+            };
 
-            return result == MessageBoxResult.Yes;
+            var result = dialog.ShowDialog();
+            return result == true && dialog.PrimaryInvoked;
         });
     }
 
@@ -61,7 +63,12 @@ public class DialogService : IDialogService
     {
         return InvokeOnDispatcherAsync(() =>
         {
-            MessageBox.Show(message, title, MessageBoxButton.OK, MessageBoxImage.Information);
+            var dialog = new MessageDialog(title, message, "OK")
+            {
+                Owner = GetActiveWindow()
+            };
+
+            dialog.ShowDialog();
         });
     }
 
@@ -102,74 +109,112 @@ public class DialogService : IDialogService
     {
         return InvokeOnDispatcherAsync(() =>
         {
+            var owner = GetActiveWindow();
+            var surfaceBrush = GetBrush("SurfaceBrush", Brushes.WhiteSmoke);
+            var backgroundBrush = GetBrush("BackgroundBrush", Brushes.White);
+            var textBrush = GetBrush("TextBrush", Brushes.Black);
+            var borderBrush = GetBrush("BorderBrush", Brushes.Gray);
+            var primaryButtonStyle = GetStyle("PrimaryButton");
+            var secondaryButtonStyle = GetStyle("SecondaryButton");
+
             var window = new Window
             {
                 Title = title,
-                Width = 400,
-                Height = 150,
-                WindowStartupLocation = WindowStartupLocation.CenterScreen,
+                Owner = owner,
+                WindowStartupLocation = owner != null
+                    ? WindowStartupLocation.CenterOwner
+                    : WindowStartupLocation.CenterScreen,
                 ResizeMode = ResizeMode.NoResize,
-                Owner = GetActiveWindow()
+                SizeToContent = SizeToContent.WidthAndHeight,
+                ShowInTaskbar = false,
+                Background = surfaceBrush,
+                Foreground = textBrush,
+                MinWidth = 420
             };
 
-            var panel = new System.Windows.Controls.StackPanel
+            var border = new Border
             {
-                Margin = new Thickness(10)
+                Background = surfaceBrush,
+                BorderBrush = borderBrush,
+                BorderThickness = new Thickness(1),
+                CornerRadius = new CornerRadius(12),
+                Padding = new Thickness(24)
             };
 
-            var label = new System.Windows.Controls.Label
+            var panel = new StackPanel();
+
+            var promptText = new TextBlock
             {
-                Content = prompt
+                Text = prompt,
+                TextWrapping = TextWrapping.Wrap,
+                FontWeight = FontWeights.SemiBold,
+                Foreground = textBrush,
+                Margin = new Thickness(0, 0, 0, 12)
             };
 
-            var textBox = new System.Windows.Controls.TextBox
+            var textBox = new TextBox
             {
                 Text = defaultValue,
-                Margin = new Thickness(0, 5, 0, 10)
+                Background = backgroundBrush,
+                Foreground = textBrush,
+                BorderBrush = borderBrush,
+                BorderThickness = new Thickness(1),
+                Padding = new Thickness(8, 6, 8, 6),
+                MinWidth = 320,
+                Margin = new Thickness(0, 0, 0, 16)
             };
 
-            var buttonPanel = new System.Windows.Controls.StackPanel
+            var buttonPanel = new StackPanel
             {
-                Orientation = System.Windows.Controls.Orientation.Horizontal,
+                Orientation = Orientation.Horizontal,
                 HorizontalAlignment = HorizontalAlignment.Right
             };
 
-            var okButton = new System.Windows.Controls.Button
+            var okButton = new Button
             {
                 Content = "OK",
-                Width = 75,
-                Margin = new Thickness(0, 0, 5, 0),
-                IsDefault = true
+                Width = 110,
+                IsDefault = true,
+                Style = primaryButtonStyle,
+                Margin = new Thickness(0, 0, 12, 0)
             };
 
-            var cancelButton = new System.Windows.Controls.Button
+            var cancelButton = new Button
             {
                 Content = "Cancel",
-                Width = 75,
-                IsCancel = true
+                Width = 110,
+                IsCancel = true,
+                Style = secondaryButtonStyle
             };
 
             string? result = null;
 
-            okButton.Click += (s, e) =>
+            okButton.Click += (_, _) =>
             {
                 result = textBox.Text;
                 window.DialogResult = true;
             };
 
-            cancelButton.Click += (s, e) =>
+            cancelButton.Click += (_, _) =>
             {
                 window.DialogResult = false;
+            };
+
+            window.Loaded += (_, _) =>
+            {
+                textBox.Focus();
+                textBox.SelectAll();
             };
 
             buttonPanel.Children.Add(okButton);
             buttonPanel.Children.Add(cancelButton);
 
-            panel.Children.Add(label);
+            panel.Children.Add(promptText);
             panel.Children.Add(textBox);
             panel.Children.Add(buttonPanel);
 
-            window.Content = panel;
+            border.Child = panel;
+            window.Content = border;
 
             return window.ShowDialog() == true ? result : null;
         });
@@ -209,5 +254,14 @@ public class DialogService : IDialogService
 
         return dispatcher.InvokeAsync(callback).Task;
     }
-}
 
+    private static Brush GetBrush(string resourceKey, Brush fallback)
+    {
+        return Application.Current?.TryFindResource(resourceKey) as Brush ?? fallback;
+    }
+
+    private static Style? GetStyle(string resourceKey)
+    {
+        return Application.Current?.TryFindResource(resourceKey) as Style;
+    }
+}
