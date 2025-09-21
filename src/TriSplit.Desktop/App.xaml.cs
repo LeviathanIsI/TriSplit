@@ -76,6 +76,15 @@ public partial class App : Application
 
     protected override void OnExit(ExitEventArgs e)
     {
+        if (_host != null)
+        {
+            var session = _host.Services.GetService<IAppSession>();
+            if (session != null)
+            {
+                session.LoadedFilePath = null;
+            }
+        }
+
         ApplicationLogger.LogShutdown();
         _host?.StopAsync();
         _host?.Dispose();

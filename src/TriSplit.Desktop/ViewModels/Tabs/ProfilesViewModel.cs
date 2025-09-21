@@ -1004,25 +1004,38 @@ public partial class ProfilesViewModel : ViewModelBase
             .Where(h => !string.IsNullOrWhiteSpace(h))
             .Select(h => h.Trim())
             .Where(h => !string.IsNullOrWhiteSpace(h))
-            .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToList() ?? new List<string>();
+
+        var suggestionCount = 0;
 
         foreach (var header in list)
         {
             var suggestion = BuildSuggestion(header);
             if (suggestion != null)
             {
+                suggestion.IsAccepted = true;
                 MappingSuggestions.Add(suggestion);
+                suggestionCount++;
+            }
+            else
+            {
+                var entry = new MappingSuggestionViewModel(header, null, 0.0, isAccepted: false);
+                MappingSuggestions.Add(entry);
             }
         }
 
-        if (MappingSuggestions.Count > 0)
+        if (list.Count > 0)
         {
-            SuggestionSummary = $"Found {MappingSuggestions.Count} suggested mapping(s) from {HeaderSuggestionFileName}.";
+            var suggestionMessage = suggestionCount > 0
+                ? $"Found {suggestionCount} suggested mapping{(suggestionCount == 1 ? string.Empty : "s")} from {HeaderSuggestionFileName}."
+                : $"No confident suggestions found in {HeaderSuggestionFileName}.";
+
+            var totalMessage = $" Showing all {list.Count} column{(list.Count == 1 ? string.Empty : "s")} from the source file.";
+            SuggestionSummary = suggestionMessage + totalMessage;
         }
         else
         {
-            SuggestionSummary = $"No confident suggestions found in {HeaderSuggestionFileName}.";
+            SuggestionSummary = $"No columns discovered in {HeaderSuggestionFileName}.";
         }
 
         UpdateSuggestionState();
@@ -1075,7 +1088,7 @@ public partial class ProfilesViewModel : ViewModelBase
         var accepted = MappingSuggestions.Where(s => s.IsAccepted).ToList();
         if (accepted.Count == 0)
         {
-            ProfileStatus = "Select at least one suggestion before applying.";
+            ProfileStatus = "Select at least one column before applying.";
             return;
         }
 
@@ -1134,7 +1147,10 @@ public partial class ProfilesViewModel : ViewModelBase
             existing.SourceField = suggestion.SourceHeader;
         }
 
-        existing.HubSpotHeader = suggestion.SuggestedProperty;
+        if (!string.IsNullOrWhiteSpace(suggestion.SuggestedProperty))
+        {
+            existing.HubSpotHeader = suggestion.SuggestedProperty;
+        }
     }
 
     private void ClearSuggestions()
@@ -1632,24 +1648,25 @@ public partial class FieldMappingViewModel : ObservableObject
     private bool _isBlockSelected;
 }
 
-
-
 public partial class MappingSuggestionViewModel : ObservableObject
 {
-    public MappingSuggestionViewModel(string sourceHeader, string suggestedProperty, double confidence)
+    public MappingSuggestionViewModel(string sourceHeader, string? suggestedProperty, double confidence, bool isAccepted = true)
     {
         SourceHeader = sourceHeader;
         SuggestedProperty = suggestedProperty;
         Confidence = confidence;
+        IsAccepted = isAccepted;
     }
 
     public string SourceHeader { get; }
-    public string SuggestedProperty { get; }
+    public string? SuggestedProperty { get; }
     public double Confidence { get; }
 
-    public string ConfidenceDisplay => Confidence >= 1
-        ? "100%"
-        : string.Format(CultureInfo.CurrentCulture, "{0:P0}", Confidence);
+    public bool HasSuggestedProperty => !string.IsNullOrWhiteSpace(SuggestedProperty);
+
+    public string ConfidenceDisplay => HasSuggestedProperty
+        ? (Confidence >= 1 ? "100%" : string.Format(CultureInfo.CurrentCulture, "{0:P0}", Confidence))
+        : "--";
 
     [ObservableProperty]
     private bool _isAccepted = true;

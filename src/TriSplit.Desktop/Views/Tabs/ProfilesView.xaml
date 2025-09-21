@@ -290,9 +290,21 @@
                                         Foreground="{StaticResource TextBrush}"
                                         FocusVisualStyle="{x:Null}"/>
                               <TextBlock Grid.Column="1"
-                                         Text="{Binding SuggestedProperty}"
+                                         Text="{Binding SuggestedProperty, TargetNullValue=No suggested property}"
                                          VerticalAlignment="Center"
-                                         Foreground="{StaticResource TextBrush}"/>
+                                         Foreground="{StaticResource TextBrush}">
+                                <TextBlock.Style>
+                                  <Style TargetType="TextBlock">
+                                    <Setter Property="Foreground" Value="{StaticResource TextBrush}"/>
+                                    <Style.Triggers>
+                                      <DataTrigger Binding="{Binding HasSuggestedProperty}" Value="False">
+                                        <Setter Property="Foreground" Value="{StaticResource SecondaryTextBrush}"/>
+                                        <Setter Property="FontStyle" Value="Italic"/>
+                                      </DataTrigger>
+                                    </Style.Triggers>
+                                  </Style>
+                                </TextBlock.Style>
+                              </TextBlock>
                               <TextBlock Grid.Column="2"
                                          Text="{Binding ConfidenceDisplay}"
                                          Foreground="{StaticResource SecondaryTextBrush}"
