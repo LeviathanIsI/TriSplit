@@ -42,6 +42,9 @@ public partial class ProcessingViewModel : ViewModelBase
     private Profile? _selectedProfile;
 
     [ObservableProperty]
+    private string _detectedSourceDisplay = "Awaiting detection";
+
+    [ObservableProperty]
     private bool _outputCsv = true;
 
     [ObservableProperty]
@@ -193,9 +196,12 @@ public partial class ProcessingViewModel : ViewModelBase
 
     private async Task<bool> DetectProfileForFileAsync(string filePath)
     {
+        DetectedSourceDisplay = "Detecting source data...";
+
         var headers = (await _sampleLoader.GetColumnHeadersAsync(filePath)).ToList();
         if (headers.Count == 0)
         {
+            DetectedSourceDisplay = "No headers found";
             AddLogEntry($"No headers were detected in {Path.GetFileName(filePath)}.", LogLevel.Warning);
             await _dialogService.ShowMessageAsync("No Headers Found", $"No headers were detected in {Path.GetFileName(filePath)}.");
             return false;
@@ -208,14 +214,20 @@ public partial class ProcessingViewModel : ViewModelBase
                 if (detectionResult.Profile != null)
                 {
                     _appSession.SelectedProfile = detectionResult.Profile;
+                    DetectedSourceDisplay = detectionResult.Profile.Name;
                     AddLogEntry(detectionResult.StatusMessage, LogLevel.Info);
                     ProcessingStatus = detectionResult.StatusMessage;
                     StatusColor = Brushes.LightGray;
+                }
+                else
+                {
+                    DetectedSourceDisplay = "Source detected";
                 }
                 return true;
             case ProfileDetectionOutcome.NewSource:
                 _appSession.SelectedProfile = null;
                 SelectedProfile = null;
+                DetectedSourceDisplay = "Unrecognized source";
                 AddLogEntry(detectionResult.StatusMessage, LogLevel.Warning);
                 ProcessingStatus = detectionResult.StatusMessage;
                 StatusColor = Brushes.Orange;
@@ -224,11 +236,13 @@ public partial class ProcessingViewModel : ViewModelBase
             case ProfileDetectionOutcome.Cancelled:
                 _appSession.SelectedProfile = null;
                 SelectedProfile = null;
+                DetectedSourceDisplay = "Detection cancelled";
                 AddLogEntry(detectionResult.StatusMessage, LogLevel.Warning);
                 ProcessingStatus = detectionResult.StatusMessage;
                 StatusColor = Brushes.Orange;
                 return false;
             default:
+                DetectedSourceDisplay = "Detection failed";
                 return false;
         }
     }
@@ -677,6 +691,11 @@ public partial class ProcessingViewModel : ViewModelBase
     partial void OnSelectedProfileChanged(Profile? value)
     {
         UpdateCanStartProcessing();
+
+        if (value != null && InputFilePath != "No file selected")
+        {
+            DetectedSourceDisplay = value.Name;
+        }
 
         // Only update session and log if this change didn't come from the session
         if (!_updatingFromSession && value != null)

@@ -83,15 +83,23 @@
           </Grid.ColumnDefinitions>
 
           <TextBlock Grid.Column="0"
-                     Text="Data Profile:"
+                     Text="Identifying Source Data:"
                      Foreground="{StaticResource TextBrush}"
                      VerticalAlignment="Center"/>
 
-          <ComboBox Grid.Column="1"
-                    ItemsSource="{Binding AvailableProfiles}"
-                    SelectedItem="{Binding SelectedProfile}"
-                    DisplayMemberPath="Name"
-                    Margin="0,0,10,0"/>
+          <Border Grid.Column="1"
+                  Background="{StaticResource BackgroundBrush}"
+                  BorderBrush="{StaticResource BorderBrush}"
+                  BorderThickness="1"
+                  CornerRadius="4"
+                  Height="36"
+                  Margin="0,0,10,0">
+            <TextBlock Text="{Binding DetectedSourceDisplay}"
+                       Foreground="{StaticResource TextBrush}"
+                       VerticalAlignment="Center"
+                       Margin="10,0"
+                       TextTrimming="CharacterEllipsis"/>
+          </Border>
 
           <TextBlock Grid.Column="2"
                      Text="Output Format:"
