@@ -1063,6 +1063,60 @@ public partial class ProfilesViewModel : ViewModelBase
         return null;
     }
 
+    [RelayCommand]
+    private void ApplySuggestions()
+    {
+        if (MappingSuggestions.Count == 0)
+        {
+            ProfileStatus = "No suggestions available to apply.";
+            return;
+        }
+
+        var accepted = MappingSuggestions.Where(s => s.IsAccepted).ToList();
+        if (accepted.Count == 0)
+        {
+            ProfileStatus = "Select at least one suggestion before applying.";
+            return;
+        }
+
+        var applied = 0;
+        foreach (var suggestion in accepted)
+        {
+            ApplySuggestionToMappings(suggestion);
+            applied++;
+        }
+
+        if (applied == 0)
+        {
+            ProfileStatus = "No suggestions were applied.";
+            return;
+        }
+
+        UpdateMappingCount();
+        MarkDirty();
+        AutosaveStatus = "*Unsaved Changes*";
+
+        MappingSuggestions.Clear();
+        SuggestionSummary = string.Empty;
+        UpdateSuggestionState();
+
+        ProfileStatus = $"Applied {applied} suggestion(s).";
+    }
+
+    [RelayCommand]
+    private void DismissSuggestions()
+    {
+        if (MappingSuggestions.Count == 0 && string.IsNullOrWhiteSpace(SuggestionSummary))
+        {
+            return;
+        }
+
+        MappingSuggestions.Clear();
+        SuggestionSummary = string.Empty;
+        UpdateSuggestionState();
+        ProfileStatus = "Suggestions dismissed.";
+    }
+
     private void ApplySuggestionToMappings(MappingSuggestionViewModel suggestion)
     {
         var existing = FieldMappings.FirstOrDefault(m =>
