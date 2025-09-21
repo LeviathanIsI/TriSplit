@@ -20,4 +20,6 @@ public interface IAppSession : INotifyPropertyChanged
     void RequestNavigation(AppTab tab);
     event EventHandler<NewSourceRequestedEventArgs>? NewSourceRequested;
     void NotifyNewSourceRequested(string filePath, IReadOnlyList<string> headers);
+    bool TryEnterNewSourcePrompt(string filePath);
+    void CompleteNewSourcePrompt();
 }

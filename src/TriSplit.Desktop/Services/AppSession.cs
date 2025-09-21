@@ -21,6 +21,8 @@ public class AppSession : IAppSession
     private bool _outputExcel;
     private bool _outputJson;
     private Guid? _lastProfileId;
+    private string? _activeNewSourceKey;
+    private bool _isNewSourcePromptActive;
 
     public AppSession()
     {
@@ -139,6 +141,25 @@ public class AppSession : IAppSession
     public event EventHandler<NewSourceRequestedEventArgs>? NewSourceRequested;
     public event PropertyChangedEventHandler? PropertyChanged;
 
+    public bool TryEnterNewSourcePrompt(string filePath)
+    {
+        var key = NormalizeNewSourceKey(filePath);
+        if (_isNewSourcePromptActive && string.Equals(_activeNewSourceKey, key, StringComparison.Ordinal))
+        {
+            return false;
+        }
+
+        _isNewSourcePromptActive = true;
+        _activeNewSourceKey = key;
+        return true;
+    }
+
+    public void CompleteNewSourcePrompt()
+    {
+        _isNewSourcePromptActive = false;
+        _activeNewSourceKey = null;
+    }
+
     public void RequestNavigation(AppTab tab)
     {
         NavigationRequested?.Invoke(tab);
@@ -195,6 +216,14 @@ public class AppSession : IAppSession
             _isLoadingSnapshot = false;
         }
     }
+
+    private static string NormalizeNewSourceKey(string path)
+    {
+        return string.IsNullOrWhiteSpace(path)
+            ? string.Empty
+            : path.Trim().ToLowerInvariant();
+    }
+
 
     private void PersistSnapshot()
     {

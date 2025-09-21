@@ -914,7 +914,7 @@ public partial class ProcessingViewModel : ViewModelBase
     private void RefreshSourceActionState()
     {
         var hasFile = !string.IsNullOrWhiteSpace(InputFilePath) && InputFilePath != "No file selected";
-        ShowSourceActions = hasFile && (SelectedProfile != null || AvailableProfiles.Count > 0);
+        ShowSourceActions = hasFile && !RequiresProfileSetup && (SelectedProfile != null || AvailableProfiles.Count > 0);
 
         AcceptDetectedSourceCommand.NotifyCanExecuteChanged();
         BeginOverrideCommand.NotifyCanExecuteChanged();

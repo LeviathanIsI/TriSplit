@@ -176,22 +176,35 @@ public partial class TestViewModel : ViewModelBase
             _appSession.SelectedProfile = null;
             ActiveProfileName = "No data profile selected";
 
-            var decision = await _dialogService.ShowNewSourceDecisionAsync(Path.GetFileName(_currentFilePath));
-            switch (decision)
+            if (!_appSession.TryEnterNewSourcePrompt(_currentFilePath))
             {
-                case NewSourceDecision.UpdateExisting:
-                    _appSession.LoadedFilePath = _currentFilePath;
-                    _appSession.RequestNavigation(AppTab.Processing);
-                    TestStatus = "Select an existing data profile in Processing to map this file.";
-                    break;
-                case NewSourceDecision.CreateNew:
-                    _appSession.NotifyNewSourceRequested(_currentFilePath, headers);
-                    _appSession.RequestNavigation(AppTab.Profiles);
-                    TestStatus = "Configure and save a new data profile before testing again.";
-                    break;
-                default:
-                    TestStatus = detectionResult.StatusMessage;
-                    break;
+                TestStatus = detectionResult.StatusMessage;
+                return;
+            }
+
+            try
+            {
+                var decision = await _dialogService.ShowNewSourceDecisionAsync(Path.GetFileName(_currentFilePath));
+                switch (decision)
+                {
+                    case NewSourceDecision.UpdateExisting:
+                        _appSession.LoadedFilePath = _currentFilePath;
+                        _appSession.RequestNavigation(AppTab.Processing);
+                        TestStatus = "Select an existing data profile in Processing to map this file.";
+                        break;
+                    case NewSourceDecision.CreateNew:
+                        _appSession.NotifyNewSourceRequested(_currentFilePath, headers);
+                        _appSession.RequestNavigation(AppTab.Profiles);
+                        TestStatus = "Configure and save a new data profile before testing again.";
+                        break;
+                    default:
+                        TestStatus = detectionResult.StatusMessage;
+                        break;
+                }
+            }
+            finally
+            {
+                _appSession.CompleteNewSourcePrompt();
             }
             return;
         }
