@@ -629,11 +629,7 @@
                   Margin="0,0,10,0"/>
           <Button Content="Export Data Profile"
                   Command="{Binding ExportProfileCommand}"
-                  Style="{StaticResource SecondaryButton}"
-                  Margin="0,0,10,0"/>
-          <Button Content="Apply Data Profile"
-                  Command="{Binding ApplyProfileCommand}"
-                  Style="{StaticResource PrimaryButton}"/>
+                  Style="{StaticResource SecondaryButton}"/>
         </StackPanel>
       </Grid>
     </Border>
