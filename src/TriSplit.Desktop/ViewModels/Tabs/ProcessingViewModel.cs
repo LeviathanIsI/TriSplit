@@ -3,6 +3,7 @@ using CommunityToolkit.Mvvm.Input;
 using System.Collections.ObjectModel;
 using System.Diagnostics;
 using System.IO;
+using System.IO.Compression;
 using System.Linq;
 using System.Windows.Media;
 using TriSplit.Core.Interfaces;
@@ -22,9 +23,12 @@ public partial class ProcessingViewModel : ViewModelBase
     private readonly IAppSession _appSession;
     private readonly IProfileStore _profileStore;
     private readonly IProfileDetectionService _profileDetectionService;
+    private readonly IExcelExporter _excelExporter;
 
     private CancellationTokenSource? _cancellationTokenSource;
     private bool _updatingFromSession = false;
+    private string? _currentRunLogPath;
+    private StreamWriter? _runLogWriter;
 
     [ObservableProperty]
     private string _inputFilePath = "No file selected";
@@ -80,6 +84,12 @@ public partial class ProcessingViewModel : ViewModelBase
     [ObservableProperty]
     private bool _hasOutput;
 
+    [ObservableProperty]
+    private string? _lastRunLogPath;
+
+    [ObservableProperty]
+    private bool _hasRunLog;
+
     private string? _outputDirectory;
 
     public ProcessingViewModel(
@@ -87,13 +97,15 @@ public partial class ProcessingViewModel : ViewModelBase
         ISampleLoader sampleLoader,
         IAppSession appSession,
         IProfileStore profileStore,
-        IProfileDetectionService profileDetectionService)
+        IProfileDetectionService profileDetectionService,
+        IExcelExporter excelExporter)
     {
         _dialogService = dialogService;
         _sampleLoader = sampleLoader;
         _appSession = appSession;
         _profileStore = profileStore;
         _profileDetectionService = profileDetectionService;
+        _excelExporter = excelExporter;
         _csvReader = new CsvInputReader();
         _excelReader = new ExcelInputReader();
 
@@ -226,6 +238,12 @@ public partial class ProcessingViewModel : ViewModelBase
             return;
         }
 
+        if (!OutputCsv && !OutputExcel && !OutputJson)
+        {
+            await _dialogService.ShowMessageAsync("Export Required", "Select at least one output format before processing.");
+            return;
+        }
+
         try
         {
             IsProcessing = true;
@@ -281,10 +299,17 @@ public partial class ProcessingViewModel : ViewModelBase
             }
 
             // Create processor driven entirely by the selected data profile
-            var processor = new UnifiedProcessor(SelectedProfile, inputReader, progress);
+            var processor = new UnifiedProcessor(SelectedProfile, inputReader, _excelExporter, progress);
 
-            // Process the file and generate three output files with Import ID linking
-            var result = await processor.ProcessAsync(InputFilePath, _outputDirectory, token);
+            var options = new ProcessingOptions
+            {
+                OutputCsv = OutputCsv,
+                OutputExcel = OutputExcel,
+                OutputJson = OutputJson
+            };
+
+            // Process the file and generate export files based on selected formats
+            var result = await processor.ProcessAsync(InputFilePath, _outputDirectory ?? string.Empty, options, token);
 
             if (token.IsCancellationRequested) return;
 
@@ -295,7 +320,7 @@ public partial class ProcessingViewModel : ViewModelBase
                 ProgressText = "Processing complete!";
                 ProcessingStatus = "Completed successfully";
                 StatusColor = Brushes.LimeGreen;
-                HasOutput = true;
+                HasOutput = result.CsvFiles.Count > 0 || result.ExcelFiles.Count > 0 || result.JsonFiles.Count > 0;
 
                 AddLogEntry($"Processing complete!", LogLevel.Success);
                 AddLogEntry($"  Total records processed: {result.TotalRecordsProcessed}", LogLevel.Success);
@@ -303,10 +328,38 @@ public partial class ProcessingViewModel : ViewModelBase
                 AddLogEntry($"  Properties created: {result.PropertiesCreated}", LogLevel.Success);
                 AddLogEntry($"  Phone numbers created: {result.PhonesCreated}", LogLevel.Success);
                 AddLogEntry($"", LogLevel.Info);
-                AddLogEntry($"Output files (Import ID linked):", LogLevel.Info);
-                AddLogEntry($"  1. {Path.GetFileName(result.ContactsFile)}", LogLevel.Info);
-                AddLogEntry($"  2. {Path.GetFileName(result.PhonesFile)}", LogLevel.Info);
-                AddLogEntry($"  3. {Path.GetFileName(result.PropertiesFile)}", LogLevel.Info);
+
+                if (result.CsvFiles.Count > 0)
+                {
+                    AddLogEntry("CSV exports:", LogLevel.Info);
+                    foreach (var file in result.CsvFiles)
+                    {
+                        AddLogEntry($"  - {Path.GetFileName(file)}", LogLevel.Info);
+                    }
+                }
+
+                if (result.ExcelFiles.Count > 0)
+                {
+                    AddLogEntry("Excel exports:", LogLevel.Info);
+                    foreach (var file in result.ExcelFiles)
+                    {
+                        AddLogEntry($"  - {Path.GetFileName(file)}", LogLevel.Info);
+                    }
+                }
+
+                if (result.JsonFiles.Count > 0)
+                {
+                    AddLogEntry("JSON exports:", LogLevel.Info);
+                    foreach (var file in result.JsonFiles)
+                    {
+                        AddLogEntry($"  - {Path.GetFileName(file)}", LogLevel.Info);
+                    }
+                }
+
+                if (!string.IsNullOrWhiteSpace(result.SummaryReportPath))
+                {
+                    AddLogEntry($"Summary: {Path.GetFileName(result.SummaryReportPath)}", LogLevel.Info);
+                }
             }
             else
             {
@@ -378,12 +431,81 @@ public partial class ProcessingViewModel : ViewModelBase
         }
     }
 
+    private void BeginRunLog()
+    {
+        EndRunLog();
+        var logsDirectory = ApplicationPaths.LogsPath;
+        Directory.CreateDirectory(logsDirectory);
+        _currentRunLogPath = Path.Combine(logsDirectory, $"processing-run_{DateTime.Now:yyyyMMdd_HHmmss}.log");
+        _runLogWriter = new StreamWriter(new FileStream(_currentRunLogPath, FileMode.Create, FileAccess.Write, FileShare.ReadWrite))
+        {
+            AutoFlush = true
+        };
+        WriteRunLog("=== Processing run started ===");
+    }
+
+    private void EndRunLog()
+    {
+        if (_runLogWriter != null)
+        {
+            WriteRunLog("=== Processing run finished ===");
+            _runLogWriter.Dispose();
+            _runLogWriter = null;
+        }
+
+        if (!string.IsNullOrWhiteSpace(_currentRunLogPath))
+        {
+            LastRunLogPath = _currentRunLogPath;
+        }
+
+        _currentRunLogPath = null;
+    }
+
+    private void WriteRunLog(string message)
+    {
+        if (_runLogWriter == null)
+        {
+            return;
+        }
+
+        var line = $"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] {message}";
+        try
+        {
+            _runLogWriter.WriteLine(line);
+        }
+        catch
+        {
+            // Ignore logging errors
+        }
+    }
+
     private void UpdateCanStartProcessing()
     {
         CanStartProcessing = !IsProcessing &&
                             !string.IsNullOrEmpty(InputFilePath) &&
                             InputFilePath != "No file selected" &&
-                            SelectedProfile != null;
+                            SelectedProfile != null &&
+                            (OutputCsv || OutputExcel || OutputJson);
+    }
+
+    partial void OnOutputCsvChanged(bool value)
+    {
+        UpdateCanStartProcessing();
+    }
+
+    partial void OnOutputExcelChanged(bool value)
+    {
+        UpdateCanStartProcessing();
+    }
+
+    partial void OnOutputJsonChanged(bool value)
+    {
+        UpdateCanStartProcessing();
+    }
+
+    partial void OnLastRunLogPathChanged(string? value)
+    {
+        HasRunLog = !string.IsNullOrWhiteSpace(value) && File.Exists(value);
     }
 
     partial void OnSelectedProfileChanged(Profile? value)

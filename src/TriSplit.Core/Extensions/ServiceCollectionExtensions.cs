@@ -14,6 +14,7 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<ISampleLoader, SampleLoader>();
         services.AddSingleton<IProfileMetadataRepository, ProfileMetadataRepository>();
         services.AddSingleton<IProfileSignatureService, ProfileSignatureService>();
+        services.AddSingleton<IExcelExporter, ExcelExporter>();
 
         // Register readers
         services.AddTransient<IInputReader, CsvInputReader>();
@@ -22,4 +23,5 @@ public static class ServiceCollectionExtensions
         return services;
     }
 }
+
 

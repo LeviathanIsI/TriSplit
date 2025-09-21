@@ -4,6 +4,7 @@ using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Text;
+using System.Text.Json;
 using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
@@ -18,6 +19,7 @@ public class UnifiedProcessor
 {
     private readonly Profile _profile;
     private readonly IInputReader _inputReader;
+    private readonly IExcelExporter _excelExporter;
     private readonly IProgress<ProcessingProgress>? _progress;
 
     private readonly Dictionary<string, ContactRecord> _contacts = new();
@@ -60,17 +62,22 @@ public class UnifiedProcessor
         "Associate"
     };
 
-    public UnifiedProcessor(Profile profile, IInputReader inputReader, IProgress<ProcessingProgress>? progress = null)
+    public UnifiedProcessor(Profile profile, IInputReader inputReader, IExcelExporter excelExporter, IProgress<ProcessingProgress>? progress = null)
     {
         _profile = profile;
         _inputReader = inputReader;
+        _excelExporter = excelExporter;
         _progress = progress;
-
-        
     }
 
-    public async Task<ProcessingResult> ProcessAsync(string inputFilePath, string outputDirectory, CancellationToken cancellationToken = default)
+    public async Task<ProcessingResult> ProcessAsync(string inputFilePath, string outputDirectory, ProcessingOptions options, CancellationToken cancellationToken = default)
     {
+        options ??= new ProcessingOptions();
+        if (!options.OutputCsv && !options.OutputExcel && !options.OutputJson)
+        {
+            throw new InvalidOperationException("At least one output format must be selected.");
+        }
+
         ReportProgress("Starting processing...", 0);
 
         _contacts.Clear();
@@ -80,36 +87,7 @@ public class UnifiedProcessor
 
         InitializeAdditionalPropertyFieldRegistry();
 
-        string outputPath;
-        if (string.IsNullOrWhiteSpace(outputDirectory))
-        {
-            var baseExportPath = Path.Combine(
-                Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-                "TriSplit",
-                "Exports");
-
-            var sourceFolderName = Path.GetFileNameWithoutExtension(inputFilePath);
-            if (string.IsNullOrWhiteSpace(sourceFolderName))
-            {
-                sourceFolderName = "Export";
-            }
-
-            sourceFolderName = SanitizePathSegment(sourceFolderName);
-            if (string.IsNullOrWhiteSpace(sourceFolderName))
-            {
-                sourceFolderName = "Export";
-            }
-
-            var preferredPath = Path.Combine(baseExportPath, sourceFolderName);
-            outputPath = Directory.Exists(preferredPath)
-                ? MakeUniqueDirectoryPath(preferredPath)
-                : preferredPath;
-        }
-        else
-        {
-            outputPath = outputDirectory;
-        }
-
+        var outputPath = ResolveOutputPath(inputFilePath, outputDirectory);
         Directory.CreateDirectory(outputPath);
 
         try
@@ -127,8 +105,7 @@ public class UnifiedProcessor
 
             foreach (var row in inputData.Rows)
             {
-                if (cancellationToken.IsCancellationRequested)
-                    break;
+                cancellationToken.ThrowIfCancellationRequested();
 
                 await ProcessRowAsync(row);
 
@@ -137,23 +114,42 @@ public class UnifiedProcessor
                 ReportProgress($"Processing row {processedRows}/{totalRows}...", percentComplete);
             }
 
-            ReportProgress("Writing primary contacts file...", 80);
-            var primaryContactsFile = await WriteContactsFileAsync(outputPath, "01_Primary_Contacts_Import.csv", false, cancellationToken);
+            var csvFiles = new List<string>();
+            var excelFiles = new List<string>();
+            var jsonFiles = new List<string>();
 
-            ReportProgress("Writing primary phone numbers file...", 85);
-            var primaryPhonesFile = await WritePhonesFileAsync(outputPath, "02_Primary_Phone_Numbers_Import.csv", false, cancellationToken);
+            if (options.OutputCsv)
+            {
+                ReportProgress("Writing CSV exports...", 80);
+                csvFiles.Add(await WriteContactsFileAsync(outputPath, "01_Primary_Contacts_Import.csv", false, cancellationToken));
+                csvFiles.Add(await WritePhonesFileAsync(outputPath, "02_Primary_Phone_Numbers_Import.csv", false, cancellationToken));
+                csvFiles.Add(await WritePropertiesFileAsync(outputPath, "03_Primary_Properties_Import.csv", false, cancellationToken));
+                csvFiles.Add(await WriteContactsFileAsync(outputPath, "04_Secondary_Contacts_Import.csv", true, cancellationToken));
+                csvFiles.Add(await WritePhonesFileAsync(outputPath, "05_Secondary_Phone_Numbers_Import.csv", true, cancellationToken));
+                csvFiles.Add(await WritePropertiesFileAsync(outputPath, "06_Secondary_Properties_Import.csv", true, cancellationToken));
+            }
 
-            ReportProgress("Writing primary properties file...", 90);
-            var primaryPropertiesFile = await WritePropertiesFileAsync(outputPath, "03_Primary_Properties_Import.csv", false, cancellationToken);
+            if (options.OutputExcel)
+            {
+                ReportProgress("Writing Excel exports...", 85);
+                excelFiles.Add(await WriteContactsExcelAsync(outputPath, "Contacts_Primary.xlsx", false, cancellationToken));
+                excelFiles.Add(await WritePhonesExcelAsync(outputPath, "Phones_Primary.xlsx", false, cancellationToken));
+                excelFiles.Add(await WritePropertiesExcelAsync(outputPath, "Properties_Primary.xlsx", false, cancellationToken));
+                excelFiles.Add(await WriteContactsExcelAsync(outputPath, "Contacts_Secondary.xlsx", true, cancellationToken));
+                excelFiles.Add(await WritePhonesExcelAsync(outputPath, "Phones_Secondary.xlsx", true, cancellationToken));
+                excelFiles.Add(await WritePropertiesExcelAsync(outputPath, "Properties_Secondary.xlsx", true, cancellationToken));
+            }
 
-            ReportProgress("Writing secondary contacts file...", 94);
-            var secondaryContactsFile = await WriteContactsFileAsync(outputPath, "04_Secondary_Contacts_Import.csv", true, cancellationToken);
-
-            ReportProgress("Writing secondary phone numbers file...", 96);
-            var secondaryPhonesFile = await WritePhonesFileAsync(outputPath, "05_Secondary_Phone_Numbers_Import.csv", true, cancellationToken);
-
-            ReportProgress("Writing secondary properties file...", 98);
-            var secondaryPropertiesFile = await WritePropertiesFileAsync(outputPath, "06_Secondary_Properties_Import.csv", true, cancellationToken);
+            if (options.OutputJson)
+            {
+                ReportProgress("Writing JSON exports...", 90);
+                jsonFiles.Add(await WriteContactsJsonAsync(outputPath, "Contacts_Primary.json", false, cancellationToken));
+                jsonFiles.Add(await WritePhonesJsonAsync(outputPath, "Phones_Primary.json", false, cancellationToken));
+                jsonFiles.Add(await WritePropertiesJsonAsync(outputPath, "Properties_Primary.json", false, cancellationToken));
+                jsonFiles.Add(await WriteContactsJsonAsync(outputPath, "Contacts_Secondary.json", true, cancellationToken));
+                jsonFiles.Add(await WritePhonesJsonAsync(outputPath, "Phones_Secondary.json", true, cancellationToken));
+                jsonFiles.Add(await WritePropertiesJsonAsync(outputPath, "Properties_Secondary.json", true, cancellationToken));
+            }
 
             ReportProgress("Processing complete!", 100);
 
@@ -164,15 +160,21 @@ public class UnifiedProcessor
             var primaryPropertiesCount = _properties.Values.Count(p => !p.IsSecondary);
             var secondaryPropertiesCount = _properties.Values.Count(p => p.IsSecondary);
 
+            var summaryPath = await WriteSummaryReportAsync(outputPath, processedRows, primaryContactsCount, secondaryContactsCount, primaryPhonesCount, secondaryPhonesCount, primaryPropertiesCount, secondaryPropertiesCount).ConfigureAwait(false);
+
             return new ProcessingResult
             {
                 Success = true,
-                ContactsFile = primaryContactsFile,
-                SecondaryContactsFile = secondaryContactsFile,
-                PhonesFile = primaryPhonesFile,
-                SecondaryPhonesFile = secondaryPhonesFile,
-                PropertiesFile = primaryPropertiesFile,
-                SecondaryPropertiesFile = secondaryPropertiesFile,
+                CsvFiles = csvFiles,
+                ExcelFiles = excelFiles,
+                JsonFiles = jsonFiles,
+                ContactsFile = csvFiles.ElementAtOrDefault(0) ?? string.Empty,
+                PhonesFile = csvFiles.ElementAtOrDefault(1) ?? string.Empty,
+                PropertiesFile = csvFiles.ElementAtOrDefault(2) ?? string.Empty,
+                SecondaryContactsFile = csvFiles.ElementAtOrDefault(3) ?? string.Empty,
+                SecondaryPhonesFile = csvFiles.ElementAtOrDefault(4) ?? string.Empty,
+                SecondaryPropertiesFile = csvFiles.ElementAtOrDefault(5) ?? string.Empty,
+                SummaryReportPath = summaryPath,
                 TotalRecordsProcessed = processedRows,
                 ContactsCreated = primaryContactsCount,
                 SecondaryContactsCreated = secondaryContactsCount,
@@ -191,6 +193,36 @@ public class UnifiedProcessor
                 ErrorMessage = ex.Message
             };
         }
+    }
+
+    private static string ResolveOutputPath(string inputFilePath, string requestedOutputDirectory)
+    {
+        if (!string.IsNullOrWhiteSpace(requestedOutputDirectory))
+        {
+            return requestedOutputDirectory;
+        }
+
+        var baseExportPath = Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+            "TriSplit",
+            "Exports");
+
+        var sourceFolderName = Path.GetFileNameWithoutExtension(inputFilePath);
+        if (string.IsNullOrWhiteSpace(sourceFolderName))
+        {
+            sourceFolderName = "Export";
+        }
+
+        sourceFolderName = SanitizePathSegment(sourceFolderName);
+        if (string.IsNullOrWhiteSpace(sourceFolderName))
+        {
+            sourceFolderName = "Export";
+        }
+
+        var preferredPath = Path.Combine(baseExportPath, sourceFolderName);
+        return Directory.Exists(preferredPath)
+            ? MakeUniqueDirectoryPath(preferredPath)
+            : preferredPath;
     }
 
     private Task ProcessRowAsync(Dictionary<string, object> row)
@@ -1283,6 +1315,140 @@ public class UnifiedProcessor
         return string.Join("; ", labels);
     }
 
+    private async Task<string> WriteContactsExcelAsync(string outputPath, string fileName, bool isSecondary, CancellationToken cancellationToken)
+    {
+        return await _excelExporter.WriteContactsAsync(outputPath, fileName, GetContactsForExport(isSecondary), cancellationToken).ConfigureAwait(false);
+    }
+
+    private async Task<string> WritePhonesExcelAsync(string outputPath, string fileName, bool isSecondary, CancellationToken cancellationToken)
+    {
+        return await _excelExporter.WritePhonesAsync(outputPath, fileName, GetPhonesForExport(isSecondary), cancellationToken).ConfigureAwait(false);
+    }
+
+    private async Task<string> WritePropertiesExcelAsync(string outputPath, string fileName, bool isSecondary, CancellationToken cancellationToken)
+    {
+        return await _excelExporter.WritePropertiesAsync(outputPath, fileName, GetPropertiesForExport(isSecondary), _additionalPropertyFieldOrder, cancellationToken).ConfigureAwait(false);
+    }
+
+    private async Task<string> WriteContactsJsonAsync(string outputPath, string fileName, bool isSecondary, CancellationToken cancellationToken)
+    {
+        var filePath = Path.Combine(outputPath, fileName);
+        await using var stream = new FileStream(filePath, FileMode.Create, FileAccess.Write, FileShare.Read);
+        await using var writer = new Utf8JsonWriter(stream, new JsonWriterOptions { Indented = true });
+        writer.WriteStartArray();
+        foreach (var contact in GetContactsForExport(isSecondary))
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            writer.WriteStartObject();
+            writer.WriteString("ImportId", contact.ImportId);
+            writer.WriteString("FirstName", contact.FirstName);
+            writer.WriteString("LastName", contact.LastName);
+            writer.WriteString("Email", contact.Email);
+            writer.WriteString("Company", contact.Company);
+            writer.WriteString("LinkedContactId", contact.LinkedContactId);
+            writer.WriteString("AssociationLabel", contact.AssociationLabel);
+            writer.WriteString("Notes", contact.Notes);
+            writer.WriteBoolean("IsSecondary", contact.IsSecondary);
+            writer.WriteEndObject();
+        }
+        writer.WriteEndArray();
+        await writer.FlushAsync(cancellationToken).ConfigureAwait(false);
+        return filePath;
+    }
+
+    private async Task<string> WritePhonesJsonAsync(string outputPath, string fileName, bool isSecondary, CancellationToken cancellationToken)
+    {
+        var filePath = Path.Combine(outputPath, fileName);
+        await using var stream = new FileStream(filePath, FileMode.Create, FileAccess.Write, FileShare.Read);
+        await using var writer = new Utf8JsonWriter(stream, new JsonWriterOptions { Indented = true });
+        writer.WriteStartArray();
+        foreach (var phone in GetPhonesForExport(isSecondary))
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            writer.WriteStartObject();
+            writer.WriteString("ImportId", phone.ImportId);
+            writer.WriteString("PhoneNumber", phone.PhoneNumber);
+            writer.WriteBoolean("IsSecondary", phone.IsSecondary);
+            writer.WriteEndObject();
+        }
+        writer.WriteEndArray();
+        await writer.FlushAsync(cancellationToken).ConfigureAwait(false);
+        return filePath;
+    }
+
+    private async Task<string> WritePropertiesJsonAsync(string outputPath, string fileName, bool isSecondary, CancellationToken cancellationToken)
+    {
+        var filePath = Path.Combine(outputPath, fileName);
+        await using var stream = new FileStream(filePath, FileMode.Create, FileAccess.Write, FileShare.Read);
+        await using var writer = new Utf8JsonWriter(stream, new JsonWriterOptions { Indented = true });
+        writer.WriteStartArray();
+        foreach (var property in GetPropertiesForExport(isSecondary))
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            writer.WriteStartObject();
+            writer.WriteString("ImportId", property.ImportId);
+            writer.WriteString("Address", property.Address);
+            writer.WriteString("City", property.City);
+            writer.WriteString("State", property.State);
+            writer.WriteString("Zip", property.Zip);
+            writer.WriteString("County", property.County);
+            writer.WriteString("PropertyType", property.PropertyType);
+            writer.WriteString("PropertyValue", property.PropertyValue);
+            writer.WriteString("AssociationLabel", property.AssociationLabel);
+            writer.WriteBoolean("IsSecondary", property.IsSecondary);
+            writer.WritePropertyName("AdditionalFields");
+            writer.WriteStartObject();
+            foreach (var kvp in property.AdditionalFields)
+            {
+                writer.WriteString(kvp.Key, kvp.Value);
+            }
+            writer.WriteEndObject();
+            writer.WriteEndObject();
+        }
+        writer.WriteEndArray();
+        await writer.FlushAsync(cancellationToken).ConfigureAwait(false);
+        return filePath;
+    }
+
+    private async Task<string> WriteSummaryReportAsync(string outputPath, int processedRows, int primaryContacts, int secondaryContacts, int primaryPhones, int secondaryPhones, int primaryProperties, int secondaryProperties)
+    {
+        var summary = new
+        {
+            ProcessedRows = processedRows,
+            Contacts = new { Primary = primaryContacts, Secondary = secondaryContacts },
+            Phones = new { Primary = primaryPhones, Secondary = secondaryPhones },
+            Properties = new { Primary = primaryProperties, Secondary = secondaryProperties },
+            GeneratedAt = DateTime.UtcNow
+        };
+
+        var filePath = Path.Combine(outputPath, "processing-summary.json");
+        var json = JsonSerializer.Serialize(summary, new JsonSerializerOptions { WriteIndented = true });
+        await File.WriteAllTextAsync(filePath, json).ConfigureAwait(false);
+        return filePath;
+    }
+
+    private IEnumerable<ContactRecord> GetContactsForExport(bool isSecondary)
+    {
+        return _contacts.Values
+            .Where(c => c.IsSecondary == isSecondary)
+            .OrderBy(c => c.LastName)
+            .ThenBy(c => c.FirstName);
+    }
+
+    private IEnumerable<PhoneRecord> GetPhonesForExport(bool isSecondary)
+    {
+        return _phones.SelectMany(kvp => kvp.Value)
+            .Where(p => p.IsSecondary == isSecondary)
+            .OrderBy(p => p.ImportId);
+    }
+
+    private IEnumerable<PropertyRecord> GetPropertiesForExport(bool isSecondary)
+    {
+        return _properties.Values
+            .Where(p => p.IsSecondary == isSecondary)
+            .OrderBy(p => p.Address)
+            .ThenBy(p => p.ImportId);
+    }
     private async Task<string> WriteContactsFileAsync(string outputPath, string fileName, bool isSecondary, CancellationToken cancellationToken)
     {
         var filePath = Path.Combine(outputPath, fileName);
@@ -1301,10 +1467,7 @@ public class UnifiedProcessor
         csv.WriteField("Linked Contact ID");
         await csv.NextRecordAsync();
 
-        var contacts = _contacts.Values
-            .Where(c => c.IsSecondary == isSecondary)
-            .OrderBy(c => c.LastName)
-            .ThenBy(c => c.FirstName);
+        var contacts = GetContactsForExport(isSecondary);
 
         foreach (var contact in contacts)
         {
@@ -1383,10 +1546,7 @@ public class UnifiedProcessor
         csv.WriteField("Association Label");
         await csv.NextRecordAsync();
 
-        var properties = _properties.Values
-            .Where(p => p.IsSecondary == isSecondary)
-            .OrderBy(p => p.Address)
-            .ThenBy(p => p.ImportId);
+        var properties = GetPropertiesForExport(isSecondary);
 
         foreach (var property in properties)
         {
@@ -1552,12 +1712,16 @@ public class PropertyRecord
 public class ProcessingResult
 {
     public bool Success { get; set; }
+    public List<string> CsvFiles { get; set; } = new();
+    public List<string> ExcelFiles { get; set; } = new();
+    public List<string> JsonFiles { get; set; } = new();
     public string ContactsFile { get; set; } = string.Empty;
     public string PhonesFile { get; set; } = string.Empty;
     public string SecondaryContactsFile { get; set; } = string.Empty;
     public string SecondaryPhonesFile { get; set; } = string.Empty;
     public string SecondaryPropertiesFile { get; set; } = string.Empty;
     public string PropertiesFile { get; set; } = string.Empty;
+    public string? SummaryReportPath { get; set; }
     public int TotalRecordsProcessed { get; set; }
     public int ContactsCreated { get; set; }
     public int PropertiesCreated { get; set; }
@@ -1574,3 +1738,12 @@ public class ProcessingProgress
     public int PercentComplete { get; set; }
     public DateTime Timestamp { get; set; }
 }
+
+
+
+
+
+
+
+
+

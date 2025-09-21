@@ -100,17 +100,17 @@
                      Margin="20,0,10,0"/>
 
           <StackPanel Grid.Column="3" Orientation="Horizontal" VerticalAlignment="Center">
-            <RadioButton Content="CSV"
+            <CheckBox Content="CSV"
                          IsChecked="{Binding OutputCsv}"
                          Foreground="{StaticResource TextBrush}"
                          VerticalAlignment="Center"
                          Margin="0,0,15,0"/>
-            <RadioButton Content="Excel"
+            <CheckBox Content="Excel"
                          IsChecked="{Binding OutputExcel}"
                          Foreground="{StaticResource TextBrush}"
                          VerticalAlignment="Center"
                          Margin="0,0,15,0"/>
-            <RadioButton Content="JSON"
+            <CheckBox Content="JSON"
                          IsChecked="{Binding OutputJson}"
                          Foreground="{StaticResource TextBrush}"
                          VerticalAlignment="Center"/>
