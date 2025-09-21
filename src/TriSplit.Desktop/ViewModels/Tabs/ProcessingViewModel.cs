@@ -142,6 +142,16 @@ public partial class ProcessingViewModel : ViewModelBase
                 }
             }
         };
+
+        OutputCsv = _appSession.OutputCsv;
+        OutputExcel = _appSession.OutputExcel;
+        OutputJson = _appSession.OutputJson;
+
+        if (!string.IsNullOrWhiteSpace(_appSession.LoadedFilePath))
+        {
+            InputFilePath = _appSession.LoadedFilePath;
+            _ = DetectProfileForFileAsync(_appSession.LoadedFilePath);
+        }
     }
 
     private async Task LoadProfilesAsync()
@@ -161,6 +171,17 @@ public partial class ProcessingViewModel : ViewModelBase
                     _updatingFromSession = true;
                     SelectedProfile = matchingProfile;
                     _updatingFromSession = false;
+                }
+            }
+            else if (_appSession.LastProfileId.HasValue)
+            {
+                var persistedProfile = AvailableProfiles.FirstOrDefault(p => p.Id == _appSession.LastProfileId.Value);
+                if (persistedProfile != null)
+                {
+                    _updatingFromSession = true;
+                    SelectedProfile = persistedProfile;
+                    _updatingFromSession = false;
+                    _appSession.SelectedProfile = persistedProfile;
                 }
             }
         }
@@ -625,16 +646,19 @@ public partial class ProcessingViewModel : ViewModelBase
 
     partial void OnOutputCsvChanged(bool value)
     {
+        _appSession.OutputCsv = value;
         UpdateCanStartProcessing();
     }
 
     partial void OnOutputExcelChanged(bool value)
     {
+        _appSession.OutputExcel = value;
         UpdateCanStartProcessing();
     }
 
     partial void OnOutputJsonChanged(bool value)
     {
+        _appSession.OutputJson = value;
         UpdateCanStartProcessing();
     }
 

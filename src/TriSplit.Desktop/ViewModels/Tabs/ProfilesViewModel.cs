@@ -726,6 +726,26 @@ public partial class ProfilesViewModel : ViewModelBase
             }
 
             ProfileStatus = SavedProfiles.Any() ? $"{SavedProfiles.Count} data profiles available" : "No data profiles saved";
+
+            if (_appSession.SelectedProfile != null)
+            {
+                var matching = SavedProfiles.FirstOrDefault(p => p.Id == _appSession.SelectedProfile.Id);
+                if (matching != null)
+                {
+                    SelectedProfile = matching;
+                    return;
+                }
+            }
+
+            if (_appSession.LastProfileId.HasValue)
+            {
+                var persisted = SavedProfiles.FirstOrDefault(p => p.Id == _appSession.LastProfileId.Value);
+                if (persisted != null)
+                {
+                    SelectedProfile = persisted;
+                    _appSession.SelectedProfile = persisted.Profile;
+                }
+            }
         }
         catch (Exception ex)
         {
