@@ -302,18 +302,19 @@ public partial class ProcessingViewModel : ViewModelBase
     [RelayCommand(CanExecute = nameof(CanApplyOverride))]
     private void ApplyOverride()
     {
-        if (OverrideProfile == null)
+        var profile = OverrideProfile;
+        if (profile == null)
         {
             return;
         }
 
-        SelectedProfile = OverrideProfile;
-        DetectedSourceDisplay = OverrideProfile.Name;
+        SelectedProfile = profile;
+        DetectedSourceDisplay = profile.Name;
         IsSourceConfirmed = true;
-        IsOverrideMode = false;
-        ProcessingStatus = $"Data source overridden to {OverrideProfile.Name}";
+        ProcessingStatus = $"Data source overridden to {profile.Name}";
         StatusColor = Brushes.LightGray;
-        AddLogEntry($"Data source overridden to {OverrideProfile.Name}", LogLevel.Info);
+        AddLogEntry($"Data source overridden to {profile.Name}", LogLevel.Info);
+        IsOverrideMode = false;
     }
 
     private bool CanApplyOverride() => OverrideProfile != null;
