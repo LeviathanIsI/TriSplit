@@ -527,7 +527,7 @@
                                    TextTrimming="CharacterEllipsis"
                                    Visibility="{Binding IsMapped, Converter={StaticResource BoolToVisibilityConverter}}">
                           <TextBlock.Text>
-                            <MultiBinding StringFormat="→ {0}">
+                            <MultiBinding StringFormat="- {0}">
                               <Binding Path="MappedTo"/>
                             </MultiBinding>
                           </TextBlock.Text>
