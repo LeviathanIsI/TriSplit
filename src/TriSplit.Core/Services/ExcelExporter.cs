@@ -22,7 +22,7 @@ public class ExcelExporter : IExcelExporter
     public async Task<string> WriteContactsAsync(string outputDirectory, string fileName, IEnumerable<ContactRecord> records, CancellationToken cancellationToken)
     {
         var data = Materialize(records, out var rowCount);
-        var headers = new[] { "Import ID", "First Name", "Last Name", "Email", "Company", "Linked Contact ID", "Association Label", "Notes", "Data Source", "Data Type", "Tags", "Is Secondary" };
+        var headers = new[] { "Import ID", "First Name", "Last Name", "Email", "Company", "Linked Contact ID", "Association Label", "Data Source", "Data Type", "Tags", "Is Secondary" };
         var rows = data.Select(r => new[]
         {
             r.ImportId,
@@ -32,7 +32,6 @@ public class ExcelExporter : IExcelExporter
             r.Company,
             r.LinkedContactId,
             r.AssociationLabel,
-            r.Notes,
             r.DataSource,
             r.DataType,
             r.Tags,

@@ -1769,7 +1769,6 @@ public class UnifiedProcessor
             writer.WriteString("Company", contact.Company);
             writer.WriteString("LinkedContactId", contact.LinkedContactId);
             writer.WriteString("AssociationLabel", contact.AssociationLabel);
-            writer.WriteString("Notes", contact.Notes);
             writer.WriteString("DataSource", contact.DataSource);
             writer.WriteString("DataType", contact.DataType);
             writer.WriteString("Tags", contact.Tags);
@@ -1913,7 +1912,6 @@ public class UnifiedProcessor
         csv.WriteField("Company");
         csv.WriteField("Linked Contact ID");
         csv.WriteField("Association Label");
-        csv.WriteField("Notes");
         csv.WriteField("Data Source");
         csv.WriteField("Data Type");
         csv.WriteField("Tags");
@@ -1931,7 +1929,6 @@ public class UnifiedProcessor
             csv.WriteField(contact.Company);
             csv.WriteField(contact.LinkedContactId ?? string.Empty);
             csv.WriteField(contact.AssociationLabel);
-            csv.WriteField(contact.Notes);
             csv.WriteField(contact.DataSource);
             csv.WriteField(contact.DataType);
             csv.WriteField(contact.Tags);
