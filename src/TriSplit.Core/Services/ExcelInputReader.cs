@@ -18,7 +18,7 @@ public class ExcelInputReader : IInputReader
             using var reader = ExcelReaderFactory.CreateReader(fs); // streaming, forward-only
 
             var result = new SampleData { SourceFile = filePath };
-            var max = Math.Max(1, limit ?? 100);
+            var max = limit.HasValue ? Math.Max(1, limit.Value) : int.MaxValue;
 
             // Read first sheet only (preview semantics)
             if (!reader.Read()) return result; // first row (header?) or empty

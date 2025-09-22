@@ -345,11 +345,26 @@ public class UnifiedProcessor
             }
 
             var target = FindContactTarget(bucket, normalizedProperty);
-            if (target == null)
+
+            if (target == null && IsCoreIdentityProperty(normalizedProperty))
             {
                 target = new ContactContext(association, bucket.Count + 1);
                 bucket.Add(target);
                 contexts.Add(target);
+            }
+
+            if (target == null)
+            {
+                if (bucket.Count == 0)
+                {
+                    target = new ContactContext(association, 1);
+                    bucket.Add(target);
+                    contexts.Add(target);
+                }
+                else
+                {
+                    target = bucket[^1];
+                }
             }
 
             AssignContactFieldValue(target, normalizedProperty, value);
@@ -419,7 +434,7 @@ public class UnifiedProcessor
                 return candidate;
         }
 
-        return contexts[^1];
+        return contexts.FirstOrDefault(c => !string.IsNullOrWhiteSpace(c.FirstName) || !string.IsNullOrWhiteSpace(c.LastName));
     }
 
     private static void AssignContactFieldValue(ContactContext context, string property, string value)
@@ -465,6 +480,7 @@ public class UnifiedProcessor
     private static bool IsLastNameProperty(string property) => property.Equals("last name", StringComparison.OrdinalIgnoreCase);
     private static bool IsEmailProperty(string property) => property.Equals("email", StringComparison.OrdinalIgnoreCase);
     private static bool IsCompanyProperty(string property) => property.Equals("company", StringComparison.OrdinalIgnoreCase);
+    private static bool IsCoreIdentityProperty(string property) => IsFirstNameProperty(property) || IsLastNameProperty(property) || property.Equals("full name", StringComparison.OrdinalIgnoreCase) || property.Equals("name", StringComparison.OrdinalIgnoreCase);
 
     private void AssignImportId(ContactContext context)
     {
