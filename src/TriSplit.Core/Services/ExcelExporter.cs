@@ -38,7 +38,7 @@ public class ExcelExporter : IExcelExporter
             headers.Add("Linked Contact ID");
         }
 
-        headers.AddRange(new[] { "Association Label", "Data Source", "Data Type", "Tags", "Is Secondary" });
+        headers.AddRange(new[] { "Association Label", "Data Source", "Data Type", "Tags" });
 
         var rows = data.Select(r =>
         {
@@ -60,7 +60,6 @@ public class ExcelExporter : IExcelExporter
             values.Add(r.DataSource);
             values.Add(r.DataType);
             values.Add(r.Tags);
-            values.Add(r.IsSecondary ? "Yes" : "No");
 
             return values.ToArray();
         });
