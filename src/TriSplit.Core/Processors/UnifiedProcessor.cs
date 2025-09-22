@@ -1526,26 +1526,26 @@ public class UnifiedProcessor
 
     private void ApplyContactMetadata(ContactRecord record)
     {
-        record.DataSource = _activeDataSource;
-        record.DataType = _activeDataType;
-        record.Tags = _activeTag ?? string.Empty;
+        record.DataSource = FormatAppendValue(_activeDataSource);
+        record.DataType = FormatAppendValue(_activeDataType);
+        record.Tags = FormatAppendValue(_activeTag);
 
         if (string.IsNullOrWhiteSpace(record.Notes) && !string.IsNullOrWhiteSpace(_activeTag))
         {
-            record.Notes = _activeTag!;
+            record.Notes = _activeTag!.Trim();
         }
     }
 
     private void ApplyPropertyMetadata(PropertyRecord record)
     {
-        record.DataSource = _activeDataSource;
-        record.DataType = _activeDataType;
-        record.Tags = _activeTag ?? string.Empty;
+        record.DataSource = FormatAppendValue(_activeDataSource);
+        record.DataType = FormatAppendValue(_activeDataType);
+        record.Tags = FormatAppendValue(_activeTag);
     }
 
     private void ApplyPhoneMetadata(PhoneRecord record)
     {
-        record.DataSource = _activeDataSource;
+        record.DataSource = FormatAppendValue(_activeDataSource);
     }
 
     private string GetDedupeValue(ContactContext context, string key)
@@ -1582,8 +1582,17 @@ public class UnifiedProcessor
         return WhitespaceRegex.Replace(value.Trim(), " ");
     }
 
-    private static string GenerateImportId() => Guid.NewGuid().ToString();
+    private static string FormatAppendValue(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+            return string.Empty;
 
+        var trimmed = value.Trim();
+
+        return trimmed.StartsWith(";", StringComparison.Ordinal) ? trimmed : $";{trimmed}";
+    }
+
+    private static string GenerateImportId() => Guid.NewGuid().ToString();
 
     private static string NormalizeKeyPart(string? value) => (value ?? string.Empty).Trim().ToUpperInvariant();
     private static string CleanName(string value)
