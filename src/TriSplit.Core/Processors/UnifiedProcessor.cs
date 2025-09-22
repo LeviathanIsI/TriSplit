@@ -253,11 +253,24 @@ public class UnifiedProcessor
         foreach (var context in contexts)
         {
             context.IsPrimary = ReferenceEquals(context, primaryContext);
-            context.IsSecondary = !context.IsPrimary && IsSecondaryAssociation(context.Association);
-            context.LinkedContactId = context.IsSecondary && !string.IsNullOrWhiteSpace(primaryImportId)
+
+            if (context.IsPrimary)
+            {
+                context.SharesMailingWithPrimary = false;
+                context.IsSecondary = false;
+                context.LinkedContactId = null;
+                continue;
+            }
+
+            var sharesMailing = ShouldShareMailingWithPrimary(context, primaryContext);
+            context.SharesMailingWithPrimary = sharesMailing;
+            context.IsSecondary = true;
+            context.LinkedContactId = !string.IsNullOrWhiteSpace(primaryImportId)
                 ? primaryImportId
                 : null;
         }
+
+        LogHouseholdAssignments(primaryContext, contexts);
 
         ProcessPhoneNumbers(row, contexts);
 
@@ -360,7 +373,7 @@ public class UnifiedProcessor
             if (string.IsNullOrWhiteSpace(existing.LinkedContactId) && !string.IsNullOrWhiteSpace(context.LinkedContactId))
                 existing.LinkedContactId = context.LinkedContactId;
 
-            existing.AssociationLabel = MergeAssociationLabels(existing.AssociationLabel, context.Association);
+            existing.AssociationLabel = MergeAssociationLabels(existing.AssociationLabel, BuildContactAssociationLabel(context));
         }
         else
         {
@@ -373,7 +386,7 @@ public class UnifiedProcessor
                 Company = context.Company,
                 LinkedContactId = context.LinkedContactId ?? string.Empty,
                 IsSecondary = context.IsSecondary,
-                AssociationLabel = context.Association,
+                AssociationLabel = BuildContactAssociationLabel(context),
                 Notes = string.Empty
             };
 
@@ -385,6 +398,13 @@ public class UnifiedProcessor
     {
         if (!existing.IsSecondary && !incoming.IsSecondary)
         {
+            if (incoming.SharesMailingWithPrimary)
+            {
+                incoming.IsSecondary = true;
+                incoming.LinkedContactId ??= existing.ImportId;
+                return;
+            }
+
             LogPrimaryConflict(existing, incoming);
             incoming.IsSecondary = true;
             incoming.LinkedContactId ??= existing.ImportId;
@@ -431,6 +451,135 @@ public class UnifiedProcessor
             PersistPropertySnapshot(context.ImportId, context.Property, MailingAssociationLabel, context.IsSecondary);
         }
     }
+    private bool ShouldShareMailingWithPrimary(ContactContext context, ContactContext primaryContext)
+    {
+        if (primaryContext == null || ReferenceEquals(context, primaryContext))
+        {
+            return false;
+        }
+
+        if (!HasSameSurname(context, primaryContext))
+        {
+            return false;
+        }
+
+        var primaryMailing = primaryContext.Mailing;
+        if (!primaryMailing.HasCoreAddress)
+        {
+            return false;
+        }
+
+        if (!context.Mailing.HasCoreAddress)
+        {
+            return true;
+        }
+
+        if (context.Mailing.EqualsCore(primaryMailing))
+        {
+            return true;
+        }
+
+        if (primaryContext.Property.HasCoreAddress && context.Mailing.EqualsCore(primaryContext.Property))
+        {
+            return true;
+        }
+
+        return false;
+    }
+
+    private void LogHouseholdAssignments(ContactContext primaryContext, List<ContactContext> contexts)
+    {
+        if (primaryContext == null || contexts.Count <= 1)
+        {
+            return;
+        }
+
+        var sharedMailing = contexts
+            .Where(c => !ReferenceEquals(c, primaryContext) && c.SharesMailingWithPrimary)
+            .ToList();
+
+        if (sharedMailing.Count > 0)
+        {
+            var message = $"Shared mailing address applied for {FormatContactSummary(primaryContext)} with {string.Join(", ", sharedMailing.Select(FormatContactSummary))}. Primary keeps Owner; Mailing Address and household members are marked Mailing Address (expected).";
+            ReportProgress(message, 0, ProcessingProgressSeverity.Info);
+        }
+
+        var missingSurname = contexts
+            .Where(c => !ReferenceEquals(c, primaryContext)
+                && !c.SharesMailingWithPrimary
+                && (string.IsNullOrWhiteSpace(c.LastName) || string.IsNullOrWhiteSpace(primaryContext.LastName)))
+            .ToList();
+
+        if (missingSurname.Count > 0)
+        {
+            var message = $"Additional owners associated but missing surname data for {string.Join(", ", missingSurname.Select(FormatContactSummary))}. Applied profile mappings without mailing label.";
+            ReportProgress(message, 0, ProcessingProgressSeverity.Warning);
+        }
+
+        var differentSurname = contexts
+            .Where(c => !ReferenceEquals(c, primaryContext)
+                && !c.SharesMailingWithPrimary
+                && !string.IsNullOrWhiteSpace(c.LastName)
+                && !string.IsNullOrWhiteSpace(primaryContext.LastName)
+                && !HasSameSurname(c, primaryContext))
+            .ToList();
+
+        if (differentSurname.Count > 0)
+        {
+            var message = $"Multiple owners with different surnames linked to property {primaryContext.ImportId}. Primary {FormatContactSummary(primaryContext)} retains Owner association; secondary owners {string.Join(", ", differentSurname.Select(FormatContactSummary))} associated without mailing labels (expected).";
+            ReportProgress(message, 0, ProcessingProgressSeverity.Info);
+        }
+    }
+
+    private static string FormatContactSummary(ContactContext context)
+    {
+        var nameParts = new[] { context.FirstName, context.LastName }
+            .Where(part => !string.IsNullOrWhiteSpace(part))
+            .ToList();
+
+        var name = nameParts.Count > 0 ? string.Join(" ", nameParts) : $"Owner {context.OwnerIndex}";
+        return $"{name} (Import ID {context.ImportId})";
+    }
+
+    private static string BuildContactAssociationLabel(ContactContext context)
+    {
+        var tokens = SplitAssociationTokens(context.Association)
+            .Where(token => !string.IsNullOrWhiteSpace(token))
+            .ToList();
+
+        if (context.IsPrimary)
+        {
+            return string.Join("; ", tokens);
+        }
+
+        tokens = tokens
+            .Where(token => !PrimaryAssociationTokens.Contains(token))
+            .ToList();
+
+        if (context.SharesMailingWithPrimary)
+        {
+            var hasMailing = tokens.Any(token => string.Equals(token, MailingAssociationLabel, StringComparison.OrdinalIgnoreCase));
+            if (hasMailing)
+            {
+                tokens = tokens
+                    .Where(token => string.Equals(token, MailingAssociationLabel, StringComparison.OrdinalIgnoreCase))
+                    .ToList();
+            }
+            else
+            {
+                tokens.Add(MailingAssociationLabel);
+            }
+        }
+        else
+        {
+            tokens = tokens
+                .Where(token => SecondaryAssociationTokens.Contains(token))
+                .ToList();
+        }
+
+        return string.Join("; ", tokens);
+    }
+
     private void ProcessPhoneNumbers(Dictionary<string, object> row, List<ContactContext> contexts)
     {
         if (contexts.Count == 0)
@@ -1603,6 +1752,7 @@ public class UnifiedProcessor
         public string Company { get; set; } = string.Empty;
         public bool IsPrimary { get; set; }
         public bool IsSecondary { get; set; }
+        public bool SharesMailingWithPrimary { get; set; }
         public string? LinkedContactId { get; set; }
         public string ImportId { get; set; } = string.Empty;
         public PropertySnapshot Property { get; set; } = PropertySnapshot.Empty;

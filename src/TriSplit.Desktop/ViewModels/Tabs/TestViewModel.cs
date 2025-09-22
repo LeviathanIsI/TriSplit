@@ -12,7 +12,6 @@ using TriSplit.Core.Models;
 using TriSplit.Desktop.Models;
 using TriSplit.Desktop.Services;
 
-
 namespace TriSplit.Desktop.ViewModels.Tabs;
 
 public partial class TestViewModel : ViewModelBase, IDisposable
