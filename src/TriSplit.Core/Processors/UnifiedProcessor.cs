@@ -1805,8 +1805,8 @@ public class UnifiedProcessor
             {
                 writer.WriteString("LinkedContactId", contact.LinkedContactId);
             }
-                writer.WriteString("DataSource", contact.DataSource);
-            writer.WriteString("DataType", contact.DataType);
+                writer.WriteString("AssociationLabel", contact.AssociationLabel);
+            writer.WriteString("DataSource", contact.DataSource);
             writer.WriteString("Tags", contact.Tags);
             writer.WriteBoolean("IsSecondary", contact.IsSecondary);
             writer.WriteEndObject();
@@ -1952,8 +1952,8 @@ public class UnifiedProcessor
         {
             csv.WriteField("Linked Contact ID");
         }
+        csv.WriteField("Association Label");
         csv.WriteField("Data Source");
-        csv.WriteField("Data Type");
         csv.WriteField("Tags");
         csv.WriteField("Is Secondary");
         await csv.NextRecordAsync();
@@ -1971,8 +1971,8 @@ public class UnifiedProcessor
             {
                 csv.WriteField(string.IsNullOrWhiteSpace(contact.LinkedContactId) ? string.Empty : contact.LinkedContactId);
             }
+            csv.WriteField(contact.AssociationLabel);
             csv.WriteField(contact.DataSource);
-            csv.WriteField(contact.DataType);
             csv.WriteField(contact.Tags);
             csv.WriteField(contact.IsSecondary ? "Yes" : "No");
             await csv.NextRecordAsync();
@@ -2049,8 +2049,8 @@ public class UnifiedProcessor
             csv.WriteField(field);
         }
 
+        csv.WriteField("Association Label");
         csv.WriteField("Data Source");
-        csv.WriteField("Data Type");
         csv.WriteField("Tags");
         csv.WriteField("Is Secondary");
         await csv.NextRecordAsync();
