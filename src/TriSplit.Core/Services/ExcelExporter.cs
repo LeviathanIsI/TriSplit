@@ -22,7 +22,7 @@ public class ExcelExporter : IExcelExporter
     public async Task<string> WriteContactsAsync(string outputDirectory, string fileName, IEnumerable<ContactRecord> records, CancellationToken cancellationToken)
     {
         var data = Materialize(records, out var rowCount);
-        var headers = new[] { "Import ID", "First Name", "Last Name", "Email", "Company", "Linked Contact ID", "Association Label", "Notes", "Is Secondary" };
+        var headers = new[] { "Import ID", "First Name", "Last Name", "Email", "Company", "Linked Contact ID", "Association Label", "Notes", "Data Source", "Data Type", "Tags", "Is Secondary" };
         var rows = data.Select(r => new[]
         {
             r.ImportId,
@@ -33,6 +33,9 @@ public class ExcelExporter : IExcelExporter
             r.LinkedContactId,
             r.AssociationLabel,
             r.Notes,
+            r.DataSource,
+            r.DataType,
+            r.Tags,
             r.IsSecondary ? "Yes" : "No"
         });
 
@@ -42,11 +45,12 @@ public class ExcelExporter : IExcelExporter
     public async Task<string> WritePhonesAsync(string outputDirectory, string fileName, IEnumerable<PhoneRecord> records, CancellationToken cancellationToken)
     {
         var data = Materialize(records, out var rowCount);
-        var headers = new[] { "Import ID", "Phone Number", "Is Secondary" };
+        var headers = new[] { "Import ID", "Phone Number", "Data Source", "Is Secondary" };
         var rows = data.Select(r => new[]
         {
             r.ImportId,
             r.PhoneNumber,
+            r.DataSource,
             r.IsSecondary ? "Yes" : "No"
         });
 
@@ -59,7 +63,7 @@ public class ExcelExporter : IExcelExporter
         var baseHeaders = new[] { "Import ID", "Property Address", "City", "State", "Zip", "County", "Property Type", "Property Value" };
         var headers = baseHeaders
             .Concat(additionalFieldOrder)
-            .Concat(new[] { "Association Label", "Is Secondary" })
+            .Concat(new[] { "Association Label", "Data Source", "Data Type", "Tags", "Is Secondary" })
             .ToArray();
 
         var rows = data.Select(record =>
@@ -83,6 +87,9 @@ public class ExcelExporter : IExcelExporter
             }
 
             baseValues.Add(record.AssociationLabel);
+            baseValues.Add(record.DataSource);
+            baseValues.Add(record.DataType);
+            baseValues.Add(record.Tags);
             baseValues.Add(record.IsSecondary ? "Yes" : "No");
             return baseValues.ToArray();
         });

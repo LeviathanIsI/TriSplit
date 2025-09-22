@@ -31,9 +31,10 @@ public class UnifiedProcessor
     private readonly HashSet<string> _additionalPropertyFieldSet = new(StringComparer.OrdinalIgnoreCase);
     private readonly List<string> _additionalPropertyFieldOrder = new();
     private string? _activeTag;
+    private string _activeDataSource = string.Empty;
+    private string _activeDataType = string.Empty;
 
     private const string MailingAssociationLabel = "Mailing Address";
-    private const string PropertyTagFieldName = "Tags";
 
     private static readonly Regex WhitespaceRegex = new(@"\s+", RegexOptions.Compiled);
     private static readonly Regex NonDigitRegex = new(@"[^0-9]", RegexOptions.Compiled);
@@ -94,7 +95,9 @@ public class UnifiedProcessor
 
         try
         {
-            _activeTag = NormalizeTag(options.Tag);
+            _activeDataSource = (_profile.ContactPropertyDataSource ?? string.Empty).Trim();
+            _activeDataType = (_profile.DataType ?? string.Empty).Trim();
+            _activeTag = NormalizeTag(options.Tag) ?? NormalizeTag(_profile.TagNote);
             ReportProgress("Reading input file...", 10);
             var inputData = await _inputReader.ReadAsync(inputFilePath);
 
@@ -407,7 +410,7 @@ public class UnifiedProcessor
                 existing.LinkedContactId = context.LinkedContactId;
 
             existing.AssociationLabel = MergeAssociationLabels(existing.AssociationLabel, BuildContactAssociationLabel(context));
-            ApplyContactTag(existing);
+            ApplyContactMetadata(existing);
         }
         else
         {
@@ -425,7 +428,7 @@ public class UnifiedProcessor
             };
 
             _contacts[context.ImportId] = record;
-            ApplyContactTag(record);
+            ApplyContactMetadata(record);
         }
     }
 
@@ -656,15 +659,20 @@ public class UnifiedProcessor
         if (existingRecord != null)
         {
             existingRecord.IsSecondary |= context.IsSecondary;
+            ApplyPhoneMetadata(existingRecord);
             return;
         }
 
-        existing.Add(new PhoneRecord
+        var newRecord = new PhoneRecord
         {
             ImportId = importId,
             PhoneNumber = phoneNumber,
             IsSecondary = context.IsSecondary
-        });
+        };
+
+        existing.Add(newRecord);
+
+        ApplyPhoneMetadata(newRecord);
     }
 
     private ContactContext? ResolvePhoneOwner(FieldMapping mapping, List<ContactContext> contexts)
@@ -831,6 +839,7 @@ public class UnifiedProcessor
             }
 
             _properties[key] = record;
+            ApplyPropertyMetadata(record);
             return;
         }
 
@@ -876,8 +885,7 @@ public class UnifiedProcessor
                 target.AdditionalFields[pair.Key] = pair.Value;
             }
         }
-
-        ApplyPropertyTag(target);
+        ApplyPropertyMetadata(target);
     }
 
     private bool TryGetExistingPropertyRecord(string importId, PropertySnapshot snapshot, string key, out string existingKey, out PropertyRecord? record)
@@ -1406,27 +1414,28 @@ public class UnifiedProcessor
         return string.Join("|", keyParts);
     }
 
-    private void ApplyContactTag(ContactRecord record)
+    private void ApplyContactMetadata(ContactRecord record)
     {
-        if (string.IsNullOrWhiteSpace(_activeTag))
-            return;
+        record.DataSource = _activeDataSource;
+        record.DataType = _activeDataType;
+        record.Tags = _activeTag ?? string.Empty;
 
-        if (string.IsNullOrWhiteSpace(record.Notes))
+        if (string.IsNullOrWhiteSpace(record.Notes) && !string.IsNullOrWhiteSpace(_activeTag))
         {
             record.Notes = _activeTag!;
         }
     }
 
-    private void ApplyPropertyTag(PropertyRecord record)
+    private void ApplyPropertyMetadata(PropertyRecord record)
     {
-        if (string.IsNullOrWhiteSpace(_activeTag))
-            return;
+        record.DataSource = _activeDataSource;
+        record.DataType = _activeDataType;
+        record.Tags = _activeTag ?? string.Empty;
+    }
 
-        RegisterAdditionalPropertyField(PropertyTagFieldName);
-        if (!record.AdditionalFields.TryGetValue(PropertyTagFieldName, out var existingValue) || string.IsNullOrWhiteSpace(existingValue))
-        {
-            record.AdditionalFields[PropertyTagFieldName] = _activeTag!;
-        }
+    private void ApplyPhoneMetadata(PhoneRecord record)
+    {
+        record.DataSource = _activeDataSource;
     }
 
     private string GetDedupeValue(ContactContext context, string key)
@@ -1642,6 +1651,9 @@ public class UnifiedProcessor
             writer.WriteString("LinkedContactId", contact.LinkedContactId);
             writer.WriteString("AssociationLabel", contact.AssociationLabel);
             writer.WriteString("Notes", contact.Notes);
+            writer.WriteString("DataSource", contact.DataSource);
+            writer.WriteString("DataType", contact.DataType);
+            writer.WriteString("Tags", contact.Tags);
             writer.WriteBoolean("IsSecondary", contact.IsSecondary);
             writer.WriteEndObject();
         }
@@ -1668,6 +1680,8 @@ public class UnifiedProcessor
             writer.WriteStartObject();
             writer.WriteString("ImportId", phone.ImportId);
             writer.WriteString("PhoneNumber", phone.PhoneNumber);
+            writer.WriteString("DataSource", phone.DataSource);
+            writer.WriteBoolean("IsSecondary", phone.IsSecondary);
             writer.WriteEndObject();
         }
         writer.WriteEndArray();
@@ -1701,6 +1715,9 @@ public class UnifiedProcessor
             writer.WriteString("PropertyValue", property.PropertyValue);
             writer.WriteBoolean("IsSecondary", property.IsSecondary);
             writer.WriteString("AssociationLabel", property.AssociationLabel);
+            writer.WriteString("DataSource", property.DataSource);
+            writer.WriteString("DataType", property.DataType);
+            writer.WriteString("Tags", property.Tags);
             writer.WritePropertyName("AdditionalFields");
             writer.WriteStartObject();
             foreach (var kvp in property.AdditionalFields)
@@ -1778,6 +1795,9 @@ public class UnifiedProcessor
         csv.WriteField("Linked Contact ID");
         csv.WriteField("Association Label");
         csv.WriteField("Notes");
+        csv.WriteField("Data Source");
+        csv.WriteField("Data Type");
+        csv.WriteField("Tags");
         csv.WriteField("Is Secondary");
         await csv.NextRecordAsync();
 
@@ -1793,6 +1813,9 @@ public class UnifiedProcessor
             csv.WriteField(contact.LinkedContactId ?? string.Empty);
             csv.WriteField(contact.AssociationLabel);
             csv.WriteField(contact.Notes);
+            csv.WriteField(contact.DataSource);
+            csv.WriteField(contact.DataType);
+            csv.WriteField(contact.Tags);
             csv.WriteField(contact.IsSecondary ? "Yes" : "No");
             await csv.NextRecordAsync();
         }
@@ -1819,6 +1842,8 @@ public class UnifiedProcessor
 
         csv.WriteField("Import ID");
         csv.WriteField("Phone Number");
+        csv.WriteField("Data Source");
+        csv.WriteField("Is Secondary");
         await csv.NextRecordAsync();
 
         foreach (var phone in phones)
@@ -1827,6 +1852,8 @@ public class UnifiedProcessor
 
             csv.WriteField(phone.ImportId);
             csv.WriteField(phone.PhoneNumber);
+            csv.WriteField(phone.DataSource);
+            csv.WriteField(phone.IsSecondary ? "Yes" : "No");
             await csv.NextRecordAsync();
         }
 
@@ -1865,6 +1892,9 @@ public class UnifiedProcessor
         }
 
         csv.WriteField("Association Label");
+        csv.WriteField("Data Source");
+        csv.WriteField("Data Type");
+        csv.WriteField("Tags");
         csv.WriteField("Is Secondary");
         await csv.NextRecordAsync();
 
@@ -1888,7 +1918,10 @@ public class UnifiedProcessor
             }
 
             csv.WriteField(property.AssociationLabel);
-            csv.WriteField(property.IsSecondary);
+            csv.WriteField(property.DataSource);
+            csv.WriteField(property.DataType);
+            csv.WriteField(property.Tags);
+            csv.WriteField(property.IsSecondary ? "Yes" : "No");
             await csv.NextRecordAsync();
         }
 
@@ -2008,6 +2041,9 @@ public class ContactRecord
     public bool IsSecondary { get; set; }
     public string AssociationLabel { get; set; } = string.Empty;
     public string Notes { get; set; } = string.Empty;
+    public string DataSource { get; set; } = string.Empty;
+    public string DataType { get; set; } = string.Empty;
+    public string Tags { get; set; } = string.Empty;
 }
 
 public class PhoneRecord
@@ -2015,6 +2051,7 @@ public class PhoneRecord
     public string ImportId { get; set; } = string.Empty;
     public string PhoneNumber { get; set; } = string.Empty;
     public bool IsSecondary { get; set; }
+    public string DataSource { get; set; } = string.Empty;
 }
 
 public class PropertyRecord
@@ -2029,6 +2066,9 @@ public class PropertyRecord
     public string PropertyType { get; set; } = string.Empty;
     public string PropertyValue { get; set; } = string.Empty;
     public bool IsSecondary { get; set; }
+    public string DataSource { get; set; } = string.Empty;
+    public string DataType { get; set; } = string.Empty;
+    public string Tags { get; set; } = string.Empty;
     public Dictionary<string, string> AdditionalFields { get; set; } = new(StringComparer.OrdinalIgnoreCase);
 }
 
