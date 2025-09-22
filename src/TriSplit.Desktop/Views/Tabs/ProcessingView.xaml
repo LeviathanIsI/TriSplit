@@ -235,37 +235,6 @@
           </StackPanel>
         </Grid>
 
-        <!-- Processing Options -->
-        <Grid Grid.Row="3" Margin="0,15,0,0">
-          <Grid.ColumnDefinitions>
-            <ColumnDefinition Width="120"/>
-            <ColumnDefinition Width="*"/>
-          </Grid.ColumnDefinitions>
-
-          <TextBlock Grid.Column="0"
-                     Text="Options:"
-                     Foreground="{StaticResource TextBrush}"
-                     VerticalAlignment="Top"
-                     Margin="0,5,0,0"/>
-
-          <StackPanel Grid.Column="1">
-            <CheckBox Content="Remove duplicate records"
-                      IsChecked="{Binding RemoveDuplicates}"
-                      Foreground="{StaticResource TextBrush}"
-                      Margin="0,0,0,8"/>
-            <CheckBox Content="Validate email addresses"
-                      IsChecked="{Binding ValidateEmails}"
-                      Foreground="{StaticResource TextBrush}"
-                      Margin="0,0,0,8"/>
-            <CheckBox Content="Normalize phone numbers"
-                      IsChecked="{Binding NormalizePhones}"
-                      Foreground="{StaticResource TextBrush}"
-                      Margin="0,0,0,8"/>
-            <CheckBox Content="Split into batches of 1000 records"
-                      IsChecked="{Binding SplitBatches}"
-                      Foreground="{StaticResource TextBrush}"/>
-          </StackPanel>
-        </Grid>
       </Grid>
     </Border>
 
