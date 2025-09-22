@@ -813,53 +813,108 @@ public class UnifiedProcessor
 
         var key = BuildPropertyKey(importId, snapshot);
 
-        if (_properties.TryGetValue(key, out var existing))
+        if (!TryGetExistingPropertyRecord(importId, snapshot, key, out var existingKey, out var existing))
         {
-            existing.AssociationLabel = MergeAssociationLabels(existing.AssociationLabel, associationLabel);
-            existing.IsSecondary = existing.IsSecondary || isSecondary;
-
-            if (string.IsNullOrWhiteSpace(existing.Address))
-                existing.Address = snapshot.Address;
-            if (string.IsNullOrWhiteSpace(existing.City))
-                existing.City = snapshot.City;
-            if (string.IsNullOrWhiteSpace(existing.State))
-                existing.State = snapshot.State;
-            if (string.IsNullOrWhiteSpace(existing.Zip))
-                existing.Zip = snapshot.Zip;
-            if (string.IsNullOrWhiteSpace(existing.County))
-                existing.County = snapshot.County;
-            if (string.IsNullOrWhiteSpace(existing.PropertyType))
-                existing.PropertyType = snapshot.PropertyType;
-            if (string.IsNullOrWhiteSpace(existing.PropertyValue))
-                existing.PropertyValue = snapshot.PropertyValue;
-
-            foreach (var pair in snapshot.AdditionalFields)
+            var record = snapshot.ToPropertyRecord(importId, associationLabel, isSecondary);
+            foreach (var fieldName in record.AdditionalFields.Keys)
             {
-                RegisterAdditionalPropertyField(pair.Key);
-
-                if (existing.AdditionalFields.TryGetValue(pair.Key, out var existingValue))
-                {
-                    if (string.IsNullOrWhiteSpace(existingValue) && !string.IsNullOrWhiteSpace(pair.Value))
-                    {
-                        existing.AdditionalFields[pair.Key] = pair.Value;
-                    }
-                }
-                else
-                {
-                    existing.AdditionalFields[pair.Key] = pair.Value;
-                }
+                RegisterAdditionalPropertyField(fieldName);
             }
 
+            _properties[key] = record;
             return;
         }
 
-        var record = snapshot.ToPropertyRecord(importId, associationLabel, isSecondary);
-        foreach (var fieldName in record.AdditionalFields.Keys)
+        var target = existing!;
+
+        if (!string.Equals(existingKey, key, StringComparison.Ordinal))
         {
-            RegisterAdditionalPropertyField(fieldName);
+            _properties.Remove(existingKey);
+            _properties[key] = target;
         }
 
-        _properties[key] = record;
+        target.AssociationLabel = MergeAssociationLabels(target.AssociationLabel, associationLabel);
+        target.IsSecondary = target.IsSecondary || isSecondary;
+
+        if (string.IsNullOrWhiteSpace(target.Address))
+            target.Address = snapshot.Address;
+        if (string.IsNullOrWhiteSpace(target.City))
+            target.City = snapshot.City;
+        if (string.IsNullOrWhiteSpace(target.State))
+            target.State = snapshot.State;
+        if (string.IsNullOrWhiteSpace(target.Zip))
+            target.Zip = snapshot.Zip;
+        if (string.IsNullOrWhiteSpace(target.County))
+            target.County = snapshot.County;
+        if (string.IsNullOrWhiteSpace(target.PropertyType))
+            target.PropertyType = snapshot.PropertyType;
+        if (string.IsNullOrWhiteSpace(target.PropertyValue))
+            target.PropertyValue = snapshot.PropertyValue;
+
+        foreach (var pair in snapshot.AdditionalFields)
+        {
+            RegisterAdditionalPropertyField(pair.Key);
+
+            if (target.AdditionalFields.TryGetValue(pair.Key, out var existingValue))
+            {
+                if (string.IsNullOrWhiteSpace(existingValue) && !string.IsNullOrWhiteSpace(pair.Value))
+                {
+                    target.AdditionalFields[pair.Key] = pair.Value;
+                }
+            }
+            else
+            {
+                target.AdditionalFields[pair.Key] = pair.Value;
+            }
+        }
+    }
+
+    private bool TryGetExistingPropertyRecord(string importId, PropertySnapshot snapshot, string key, out string existingKey, out PropertyRecord? record)
+    {
+        if (_properties.TryGetValue(key, out var exactMatch))
+        {
+            existingKey = key;
+            record = exactMatch;
+            return true;
+        }
+
+        foreach (var entry in _properties)
+        {
+            var candidate = entry.Value;
+
+            if (!string.Equals(candidate.ImportId, importId, StringComparison.OrdinalIgnoreCase))
+                continue;
+
+            if (!CoreLocationMatches(snapshot, candidate))
+                continue;
+
+            existingKey = entry.Key;
+            record = candidate;
+            return true;
+        }
+
+        existingKey = string.Empty;
+        record = null;
+        return false;
+    }
+
+    private static bool CoreLocationMatches(PropertySnapshot snapshot, PropertyRecord record)
+    {
+        return CoreFieldMatches(snapshot.Address, record.Address)
+            && CoreFieldMatches(snapshot.City, record.City)
+            && CoreFieldMatches(snapshot.State, record.State)
+            && CoreFieldMatches(snapshot.Zip, record.Zip);
+    }
+
+    private static bool CoreFieldMatches(string snapshotValue, string recordValue)
+    {
+        var normalizedSnapshot = NormalizeKeyPart(snapshotValue);
+        var normalizedRecord = NormalizeKeyPart(recordValue);
+
+        if (string.IsNullOrEmpty(normalizedSnapshot) || string.IsNullOrEmpty(normalizedRecord))
+            return true;
+
+        return string.Equals(normalizedSnapshot, normalizedRecord, StringComparison.Ordinal);
     }
 
 
