@@ -124,6 +124,17 @@ public partial class ProfilesViewModel : ViewModelBase
     }
 
     [ObservableProperty]
+    private string _phoneDataSource = string.Empty;
+
+    partial void OnPhoneDataSourceChanged(string value)
+    {
+        if (_isLoadingProfile)
+            return;
+
+        MarkDirty();
+    }
+
+    [ObservableProperty]
     private string _dataType = string.Empty;
 
     partial void OnDataTypeChanged(string value)
@@ -907,6 +918,7 @@ public partial class ProfilesViewModel : ViewModelBase
             profile.PhoneMappings.Clear();
 
             profile.ContactPropertyDataSource = ContactPropertyDataSource?.Trim() ?? string.Empty;
+            profile.PhoneDataSource = PhoneDataSource?.Trim() ?? string.Empty;
             profile.DataType = DataType?.Trim() ?? string.Empty;
             profile.TagNote = TagNote?.Trim() ?? string.Empty;
             profile.DefaultAssociationLabel = DefaultAssociationLabel?.Trim() ?? string.Empty;
@@ -1014,6 +1026,7 @@ public partial class ProfilesViewModel : ViewModelBase
             var profile = SelectedProfile.Profile;
             ProfileName = profile.Name;
             ContactPropertyDataSource = profile.ContactPropertyDataSource ?? string.Empty;
+            PhoneDataSource = profile.PhoneDataSource ?? string.Empty;
             DataType = profile.DataType ?? string.Empty;
             TagNote = profile.TagNote ?? string.Empty;
             DefaultAssociationLabel = profile.DefaultAssociationLabel ?? string.Empty;
@@ -1359,6 +1372,7 @@ public partial class ProfilesViewModel : ViewModelBase
         ProfileName = "New Data Profile";
         SelectedProfile = null;
         ContactPropertyDataSource = string.Empty;
+        PhoneDataSource = string.Empty;
         DataType = string.Empty;
         TagNote = string.Empty;
         DefaultAssociationLabel = string.Empty;

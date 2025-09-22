@@ -32,6 +32,7 @@ public class UnifiedProcessor
     private readonly List<string> _additionalPropertyFieldOrder = new();
     private string? _activeTag;
     private string _activeDataSource = string.Empty;
+    private string _activePhoneDataSource = string.Empty;
     private string _activeDataType = string.Empty;
     private readonly string _defaultAssociationLabel;
 
@@ -98,6 +99,11 @@ public class UnifiedProcessor
         try
         {
             _activeDataSource = (_profile.ContactPropertyDataSource ?? string.Empty).Trim();
+            _activePhoneDataSource = (_profile.PhoneDataSource ?? string.Empty).Trim();
+            if (string.IsNullOrWhiteSpace(_activePhoneDataSource))
+            {
+                _activePhoneDataSource = _activeDataSource;
+            }
             _activeDataType = (_profile.DataType ?? string.Empty).Trim();
             _activeTag = NormalizeTag(options.Tag) ?? NormalizeTag(_profile.TagNote);
             ReportProgress("Reading input file...", 10);
@@ -1563,7 +1569,7 @@ public class UnifiedProcessor
 
     private void ApplyPhoneMetadata(PhoneRecord record)
     {
-        record.DataSource = FormatAppendValue(_activeDataSource);
+        record.DataSource = FormatAppendValue(_activePhoneDataSource);
     }
 
     private string GetDedupeValue(ContactContext context, string key)

@@ -55,6 +55,7 @@
             <ColumnDefinition Width="250"/>
             <ColumnDefinition Width="180"/>
             <ColumnDefinition Width="200"/>
+            <ColumnDefinition Width="200"/>
             <ColumnDefinition Width="160"/>
             <ColumnDefinition Width="200"/>
             <ColumnDefinition Width="Auto"/>
@@ -62,10 +63,11 @@
 
           <TextBlock Grid.Row="0" Grid.Column="0" Text="Profile Name" Foreground="{StaticResource SecondaryTextBrush}" Margin="0,0,10,2"/>
           <TextBlock Grid.Row="0" Grid.Column="1" Text="Default Association" Foreground="{StaticResource SecondaryTextBrush}" Margin="0,0,10,2"/>
-          <TextBlock Grid.Row="0" Grid.Column="2" Text="Data Source" Foreground="{StaticResource SecondaryTextBrush}" Margin="0,0,10,2"/>
-          <TextBlock Grid.Row="0" Grid.Column="3" Text="Data Type" Foreground="{StaticResource SecondaryTextBrush}" Margin="0,0,10,2"/>
-          <TextBlock Grid.Row="0" Grid.Column="4" Text="Tag Note" Foreground="{StaticResource SecondaryTextBrush}" Margin="0,0,10,2"/>
-          <TextBlock Grid.Row="0" Grid.Column="5" Text="Actions" Foreground="{StaticResource SecondaryTextBrush}" Margin="0,0,0,2"/>
+          <TextBlock Grid.Row="0" Grid.Column="2" Text="Contact/Property Data Source" Foreground="{StaticResource SecondaryTextBrush}" Margin="0,0,10,2"/>
+          <TextBlock Grid.Row="0" Grid.Column="3" Text="Phone Number Data Source" Foreground="{StaticResource SecondaryTextBrush}" Margin="0,0,10,2"/>
+          <TextBlock Grid.Row="0" Grid.Column="4" Text="Data Type" Foreground="{StaticResource SecondaryTextBrush}" Margin="0,0,10,2"/>
+          <TextBlock Grid.Row="0" Grid.Column="5" Text="Tag Note" Foreground="{StaticResource SecondaryTextBrush}" Margin="0,0,10,2"/>
+          <TextBlock Grid.Row="0" Grid.Column="6" Text="Actions" Foreground="{StaticResource SecondaryTextBrush}" Margin="0,0,0,2"/>
 
           <TextBox Grid.Row="1" Grid.Column="0"
                    Width="250"
@@ -90,20 +92,27 @@
                    VerticalAlignment="Center"
                    VerticalContentAlignment="Center"/>
           <TextBox Grid.Row="1" Grid.Column="3"
+                   Width="200"
+                   Text="{Binding PhoneDataSource}"
+                   Margin="0,0,10,0"
+                   Padding="10,4"
+                   VerticalAlignment="Center"
+                   VerticalContentAlignment="Center"/>
+          <TextBox Grid.Row="1" Grid.Column="4"
                    Width="160"
                    Text="{Binding DataType}"
                    Margin="0,0,10,0"
                    Padding="10,4"
                    VerticalAlignment="Center"
                    VerticalContentAlignment="Center"/>
-          <TextBox Grid.Row="1" Grid.Column="4"
+          <TextBox Grid.Row="1" Grid.Column="5"
                    Width="200"
                    Text="{Binding TagNote}"
                    Margin="0,0,10,0"
                    Padding="10,4"
                    VerticalAlignment="Center"
                    VerticalContentAlignment="Center"/>
-          <StackPanel Grid.Row="1" Grid.Column="5" Orientation="Horizontal" VerticalAlignment="Center">
+          <StackPanel Grid.Row="1" Grid.Column="6" Orientation="Horizontal" VerticalAlignment="Center">
             <Button Content="Save"
                     Command="{Binding SaveProfileCommand}"
                     Style="{StaticResource PrimaryButton}"

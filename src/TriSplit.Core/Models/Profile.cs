@@ -16,6 +16,7 @@ public class Profile
     public List<FieldMapping> PhoneMappings { get; set; } = new();
 
     public string ContactPropertyDataSource { get; set; } = string.Empty;
+    public string PhoneDataSource { get; set; } = string.Empty;
     public string DataType { get; set; } = string.Empty;
     public string TagNote { get; set; } = string.Empty;
     public string DefaultAssociationLabel { get; set; } = string.Empty;
