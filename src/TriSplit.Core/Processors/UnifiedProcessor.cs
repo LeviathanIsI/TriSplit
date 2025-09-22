@@ -324,36 +324,47 @@ public class UnifiedProcessor
     private List<ContactContext> BuildContactContexts(Dictionary<string, object> row)
     {
         var contexts = new List<ContactContext>();
+        var associationBuckets = new Dictionary<string, List<ContactContext>>(StringComparer.OrdinalIgnoreCase);
 
         var contactMappings = GetMappingsByObjectType(MappingObjectTypes.Contact).ToList();
         if (contactMappings.Count == 0)
             return contexts;
 
-        var associationOrder = new List<string>();
-
         foreach (var mapping in contactMappings)
         {
-            var association = (mapping.AssociationType ?? string.Empty).Trim();
-            if (!associationOrder.Any(existing => string.Equals(existing, association, StringComparison.OrdinalIgnoreCase)))
+            var association = NormalizeAssociation(mapping.AssociationType);
+            var normalizedProperty = (mapping.HubSpotProperty ?? string.Empty).Trim().ToLowerInvariant();
+            var value = GetValueFromMapping(row, mapping);
+            if (string.IsNullOrWhiteSpace(value))
+                continue;
+
+            if (!associationBuckets.TryGetValue(association, out var bucket))
             {
-                associationOrder.Add(association);
+                bucket = new List<ContactContext>();
+                associationBuckets[association] = bucket;
             }
+
+            var target = FindContactTarget(bucket, normalizedProperty);
+            if (target == null)
+            {
+                target = new ContactContext(association, bucket.Count + 1);
+                bucket.Add(target);
+                contexts.Add(target);
+            }
+
+            AssignContactFieldValue(target, normalizedProperty, value);
         }
 
-        for (var index = 0; index < associationOrder.Count; index++)
+        foreach (var pair in associationBuckets)
         {
-            var association = associationOrder[index];
-            var context = new ContactContext(association, index + 1)
+            var association = pair.Key;
+            foreach (var context in pair.Value)
             {
-                IsPrimary = index == 0,
-                FirstName = CleanName(GetMappedValue(row, association, "First Name", MappingObjectTypes.Contact)),
-                LastName = CleanName(GetMappedValue(row, association, "Last Name", MappingObjectTypes.Contact)),
-                Email = (GetMappedValue(row, association, "Email", MappingObjectTypes.Contact) ?? string.Empty).Trim(),
-                Company = (GetMappedValue(row, association, "Company", MappingObjectTypes.Contact) ?? string.Empty).Trim(),
-                Property = BuildPropertySnapshot(row, association)
-            };
-
-            contexts.Add(context);
+                if (context.Property == PropertySnapshot.Empty)
+                {
+                    context.Property = BuildPropertySnapshot(row, association);
+                }
+            }
         }
 
         return contexts;
@@ -377,6 +388,83 @@ public class UnifiedProcessor
             }
         }
     }
+
+    private static ContactContext? FindContactTarget(List<ContactContext> contexts, string property)
+    {
+        if (contexts.Count == 0)
+            return null;
+
+        if (IsFirstNameProperty(property))
+        {
+            var candidate = contexts.FirstOrDefault(c => string.IsNullOrWhiteSpace(c.FirstName));
+            if (candidate != null)
+                return candidate;
+        }
+        else if (IsLastNameProperty(property))
+        {
+            var candidate = contexts.FirstOrDefault(c => string.IsNullOrWhiteSpace(c.LastName));
+            if (candidate != null)
+                return candidate;
+        }
+        else if (IsEmailProperty(property))
+        {
+            var candidate = contexts.FirstOrDefault(c => string.IsNullOrWhiteSpace(c.Email));
+            if (candidate != null)
+                return candidate;
+        }
+        else if (IsCompanyProperty(property))
+        {
+            var candidate = contexts.FirstOrDefault(c => string.IsNullOrWhiteSpace(c.Company));
+            if (candidate != null)
+                return candidate;
+        }
+
+        return contexts[^1];
+    }
+
+    private static void AssignContactFieldValue(ContactContext context, string property, string value)
+    {
+        switch (property)
+        {
+            case "first name":
+                context.FirstName = CleanName(value);
+                break;
+            case "last name":
+                context.LastName = CleanName(value);
+                break;
+            case "email":
+                context.Email = value.Trim();
+                break;
+            case "company":
+                context.Company = value.Trim();
+                break;
+            case "full name":
+            case "name":
+                var cleaned = CleanName(value);
+                if (!string.IsNullOrWhiteSpace(cleaned))
+                {
+                    var parts = cleaned.Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+                    if (parts.Length > 1)
+                    {
+                        context.FirstName = string.Join(' ', parts.Take(parts.Length - 1));
+                        context.LastName = parts[^1];
+                    }
+                    else
+                    {
+                        context.FirstName = cleaned;
+                    }
+                }
+                break;
+            default:
+                context.AdditionalContactFields[property] = value;
+                break;
+        }
+    }
+
+    private static bool IsFirstNameProperty(string property) => property.Equals("first name", StringComparison.OrdinalIgnoreCase);
+    private static bool IsLastNameProperty(string property) => property.Equals("last name", StringComparison.OrdinalIgnoreCase);
+    private static bool IsEmailProperty(string property) => property.Equals("email", StringComparison.OrdinalIgnoreCase);
+    private static bool IsCompanyProperty(string property) => property.Equals("company", StringComparison.OrdinalIgnoreCase);
 
     private void AssignImportId(ContactContext context)
     {
@@ -843,9 +931,9 @@ public class UnifiedProcessor
             return;
         }
 
-        var target = existing!;
+        var target = existing ?? _properties[existingKey];
 
-        if (!string.Equals(existingKey, key, StringComparison.Ordinal))
+        if (!string.Equals(existingKey, key, StringComparison.Ordinal) && existing != null)
         {
             _properties.Remove(existingKey);
             _properties[key] = target;
@@ -916,6 +1004,12 @@ public class UnifiedProcessor
         record = null;
         return false;
     }
+
+    private static string NormalizeAssociation(string? association)
+    {
+        return string.IsNullOrWhiteSpace(association) ? string.Empty : association.Trim();
+    }
+
 
     private static bool CoreLocationMatches(PropertySnapshot snapshot, PropertyRecord record)
     {
@@ -1962,6 +2056,7 @@ public class UnifiedProcessor
         public string ImportId { get; set; } = string.Empty;
         public PropertySnapshot Property { get; set; } = PropertySnapshot.Empty;
         public PropertySnapshot Mailing { get; set; } = PropertySnapshot.Empty;
+        public Dictionary<string, string> AdditionalContactFields { get; } = new(StringComparer.OrdinalIgnoreCase);
 
         public bool HasContactData => !string.IsNullOrWhiteSpace(FirstName) || !string.IsNullOrWhiteSpace(LastName) || !string.IsNullOrWhiteSpace(Email) || !string.IsNullOrWhiteSpace(Company);
     }
