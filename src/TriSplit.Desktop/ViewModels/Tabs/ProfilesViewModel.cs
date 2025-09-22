@@ -244,10 +244,7 @@ public partial class ProfilesViewModel : ViewModelBase
         {
             string.Empty,
             "Owner",
-            "Executor",
-            "Mailing Address",
-            "Relative",
-            "Associate",
+            "Executor"
         };
 
         // Initialize HubSpot Headers (alphabetically sorted)
