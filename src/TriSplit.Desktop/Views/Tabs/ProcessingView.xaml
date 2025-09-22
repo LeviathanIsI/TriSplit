@@ -89,7 +89,7 @@
           </Grid.ColumnDefinitions>
 
           <TextBlock Grid.Column="0"
-                     Text="Data Source:"
+                     Text="Data Profile:"
                      Foreground="{StaticResource TextBrush}"
                      VerticalAlignment="Center"/>
 
