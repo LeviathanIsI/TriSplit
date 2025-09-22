@@ -70,6 +70,7 @@ public partial class ProfilesViewModel : ViewModelBase
     private DispatcherTimer? _autosaveTimer;
     private bool _isAutosaving;
     private int _remainingAutosaveTime;
+    private Guid? _loadedProfileId;
 
 
 
@@ -149,6 +150,19 @@ public partial class ProfilesViewModel : ViewModelBase
 
     [ObservableProperty]
     private ProfileViewModel? _selectedProfile;
+
+    partial void OnSelectedProfileChanged(ProfileViewModel? value)
+    {
+        if (_isLoadingProfile)
+            return;
+
+        SaveProfileCommand.NotifyCanExecuteChanged();
+
+        if (value != null && (!_loadedProfileId.HasValue || _loadedProfileId.Value != value.Profile.Id))
+        {
+            ProfileStatus = $"Selected data profile '{value.Name}'. Click Load to edit.";
+        }
+    }
 
     [ObservableProperty]
     private ObservableCollection<FieldMappingViewModel> _fieldMappings = new();
@@ -790,10 +804,21 @@ public partial class ProfilesViewModel : ViewModelBase
         }
     }
 
-    [RelayCommand]
+    [RelayCommand(CanExecute = nameof(CanSaveProfile))]
     private async Task SaveProfileAsync()
     {
         await SaveProfileInternalAsync(isAutoSave: false);
+    }
+
+    private bool CanSaveProfile()
+    {
+        if (_isLoadingProfile)
+            return false;
+
+        if (SelectedProfile == null)
+            return true;
+
+        return _loadedProfileId.HasValue && _loadedProfileId.Value == SelectedProfile.Profile.Id;
     }
 
     private async Task SaveProfileInternalAsync(bool isAutoSave)
@@ -811,6 +836,18 @@ public partial class ProfilesViewModel : ViewModelBase
         {
             Profile? profile = null;
             bool isUpdate = false;
+
+            var selectedProfileId = SelectedProfile?.Profile.Id;
+            if (selectedProfileId.HasValue && (!_loadedProfileId.HasValue || _loadedProfileId.Value != selectedProfileId.Value))
+            {
+                if (isAutoSave)
+                {
+                    return;
+                }
+
+                await _dialogService.ShowMessageAsync("Load Profile First", "Select and load the profile you want to modify before saving.");
+                return;
+            }
 
             if (SelectedProfile != null && SelectedProfile.Profile.Id != Guid.Empty)
             {
@@ -917,6 +954,8 @@ public partial class ProfilesViewModel : ViewModelBase
             }
 
             await _profileStore.SaveProfileAsync(profile);
+            _loadedProfileId = profile.Id;
+            SaveProfileCommand.NotifyCanExecuteChanged();
 
             if (!isAutoSave)
             {
@@ -1025,6 +1064,8 @@ public partial class ProfilesViewModel : ViewModelBase
             UpdateMappingCount();
             ProfileStatus = $"Data profile '{profile.Name}' loaded with {loadedMappings} mappings";
             _appSession.SelectedProfile = profile;
+            _loadedProfileId = profile.Id;
+            SaveProfileCommand.NotifyCanExecuteChanged();
             IsDirty = false;
             _autosaveTimer?.Stop();
             AutosaveStatus = string.Empty;
@@ -1036,6 +1077,7 @@ public partial class ProfilesViewModel : ViewModelBase
         finally
         {
             _isLoadingProfile = false;
+            SaveProfileCommand.NotifyCanExecuteChanged();
         }
     }
 
@@ -1318,6 +1360,8 @@ public partial class ProfilesViewModel : ViewModelBase
         ClearSuggestions();
         SetPendingHeaderSignature(null);
         ProfileStatus = "Creating new data profile";
+        _loadedProfileId = null;
+        SaveProfileCommand.NotifyCanExecuteChanged();
     }
 
     [RelayCommand]
