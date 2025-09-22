@@ -179,6 +179,7 @@ public partial class ProfilesViewModel : ViewModelBase
             return;
 
         SaveProfileCommand.NotifyCanExecuteChanged();
+            SaveProfileAsCommand.NotifyCanExecuteChanged();
 
         if (value != null && (!_loadedProfileId.HasValue || _loadedProfileId.Value != value.Profile.Id))
         {
@@ -829,6 +830,29 @@ public partial class ProfilesViewModel : ViewModelBase
         await SaveProfileInternalAsync(isAutoSave: false);
     }
 
+    [RelayCommand(CanExecute = nameof(CanSaveProfileAs))]
+    private async Task SaveProfileAsAsync()
+    {
+        var proposedName = string.IsNullOrWhiteSpace(ProfileName) ? "New Data Profile" : ProfileName.Trim();
+        var input = await _dialogService.ShowInputDialogAsync("Save Data Profile As", "Enter a name for the new data profile:", proposedName);
+        if (string.IsNullOrWhiteSpace(input))
+        {
+            ProfileStatus = "Save As cancelled";
+            return;
+        }
+
+        var trimmed = input.Trim();
+        if (!string.Equals(ProfileName, trimmed, StringComparison.Ordinal))
+        {
+            ProfileName = trimmed;
+        }
+
+        SelectedProfile = null;
+        _loadedProfileId = null;
+
+        await SaveProfileInternalAsync(isAutoSave: false, forceNewProfile: true);
+    }
+
     private bool CanSaveProfile()
     {
         if (_isLoadingProfile)
@@ -840,7 +864,12 @@ public partial class ProfilesViewModel : ViewModelBase
         return _loadedProfileId.HasValue && _loadedProfileId.Value == SelectedProfile.Profile.Id;
     }
 
-    private async Task SaveProfileInternalAsync(bool isAutoSave)
+    private bool CanSaveProfileAs()
+    {
+        return !_isLoadingProfile;
+    }
+
+    private async Task SaveProfileInternalAsync(bool isAutoSave, bool forceNewProfile = false)
     {
         if (string.IsNullOrWhiteSpace(ProfileName))
         {
@@ -857,7 +886,7 @@ public partial class ProfilesViewModel : ViewModelBase
             bool isUpdate = false;
 
             var selectedProfileId = SelectedProfile?.Profile.Id;
-            if (selectedProfileId.HasValue && (!_loadedProfileId.HasValue || _loadedProfileId.Value != selectedProfileId.Value))
+            if (!forceNewProfile && selectedProfileId.HasValue && (!_loadedProfileId.HasValue || _loadedProfileId.Value != selectedProfileId.Value))
             {
                 if (isAutoSave)
                 {
@@ -868,7 +897,7 @@ public partial class ProfilesViewModel : ViewModelBase
                 return;
             }
 
-            if (SelectedProfile != null && SelectedProfile.Profile.Id != Guid.Empty)
+            if (!forceNewProfile && SelectedProfile != null && SelectedProfile.Profile.Id != Guid.Empty)
             {
                 profile = SelectedProfile.Profile;
                 isUpdate = true;
@@ -977,6 +1006,7 @@ public partial class ProfilesViewModel : ViewModelBase
             await _profileStore.SaveProfileAsync(profile);
             _loadedProfileId = profile.Id;
             SaveProfileCommand.NotifyCanExecuteChanged();
+            SaveProfileAsCommand.NotifyCanExecuteChanged();
 
             if (!isAutoSave)
             {
@@ -1089,6 +1119,7 @@ public partial class ProfilesViewModel : ViewModelBase
             _appSession.SelectedProfile = profile;
             _loadedProfileId = profile.Id;
             SaveProfileCommand.NotifyCanExecuteChanged();
+            SaveProfileAsCommand.NotifyCanExecuteChanged();
             IsDirty = false;
             _autosaveTimer?.Stop();
             AutosaveStatus = string.Empty;
@@ -1101,6 +1132,7 @@ public partial class ProfilesViewModel : ViewModelBase
         {
             _isLoadingProfile = false;
             SaveProfileCommand.NotifyCanExecuteChanged();
+            SaveProfileAsCommand.NotifyCanExecuteChanged();
         }
     }
 
@@ -1387,6 +1419,7 @@ public partial class ProfilesViewModel : ViewModelBase
         ProfileStatus = "Creating new data profile";
         _loadedProfileId = null;
         SaveProfileCommand.NotifyCanExecuteChanged();
+            SaveProfileAsCommand.NotifyCanExecuteChanged();
     }
 
     [RelayCommand]
