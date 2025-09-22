@@ -39,67 +39,73 @@
                    FontSize="14"/>
       </StackPanel>
 
-      <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+      <StackPanel Grid.Column="1" Orientation="Vertical" VerticalAlignment="Center">
         <TextBlock Text="{Binding AutosaveStatus}"
                    Foreground="{StaticResource AccentBrush}"
                    FontStyle="Italic"
                    Margin="0,0,10,0"
                    Visibility="{Binding HasAutosaveStatus, Converter={StaticResource BoolToVisibilityConverter}}"
                    VerticalAlignment="Center"/>
-        <TextBox Width="250"
-                 Text="{Binding ProfileName}"
-                 VerticalAlignment="Center"
-                 Margin="0,0,10,0">
-          <TextBox.Resources>
-            <Style TargetType="TextBox" BasedOn="{StaticResource {x:Type TextBox}}">
-              <Setter Property="Tag" Value="Data Profile Name"/>
-            </Style>
-          </TextBox.Resources>
-        </TextBox>
-        <TextBox Width="200"
-                 Text="{Binding ContactPropertyDataSource}"
-                 VerticalAlignment="Center"
-                 Margin="0,0,10,0">
-          <TextBox.Resources>
-            <Style TargetType="TextBox" BasedOn="{StaticResource {x:Type TextBox}}">
-              <Setter Property="Tag" Value="Contact/Property Data Source"/>
-            </Style>
-          </TextBox.Resources>
-        </TextBox>
-        <TextBox Width="160"
-                 Text="{Binding DataType}"
-                 VerticalAlignment="Center"
-                 Margin="0,0,10,0">
-          <TextBox.Resources>
-            <Style TargetType="TextBox" BasedOn="{StaticResource {x:Type TextBox}}">
-              <Setter Property="Tag" Value="Data Type"/>
-            </Style>
-          </TextBox.Resources>
-        </TextBox>
-        <TextBox Width="200"
-                 Text="{Binding TagNote}"
-                 VerticalAlignment="Center"
-                 Margin="0,0,10,0">
-          <TextBox.Resources>
-            <Style TargetType="TextBox" BasedOn="{StaticResource {x:Type TextBox}}">
-              <Setter Property="Tag" Value="Tag Note"/>
-            </Style>
-          </TextBox.Resources>
-        </TextBox>
-        <Button Content="Save Data Profile"
-                Command="{Binding SaveProfileCommand}"
-                Style="{StaticResource PrimaryButton}"
-                Margin="0,0,10,0"
-                Padding="15,8"/>
-        <Button Content="Load Data Profile"
-                Command="{Binding LoadProfileCommand}"
-                Style="{StaticResource SecondaryButton}"
-                Padding="15,8"
-                Margin="0,0,10,0"/>
-        <Button Content="Load Headers for Suggestions"
-                Command="{Binding LoadHeaderSuggestionsCommand}"
-                Style="{StaticResource SecondaryButton}"
-                Padding="15,8"/>
+        <Grid Margin="0,5,0,0">
+          <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+          </Grid.RowDefinitions>
+          <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="250"/>
+            <ColumnDefinition Width="200"/>
+            <ColumnDefinition Width="160"/>
+            <ColumnDefinition Width="200"/>
+            <ColumnDefinition Width="Auto"/>
+          </Grid.ColumnDefinitions>
+
+          <TextBlock Grid.Row="0" Grid.Column="0" Text="Profile Name" Foreground="{StaticResource SecondaryTextBrush}" Margin="0,0,10,2"/>
+          <TextBlock Grid.Row="0" Grid.Column="1" Text="Data Source" Foreground="{StaticResource SecondaryTextBrush}" Margin="0,0,10,2"/>
+          <TextBlock Grid.Row="0" Grid.Column="2" Text="Data Type" Foreground="{StaticResource SecondaryTextBrush}" Margin="0,0,10,2"/>
+          <TextBlock Grid.Row="0" Grid.Column="3" Text="Tag Note" Foreground="{StaticResource SecondaryTextBrush}" Margin="0,0,10,2"/>
+          <TextBlock Grid.Row="0" Grid.Column="4" Text="Actions" Foreground="{StaticResource SecondaryTextBrush}" Margin="0,0,0,2"/>
+
+          <TextBox Grid.Row="1" Grid.Column="0"
+                   Width="250"
+                   Text="{Binding ProfileName}"
+                   Margin="0,0,10,0"
+                   Height="32"
+                   VerticalContentAlignment="Center"/>
+          <TextBox Grid.Row="1" Grid.Column="1"
+                   Width="200"
+                   Text="{Binding ContactPropertyDataSource}"
+                   Margin="0,0,10,0"
+                   Height="32"
+                   VerticalContentAlignment="Center"/>
+          <TextBox Grid.Row="1" Grid.Column="2"
+                   Width="160"
+                   Text="{Binding DataType}"
+                   Margin="0,0,10,0"
+                   Height="32"
+                   VerticalContentAlignment="Center"/>
+          <TextBox Grid.Row="1" Grid.Column="3"
+                   Width="200"
+                   Text="{Binding TagNote}"
+                   Margin="0,0,10,0"
+                   Height="32"
+                   VerticalContentAlignment="Center"/>
+          <StackPanel Grid.Row="1" Grid.Column="4" Orientation="Horizontal" VerticalAlignment="Center">
+            <Button Content="Save"
+                    Command="{Binding SaveProfileCommand}"
+                    Style="{StaticResource PrimaryButton}"
+                    Margin="0,0,10,0"
+                    Padding="15,8"/>
+            <Button Content="Load"
+                    Command="{Binding LoadProfileCommand}"
+                    Style="{StaticResource SecondaryButton}"
+                    Padding="15,8"
+                    Margin="0,0,10,0"/>
+            <Button Content="Suggest Headers"
+                    Command="{Binding LoadHeaderSuggestionsCommand}"
+                    Style="{StaticResource SecondaryButton}"
+                    Padding="15,8"/>
+          </StackPanel>
+        </Grid>
       </StackPanel>
     </Grid>
 
