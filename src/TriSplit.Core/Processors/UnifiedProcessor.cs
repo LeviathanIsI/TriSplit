@@ -425,13 +425,11 @@ public class UnifiedProcessor
         {
             if (incoming.SharesMailingWithPrimary)
             {
-                incoming.IsSecondary = true;
                 incoming.LinkedContactId ??= existing.ImportId;
                 return;
             }
 
             LogPrimaryConflict(existing, incoming);
-            incoming.IsSecondary = true;
             incoming.LinkedContactId ??= existing.ImportId;
             return;
         }
