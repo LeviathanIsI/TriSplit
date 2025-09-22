@@ -76,13 +76,12 @@ public class ExcelExporter : IExcelExporter
     public async Task<string> WritePhonesAsync(string outputDirectory, string fileName, IEnumerable<PhoneRecord> records, CancellationToken cancellationToken)
     {
         var data = Materialize(records, out var rowCount);
-        var headers = new[] { "Import ID", "Phone Number", "Data Source", "Is Secondary" };
+        var headers = new[] { "Import ID", "Phone Number", "Data Source" };
         var rows = data.Select(r => new[]
         {
             r.ImportId,
             r.PhoneNumber,
-            r.DataSource,
-            r.IsSecondary ? "Yes" : "No"
+            r.DataSource
         });
 
         return await WriteWorksheetAsync(outputDirectory, fileName, "Phone Numbers", headers, rows, rowCount, headers.Length, cancellationToken).ConfigureAwait(false);
@@ -94,7 +93,7 @@ public class ExcelExporter : IExcelExporter
         var baseHeaders = new[] { "Import ID", "Property Address", "City", "State", "Zip", "County", "Property Type", "Property Value" };
         var headers = baseHeaders
             .Concat(additionalFieldOrder)
-            .Concat(new[] { "Association Label", "Data Source", "Data Type", "Tags", "Is Secondary" })
+            .Concat(new[] { "Association Label", "Data Source", "Data Type", "Tags" })
             .ToArray();
 
         var rows = data.Select(record =>
@@ -121,7 +120,6 @@ public class ExcelExporter : IExcelExporter
             baseValues.Add(record.DataSource);
             baseValues.Add(record.DataType);
             baseValues.Add(record.Tags);
-            baseValues.Add(record.IsSecondary ? "Yes" : "No");
             return baseValues.ToArray();
         });
 

@@ -1808,7 +1808,6 @@ public class UnifiedProcessor
                 writer.WriteString("AssociationLabel", contact.AssociationLabel);
             writer.WriteString("DataSource", contact.DataSource);
             writer.WriteString("Tags", contact.Tags);
-            writer.WriteBoolean("IsSecondary", contact.IsSecondary);
             writer.WriteEndObject();
         }
         writer.WriteEndArray();
@@ -1835,7 +1834,6 @@ public class UnifiedProcessor
             writer.WriteString("ImportId", phone.ImportId);
             writer.WriteString("PhoneNumber", phone.PhoneNumber);
             writer.WriteString("DataSource", phone.DataSource);
-            writer.WriteBoolean("IsSecondary", phone.IsSecondary);
             writer.WriteEndObject();
         }
         writer.WriteEndArray();
@@ -1867,7 +1865,6 @@ public class UnifiedProcessor
             writer.WriteString("County", property.County);
             writer.WriteString("PropertyType", property.PropertyType);
             writer.WriteString("PropertyValue", property.PropertyValue);
-            writer.WriteBoolean("IsSecondary", property.IsSecondary);
             writer.WriteString("AssociationLabel", property.AssociationLabel);
             writer.WriteString("DataSource", property.DataSource);
             writer.WriteString("DataType", property.DataType);
@@ -1954,8 +1951,8 @@ public class UnifiedProcessor
         }
         csv.WriteField("Association Label");
         csv.WriteField("Data Source");
+        csv.WriteField("Data Type");
         csv.WriteField("Tags");
-        csv.WriteField("Is Secondary");
         await csv.NextRecordAsync();
 
         foreach (var contact in contacts)
@@ -1974,7 +1971,6 @@ public class UnifiedProcessor
             csv.WriteField(contact.AssociationLabel);
             csv.WriteField(contact.DataSource);
             csv.WriteField(contact.Tags);
-            csv.WriteField(contact.IsSecondary ? "Yes" : "No");
             await csv.NextRecordAsync();
         }
 
@@ -2011,7 +2007,6 @@ public class UnifiedProcessor
             csv.WriteField(phone.ImportId);
             csv.WriteField(phone.PhoneNumber);
             csv.WriteField(phone.DataSource);
-            csv.WriteField(phone.IsSecondary ? "Yes" : "No");
             await csv.NextRecordAsync();
         }
 
@@ -2051,8 +2046,8 @@ public class UnifiedProcessor
 
         csv.WriteField("Association Label");
         csv.WriteField("Data Source");
+        csv.WriteField("Data Type");
         csv.WriteField("Tags");
-        csv.WriteField("Is Secondary");
         await csv.NextRecordAsync();
 
         foreach (var property in properties)
@@ -2078,7 +2073,6 @@ public class UnifiedProcessor
             csv.WriteField(property.DataSource);
             csv.WriteField(property.DataType);
             csv.WriteField(property.Tags);
-            csv.WriteField(property.IsSecondary ? "Yes" : "No");
             await csv.NextRecordAsync();
         }
 
