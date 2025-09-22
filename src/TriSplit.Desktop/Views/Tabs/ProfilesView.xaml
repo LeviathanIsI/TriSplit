@@ -79,7 +79,7 @@
                     ItemsSource="{Binding AssociationLabels}"
                     SelectedItem="{Binding DefaultAssociationLabel}"
                     Margin="0,0,10,0"
-                    Padding="6,4"
+                    Padding="10,4"
                     VerticalAlignment="Center"
                     ToolTip="Mappings with no Association Label selected inherit this default."/>
           <TextBox Grid.Row="1" Grid.Column="2"
