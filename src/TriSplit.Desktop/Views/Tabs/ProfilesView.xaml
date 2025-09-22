@@ -55,6 +55,7 @@
             <ColumnDefinition Width="250"/>
             <ColumnDefinition Width="200"/>
             <ColumnDefinition Width="160"/>
+            <ColumnDefinition Width="180"/>
             <ColumnDefinition Width="200"/>
             <ColumnDefinition Width="Auto"/>
           </Grid.ColumnDefinitions>
@@ -62,8 +63,9 @@
           <TextBlock Grid.Row="0" Grid.Column="0" Text="Profile Name" Foreground="{StaticResource SecondaryTextBrush}" Margin="0,0,10,2"/>
           <TextBlock Grid.Row="0" Grid.Column="1" Text="Data Source" Foreground="{StaticResource SecondaryTextBrush}" Margin="0,0,10,2"/>
           <TextBlock Grid.Row="0" Grid.Column="2" Text="Data Type" Foreground="{StaticResource SecondaryTextBrush}" Margin="0,0,10,2"/>
-          <TextBlock Grid.Row="0" Grid.Column="3" Text="Tag Note" Foreground="{StaticResource SecondaryTextBrush}" Margin="0,0,10,2"/>
-          <TextBlock Grid.Row="0" Grid.Column="4" Text="Actions" Foreground="{StaticResource SecondaryTextBrush}" Margin="0,0,0,2"/>
+          <TextBlock Grid.Row="0" Grid.Column="3" Text="Default Association" Foreground="{StaticResource SecondaryTextBrush}" Margin="0,0,10,2"/>
+          <TextBlock Grid.Row="0" Grid.Column="4" Text="Tag Note" Foreground="{StaticResource SecondaryTextBrush}" Margin="0,0,10,2"/>
+          <TextBlock Grid.Row="0" Grid.Column="5" Text="Actions" Foreground="{StaticResource SecondaryTextBrush}" Margin="0,0,0,2"/>
 
           <TextBox Grid.Row="1" Grid.Column="0"
                    Width="250"
@@ -86,14 +88,22 @@
                    Padding="10,4"
                    VerticalAlignment="Center"
                    VerticalContentAlignment="Center"/>
-          <TextBox Grid.Row="1" Grid.Column="3"
+          <ComboBox Grid.Row="1" Grid.Column="3"
+                    Width="180"
+                    ItemsSource="{Binding AssociationLabels}"
+                    SelectedItem="{Binding DefaultAssociationLabel}"
+                    Margin="0,0,10,0"
+                    Padding="6,4"
+                    VerticalAlignment="Center"
+                    ToolTip="Mappings with no Association Label selected inherit this default."/>
+          <TextBox Grid.Row="1" Grid.Column="4"
                    Width="200"
                    Text="{Binding TagNote}"
                    Margin="0,0,10,0"
                    Padding="10,4"
                    VerticalAlignment="Center"
                    VerticalContentAlignment="Center"/>
-          <StackPanel Grid.Row="1" Grid.Column="4" Orientation="Horizontal" VerticalAlignment="Center">
+          <StackPanel Grid.Row="1" Grid.Column="5" Orientation="Horizontal" VerticalAlignment="Center">
             <Button Content="Save"
                     Command="{Binding SaveProfileCommand}"
                     Style="{StaticResource PrimaryButton}"
@@ -458,6 +468,7 @@
                                 Grid.Column="3"
                                 ItemsSource="{Binding DataContext.AssociationLabels, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
                                 SelectedItem="{Binding AssociationLabel}"
+                                ToolTip="Leave blank to inherit the profile default association."
                                 behaviors:ComboBoxDragFillBehavior.FillPropertyName="AssociationLabel"
                                 VerticalAlignment="Center">
                         <ComboBox.Style>

@@ -146,6 +146,17 @@ public partial class ProfilesViewModel : ViewModelBase
     }
 
     [ObservableProperty]
+    private string _defaultAssociationLabel = string.Empty;
+
+    partial void OnDefaultAssociationLabelChanged(string value)
+    {
+        if (_isLoadingProfile)
+            return;
+
+        MarkDirty();
+    }
+
+    [ObservableProperty]
     private ObservableCollection<ProfileViewModel> _savedProfiles = new();
 
     [ObservableProperty]
@@ -901,6 +912,7 @@ public partial class ProfilesViewModel : ViewModelBase
             profile.ContactPropertyDataSource = ContactPropertyDataSource?.Trim() ?? string.Empty;
             profile.DataType = DataType?.Trim() ?? string.Empty;
             profile.TagNote = TagNote?.Trim() ?? string.Empty;
+            profile.DefaultAssociationLabel = DefaultAssociationLabel?.Trim() ?? string.Empty;
 
             foreach (var mapping in FieldMappings.Where(m => !string.IsNullOrWhiteSpace(m.SourceField)))
             {
@@ -1007,6 +1019,7 @@ public partial class ProfilesViewModel : ViewModelBase
             ContactPropertyDataSource = profile.ContactPropertyDataSource ?? string.Empty;
             DataType = profile.DataType ?? string.Empty;
             TagNote = profile.TagNote ?? string.Empty;
+            DefaultAssociationLabel = profile.DefaultAssociationLabel ?? string.Empty;
 
             await LoadMetadataForProfileAsync(profile);
 
@@ -1351,6 +1364,7 @@ public partial class ProfilesViewModel : ViewModelBase
         ContactPropertyDataSource = string.Empty;
         DataType = string.Empty;
         TagNote = string.Empty;
+        DefaultAssociationLabel = string.Empty;
         FieldMappings.Clear();
         InitializeMappings();
         _isLoadingProfile = false;

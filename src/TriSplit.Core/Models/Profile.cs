@@ -18,6 +18,7 @@ public class Profile
     public string ContactPropertyDataSource { get; set; } = string.Empty;
     public string DataType { get; set; } = string.Empty;
     public string TagNote { get; set; } = string.Empty;
+    public string DefaultAssociationLabel { get; set; } = string.Empty;
 
     public DedupeSettings DedupeSettings { get; set; } = new();
     public List<Transform> Transforms { get; set; } = new();

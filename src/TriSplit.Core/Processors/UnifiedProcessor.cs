@@ -33,6 +33,7 @@ public class UnifiedProcessor
     private string? _activeTag;
     private string _activeDataSource = string.Empty;
     private string _activeDataType = string.Empty;
+    private readonly string _defaultAssociationLabel;
 
     private const string MailingAssociationLabel = "Mailing Address";
 
@@ -71,6 +72,7 @@ public class UnifiedProcessor
         _inputReader = inputReader;
         _excelExporter = excelExporter;
         _progress = progress;
+        _defaultAssociationLabel = NormalizeAssociation(_profile.DefaultAssociationLabel);
     }
 
     public async Task<ProcessingResult> ProcessAsync(string inputFilePath, string outputDirectory, ProcessingOptions options, CancellationToken cancellationToken = default)
@@ -332,7 +334,7 @@ public class UnifiedProcessor
 
         foreach (var mapping in contactMappings)
         {
-            var association = NormalizeAssociation(mapping.AssociationType);
+            var association = ResolveAssociation(mapping.AssociationType);
             var normalizedProperty = (mapping.HubSpotProperty ?? string.Empty).Trim().ToLowerInvariant();
             var value = GetValueFromMapping(row, mapping);
             if (string.IsNullOrWhiteSpace(value))
@@ -781,9 +783,9 @@ public class UnifiedProcessor
 
     private ContactContext? ResolvePhoneOwner(FieldMapping mapping, List<ContactContext> contexts)
     {
-        if (!string.IsNullOrWhiteSpace(mapping.AssociationType))
+        var association = ResolveAssociation(mapping.AssociationType);
+        if (!string.IsNullOrWhiteSpace(association))
         {
-            var association = mapping.AssociationType.Trim();
             var explicitMatch = contexts.FirstOrDefault(c =>
                 string.Equals(c.Association, association, StringComparison.OrdinalIgnoreCase));
             if (explicitMatch != null)
@@ -881,7 +883,7 @@ public class UnifiedProcessor
     }
     private PropertySnapshot BuildPropertySnapshot(Dictionary<string, object> row, string? association)
     {
-        var normalizedAssociation = (association ?? string.Empty).Trim();
+        var normalizedAssociation = ResolveAssociation(association);
 
         var address = string.Empty;
         var city = string.Empty;
@@ -1019,6 +1021,18 @@ public class UnifiedProcessor
         existingKey = string.Empty;
         record = null;
         return false;
+    }
+
+    private string ResolveAssociation(string? association)
+    {
+        var normalized = NormalizeAssociation(association);
+
+        if (!string.IsNullOrWhiteSpace(normalized))
+        {
+            return normalized;
+        }
+
+        return _defaultAssociationLabel;
     }
 
     private static string NormalizeAssociation(string? association)
@@ -1307,7 +1321,11 @@ public class UnifiedProcessor
 
     private IEnumerable<FieldMapping> GetMappings(string? associationType, string hubSpotProperty, string? objectType = null)
     {
-        var normalizedAssociation = associationType?.Trim();
+        var normalizedAssociation = NormalizeAssociation(associationType);
+        if (string.IsNullOrWhiteSpace(normalizedAssociation))
+        {
+            normalizedAssociation = _defaultAssociationLabel;
+        }
 
         var candidates = EnumerateResolvedMappings()
             .Where(pair => string.Equals(pair.Mapping.HubSpotProperty, hubSpotProperty, StringComparison.OrdinalIgnoreCase));
@@ -1320,7 +1338,7 @@ public class UnifiedProcessor
         var candidateList = candidates.ToList();
 
         var associationMatches = candidateList
-            .Where(pair => string.Equals(pair.Mapping.AssociationType?.Trim(), normalizedAssociation, StringComparison.OrdinalIgnoreCase))
+            .Where(pair => string.Equals(ResolveAssociation(pair.Mapping.AssociationType), normalizedAssociation, StringComparison.OrdinalIgnoreCase))
             .Select(pair => pair.Mapping)
             .ToList();
 
