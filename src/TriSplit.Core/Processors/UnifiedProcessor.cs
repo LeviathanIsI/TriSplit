@@ -519,7 +519,7 @@ public class UnifiedProcessor
             if (string.IsNullOrWhiteSpace(existing.Company) && !string.IsNullOrWhiteSpace(context.Company))
                 existing.Company = context.Company;
             if (string.IsNullOrWhiteSpace(existing.LinkedContactId) && !string.IsNullOrWhiteSpace(context.LinkedContactId))
-                existing.LinkedContactId = context.LinkedContactId;
+                existing.LinkedContactId = NormalizeLinkedContactId(context.LinkedContactId, existing.ImportId);
 
             existing.AssociationLabel = MergeAssociationLabels(existing.AssociationLabel, BuildContactAssociationLabel(context));
             ApplyContactMetadata(existing);
@@ -533,7 +533,7 @@ public class UnifiedProcessor
                 LastName = context.LastName,
                 Email = context.Email,
                 Company = context.Company,
-                LinkedContactId = context.LinkedContactId ?? string.Empty,
+                LinkedContactId = NormalizeLinkedContactId(context.LinkedContactId, context.ImportId),
                 IsSecondary = context.IsSecondary,
                 AssociationLabel = BuildContactAssociationLabel(context),
                 Notes = string.Empty
@@ -1572,6 +1572,14 @@ public class UnifiedProcessor
         record.DataSource = FormatAppendValue(_activePhoneDataSource);
     }
 
+    private static string NormalizeLinkedContactId(string? linkedId, string importId)
+    {
+        if (string.IsNullOrWhiteSpace(linkedId))
+            return string.Empty;
+
+        return string.Equals(linkedId, importId, StringComparison.OrdinalIgnoreCase) ? string.Empty : linkedId.Trim();
+    }
+
     private string GetDedupeValue(ContactContext context, string key)
     {
         if (string.IsNullOrWhiteSpace(key))
@@ -1793,7 +1801,7 @@ public class UnifiedProcessor
             writer.WriteString("LastName", contact.LastName);
             writer.WriteString("Email", contact.Email);
             writer.WriteString("Company", contact.Company);
-            if (includeLinkedContact)
+            if (includeLinkedContact && !string.IsNullOrWhiteSpace(contact.LinkedContactId))
             {
                 writer.WriteString("LinkedContactId", contact.LinkedContactId);
             }
@@ -1963,7 +1971,7 @@ public class UnifiedProcessor
             csv.WriteField(contact.Company);
             if (includeLinkedContact)
             {
-                csv.WriteField(contact.LinkedContactId ?? string.Empty);
+                csv.WriteField(string.IsNullOrWhiteSpace(contact.LinkedContactId) ? string.Empty : contact.LinkedContactId);
             }
             csv.WriteField(contact.AssociationLabel);
             csv.WriteField(contact.DataSource);

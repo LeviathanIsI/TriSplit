@@ -22,7 +22,7 @@ public class ExcelExporter : IExcelExporter
     public async Task<string> WriteContactsAsync(string outputDirectory, string fileName, IEnumerable<ContactRecord> records, CancellationToken cancellationToken)
     {
         var data = Materialize(records, out var rowCount);
-        var includeLinkedContact = data.Any(r => !string.IsNullOrWhiteSpace(r.LinkedContactId));
+        var includeLinkedContact = data.Any(r => HasValidLinkedContact(r.LinkedContactId, r.ImportId));
 
         var headers = new List<string>
         {
@@ -53,7 +53,7 @@ public class ExcelExporter : IExcelExporter
 
             if (includeLinkedContact)
             {
-                values.Add(r.LinkedContactId);
+                values.Add(HasValidLinkedContact(r.LinkedContactId, r.ImportId) ? r.LinkedContactId : string.Empty);
             }
 
             values.Add(r.AssociationLabel);
@@ -67,6 +67,12 @@ public class ExcelExporter : IExcelExporter
 
         return await WriteWorksheetAsync(outputDirectory, fileName, "Contacts", headers, rows, rowCount, headers.Count, cancellationToken).ConfigureAwait(false);
     }
+
+    private static bool HasValidLinkedContact(string? linkedId, string importId)
+    {
+        return !string.IsNullOrWhiteSpace(linkedId) && !string.Equals(linkedId, importId, StringComparison.OrdinalIgnoreCase);
+    }
+
 
     public async Task<string> WritePhonesAsync(string outputDirectory, string fileName, IEnumerable<PhoneRecord> records, CancellationToken cancellationToken)
     {
