@@ -179,7 +179,8 @@ public partial class ProfilesViewModel : ViewModelBase
             return;
 
         SaveProfileCommand.NotifyCanExecuteChanged();
-            SaveProfileAsCommand.NotifyCanExecuteChanged();
+        SaveProfileCommand.NotifyCanExecuteChanged();
+        SaveProfileAsCommand.NotifyCanExecuteChanged();
 
         if (value != null && (!_loadedProfileId.HasValue || _loadedProfileId.Value != value.Profile.Id))
         {
