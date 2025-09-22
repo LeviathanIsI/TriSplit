@@ -124,9 +124,21 @@ public class UnifiedProcessor
                 csvFiles.Add(await WriteContactsFileAsync(outputPath, "01_Primary_Contacts_Import.csv", false, cancellationToken));
                 csvFiles.Add(await WritePhonesFileAsync(outputPath, "02_Primary_Phone_Numbers_Import.csv", false, cancellationToken));
                 csvFiles.Add(await WritePropertiesFileAsync(outputPath, "03_Primary_Properties_Import.csv", false, cancellationToken));
-                csvFiles.Add(await WriteContactsFileAsync(outputPath, "04_Secondary_Contacts_Import.csv", true, cancellationToken));
-                csvFiles.Add(await WritePhonesFileAsync(outputPath, "05_Secondary_Phone_Numbers_Import.csv", true, cancellationToken));
-                csvFiles.Add(await WritePropertiesFileAsync(outputPath, "06_Secondary_Properties_Import.csv", true, cancellationToken));
+                var secondaryContactsCsv = await WriteContactsFileAsync(outputPath, "04_Secondary_Contacts_Import.csv", true, cancellationToken);
+                if (!string.IsNullOrEmpty(secondaryContactsCsv))
+                {
+                    csvFiles.Add(secondaryContactsCsv);
+                }
+                var secondaryPhonesCsv = await WritePhonesFileAsync(outputPath, "05_Secondary_Phone_Numbers_Import.csv", true, cancellationToken);
+                if (!string.IsNullOrEmpty(secondaryPhonesCsv))
+                {
+                    csvFiles.Add(secondaryPhonesCsv);
+                }
+                var secondaryPropertiesCsv = await WritePropertiesFileAsync(outputPath, "06_Secondary_Properties_Import.csv", true, cancellationToken);
+                if (!string.IsNullOrEmpty(secondaryPropertiesCsv))
+                {
+                    csvFiles.Add(secondaryPropertiesCsv);
+                }
             }
 
             if (options.OutputExcel)
@@ -135,9 +147,21 @@ public class UnifiedProcessor
                 excelFiles.Add(await WriteContactsExcelAsync(outputPath, "Contacts_Primary.xlsx", false, cancellationToken));
                 excelFiles.Add(await WritePhonesExcelAsync(outputPath, "Phones_Primary.xlsx", false, cancellationToken));
                 excelFiles.Add(await WritePropertiesExcelAsync(outputPath, "Properties_Primary.xlsx", false, cancellationToken));
-                excelFiles.Add(await WriteContactsExcelAsync(outputPath, "Contacts_Secondary.xlsx", true, cancellationToken));
-                excelFiles.Add(await WritePhonesExcelAsync(outputPath, "Phones_Secondary.xlsx", true, cancellationToken));
-                excelFiles.Add(await WritePropertiesExcelAsync(outputPath, "Properties_Secondary.xlsx", true, cancellationToken));
+                var secondaryContactsExcel = await WriteContactsExcelAsync(outputPath, "Contacts_Secondary.xlsx", true, cancellationToken);
+                if (!string.IsNullOrEmpty(secondaryContactsExcel))
+                {
+                    excelFiles.Add(secondaryContactsExcel);
+                }
+                var secondaryPhonesExcel = await WritePhonesExcelAsync(outputPath, "Phones_Secondary.xlsx", true, cancellationToken);
+                if (!string.IsNullOrEmpty(secondaryPhonesExcel))
+                {
+                    excelFiles.Add(secondaryPhonesExcel);
+                }
+                var secondaryPropertiesExcel = await WritePropertiesExcelAsync(outputPath, "Properties_Secondary.xlsx", true, cancellationToken);
+                if (!string.IsNullOrEmpty(secondaryPropertiesExcel))
+                {
+                    excelFiles.Add(secondaryPropertiesExcel);
+                }
             }
 
             if (options.OutputJson)
@@ -264,8 +288,9 @@ public class UnifiedProcessor
 
             var sharesMailing = ShouldShareMailingWithPrimary(context, primaryContext);
             context.SharesMailingWithPrimary = sharesMailing;
-            context.IsSecondary = true;
-            context.LinkedContactId = !string.IsNullOrWhiteSpace(primaryImportId)
+            var isSecondaryAssociation = IsSecondaryAssociation(context.Association);
+            context.IsSecondary = isSecondaryAssociation;
+            context.LinkedContactId = (sharesMailing || isSecondaryAssociation) && !string.IsNullOrWhiteSpace(primaryImportId)
                 ? primaryImportId
                 : null;
         }
@@ -1466,26 +1491,50 @@ public class UnifiedProcessor
 
     private async Task<string> WriteContactsExcelAsync(string outputPath, string fileName, bool isSecondary, CancellationToken cancellationToken)
     {
-        return await _excelExporter.WriteContactsAsync(outputPath, fileName, GetContactsForExport(isSecondary), cancellationToken).ConfigureAwait(false);
+        var contacts = GetContactsForExport(isSecondary).ToList();
+        if (contacts.Count == 0)
+        {
+            return string.Empty;
+        }
+
+        return await _excelExporter.WriteContactsAsync(outputPath, fileName, contacts, cancellationToken).ConfigureAwait(false);
     }
 
     private async Task<string> WritePhonesExcelAsync(string outputPath, string fileName, bool isSecondary, CancellationToken cancellationToken)
     {
-        return await _excelExporter.WritePhonesAsync(outputPath, fileName, GetPhonesForExport(isSecondary), cancellationToken).ConfigureAwait(false);
+        var phones = GetPhonesForExport(isSecondary).ToList();
+        if (phones.Count == 0)
+        {
+            return string.Empty;
+        }
+
+        return await _excelExporter.WritePhonesAsync(outputPath, fileName, phones, cancellationToken).ConfigureAwait(false);
     }
 
     private async Task<string> WritePropertiesExcelAsync(string outputPath, string fileName, bool isSecondary, CancellationToken cancellationToken)
     {
-        return await _excelExporter.WritePropertiesAsync(outputPath, fileName, GetPropertiesForExport(isSecondary), _additionalPropertyFieldOrder, cancellationToken).ConfigureAwait(false);
+        var properties = GetPropertiesForExport(isSecondary).ToList();
+        if (properties.Count == 0)
+        {
+            return string.Empty;
+        }
+
+        return await _excelExporter.WritePropertiesAsync(outputPath, fileName, properties, _additionalPropertyFieldOrder, cancellationToken).ConfigureAwait(false);
     }
 
     private async Task<string> WriteContactsJsonAsync(string outputPath, string fileName, bool isSecondary, CancellationToken cancellationToken)
     {
+        var contacts = GetContactsForExport(isSecondary).ToList();
+        if (contacts.Count == 0)
+        {
+            return string.Empty;
+        }
+
         var filePath = Path.Combine(outputPath, fileName);
         await using var stream = new FileStream(filePath, FileMode.Create, FileAccess.Write, FileShare.Read);
         await using var writer = new Utf8JsonWriter(stream, new JsonWriterOptions { Indented = true });
         writer.WriteStartArray();
-        foreach (var contact in GetContactsForExport(isSecondary))
+        foreach (var contact in contacts)
         {
             cancellationToken.ThrowIfCancellationRequested();
             writer.WriteStartObject();
@@ -1507,17 +1556,22 @@ public class UnifiedProcessor
 
     private async Task<string> WritePhonesJsonAsync(string outputPath, string fileName, bool isSecondary, CancellationToken cancellationToken)
     {
+        var phones = GetPhonesForExport(isSecondary).ToList();
+        if (phones.Count == 0)
+        {
+            return string.Empty;
+        }
+
         var filePath = Path.Combine(outputPath, fileName);
         await using var stream = new FileStream(filePath, FileMode.Create, FileAccess.Write, FileShare.Read);
         await using var writer = new Utf8JsonWriter(stream, new JsonWriterOptions { Indented = true });
         writer.WriteStartArray();
-        foreach (var phone in GetPhonesForExport(isSecondary))
+        foreach (var phone in phones)
         {
             cancellationToken.ThrowIfCancellationRequested();
             writer.WriteStartObject();
             writer.WriteString("ImportId", phone.ImportId);
             writer.WriteString("PhoneNumber", phone.PhoneNumber);
-            writer.WriteBoolean("IsSecondary", phone.IsSecondary);
             writer.WriteEndObject();
         }
         writer.WriteEndArray();
@@ -1527,11 +1581,17 @@ public class UnifiedProcessor
 
     private async Task<string> WritePropertiesJsonAsync(string outputPath, string fileName, bool isSecondary, CancellationToken cancellationToken)
     {
+        var properties = GetPropertiesForExport(isSecondary).ToList();
+        if (properties.Count == 0)
+        {
+            return string.Empty;
+        }
+
         var filePath = Path.Combine(outputPath, fileName);
         await using var stream = new FileStream(filePath, FileMode.Create, FileAccess.Write, FileShare.Read);
         await using var writer = new Utf8JsonWriter(stream, new JsonWriterOptions { Indented = true });
         writer.WriteStartArray();
-        foreach (var property in GetPropertiesForExport(isSecondary))
+        foreach (var property in properties)
         {
             cancellationToken.ThrowIfCancellationRequested();
             writer.WriteStartObject();
@@ -1543,8 +1603,8 @@ public class UnifiedProcessor
             writer.WriteString("County", property.County);
             writer.WriteString("PropertyType", property.PropertyType);
             writer.WriteString("PropertyValue", property.PropertyValue);
-            writer.WriteString("AssociationLabel", property.AssociationLabel);
             writer.WriteBoolean("IsSecondary", property.IsSecondary);
+            writer.WriteString("AssociationLabel", property.AssociationLabel);
             writer.WritePropertyName("AdditionalFields");
             writer.WriteStartObject();
             foreach (var kvp in property.AdditionalFields)
@@ -1600,6 +1660,12 @@ public class UnifiedProcessor
     }
     private async Task<string> WriteContactsFileAsync(string outputPath, string fileName, bool isSecondary, CancellationToken cancellationToken)
     {
+        var contacts = GetContactsForExport(isSecondary).ToList();
+        if (contacts.Count == 0)
+        {
+            return string.Empty;
+        }
+
         var filePath = Path.Combine(outputPath, fileName);
 
         using var writer = new StreamWriter(filePath, false, Encoding.UTF8);
@@ -1615,8 +1681,6 @@ public class UnifiedProcessor
         csv.WriteField("Company");
         csv.WriteField("Linked Contact ID");
         await csv.NextRecordAsync();
-
-        var contacts = GetContactsForExport(isSecondary);
 
         foreach (var contact in contacts)
         {
@@ -1637,6 +1701,12 @@ public class UnifiedProcessor
 
     private async Task<string> WritePhonesFileAsync(string outputPath, string fileName, bool isSecondary, CancellationToken cancellationToken)
     {
+        var phones = GetPhonesForExport(isSecondary).ToList();
+        if (phones.Count == 0)
+        {
+            return string.Empty;
+        }
+
         var filePath = Path.Combine(outputPath, fileName);
 
         using var writer = new StreamWriter(filePath, false, Encoding.UTF8);
@@ -1648,12 +1718,6 @@ public class UnifiedProcessor
         csv.WriteField("Import ID");
         csv.WriteField("Phone Number");
         await csv.NextRecordAsync();
-
-        var phones = _phones
-            .SelectMany(entry => entry.Value)
-            .Where(phone => phone.IsSecondary == isSecondary)
-            .OrderBy(phone => phone.ImportId)
-            .ThenBy(phone => phone.PhoneNumber);
 
         foreach (var phone in phones)
         {
@@ -1670,6 +1734,12 @@ public class UnifiedProcessor
 
     private async Task<string> WritePropertiesFileAsync(string outputPath, string fileName, bool isSecondary, CancellationToken cancellationToken)
     {
+        var properties = GetPropertiesForExport(isSecondary).ToList();
+        if (properties.Count == 0)
+        {
+            return string.Empty;
+        }
+
         var filePath = Path.Combine(outputPath, fileName);
 
         using var writer = new StreamWriter(filePath, false, Encoding.UTF8);
@@ -1687,15 +1757,14 @@ public class UnifiedProcessor
         csv.WriteField("Property Type");
         csv.WriteField("Property Value");
 
-        foreach (var fieldName in _additionalPropertyFieldOrder)
+        foreach (var field in _additionalPropertyFieldOrder)
         {
-            csv.WriteField(fieldName);
+            csv.WriteField(field);
         }
 
         csv.WriteField("Association Label");
+        csv.WriteField("Is Secondary");
         await csv.NextRecordAsync();
-
-        var properties = GetPropertiesForExport(isSecondary);
 
         foreach (var property in properties)
         {
@@ -1710,13 +1779,14 @@ public class UnifiedProcessor
             csv.WriteField(property.PropertyType);
             csv.WriteField(property.PropertyValue);
 
-            foreach (var fieldName in _additionalPropertyFieldOrder)
+            foreach (var field in _additionalPropertyFieldOrder)
             {
-                property.AdditionalFields.TryGetValue(fieldName, out var value);
+                property.AdditionalFields.TryGetValue(field, out var value);
                 csv.WriteField(value ?? string.Empty);
             }
 
             csv.WriteField(property.AssociationLabel);
+            csv.WriteField(property.IsSecondary);
             await csv.NextRecordAsync();
         }
 
