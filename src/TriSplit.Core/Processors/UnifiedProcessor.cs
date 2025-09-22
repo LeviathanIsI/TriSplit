@@ -251,27 +251,30 @@ public class UnifiedProcessor
 
     private Task ProcessRowAsync(Dictionary<string, object> row)
     {
+        var sharedMailingSnapshot = BuildPropertySnapshot(row, MailingAssociationLabel);
         var contexts = BuildContactContexts(row);
         if (contexts.Count == 0)
             return Task.CompletedTask;
 
-        ApplyMailingInheritance(contexts);
+        var primaryContext = DeterminePrimaryContext(contexts) ?? contexts[0];
 
-        var primaryContext = DeterminePrimaryContext(contexts);
-        if (primaryContext != null)
+        if (sharedMailingSnapshot.HasCoreAddress)
         {
-            AssignImportId(primaryContext);
+            primaryContext.Mailing = sharedMailingSnapshot;
         }
+
+        ApplyMailingInheritance(contexts, primaryContext);
+
+        AssignImportId(primaryContext);
 
         foreach (var context in contexts)
         {
-            if (primaryContext == null || !ReferenceEquals(context, primaryContext))
+            if (!ReferenceEquals(context, primaryContext))
             {
                 AssignImportId(context);
             }
         }
 
-        primaryContext ??= contexts[0];
         var primaryImportId = primaryContext.ImportId;
 
         foreach (var context in contexts)
@@ -327,8 +330,6 @@ public class UnifiedProcessor
             }
         }
 
-        var mailingSnapshot = BuildPropertySnapshot(row, MailingAssociationLabel);
-
         for (var index = 0; index < associationOrder.Count; index++)
         {
             var association = associationOrder[index];
@@ -339,8 +340,7 @@ public class UnifiedProcessor
                 LastName = CleanName(GetMappedValue(row, association, "Last Name", MappingObjectTypes.Contact)),
                 Email = (GetMappedValue(row, association, "Email", MappingObjectTypes.Contact) ?? string.Empty).Trim(),
                 Company = (GetMappedValue(row, association, "Company", MappingObjectTypes.Contact) ?? string.Empty).Trim(),
-                Property = BuildPropertySnapshot(row, association),
-                Mailing = mailingSnapshot
+                Property = BuildPropertySnapshot(row, association)
             };
 
             contexts.Add(context);
@@ -348,21 +348,22 @@ public class UnifiedProcessor
 
         return contexts;
     }
-    private void ApplyMailingInheritance(List<ContactContext> contexts)
+    private void ApplyMailingInheritance(List<ContactContext> contexts, ContactContext? primaryContext)
     {
-        if (contexts.Count <= 1)
+        if (primaryContext == null || contexts.Count <= 1)
             return;
 
-        var primary = contexts[0];
-
-        foreach (var context in contexts.Skip(1))
+        foreach (var context in contexts)
         {
-            if (!HasSameSurname(context, primary))
+            if (ReferenceEquals(context, primaryContext))
                 continue;
 
-            if (!context.Mailing.HasCoreAddress && primary.Mailing.HasCoreAddress)
+            if (!HasSameSurname(context, primaryContext))
+                continue;
+
+            if (!context.Mailing.HasCoreAddress && primaryContext.Mailing.HasCoreAddress)
             {
-                context.Mailing = primary.Mailing;
+                context.Mailing = primaryContext.Mailing;
             }
         }
     }
