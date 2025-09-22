@@ -15,6 +15,10 @@ public class Profile
     public List<FieldMapping> PropertyMappings { get; set; } = new();
     public List<FieldMapping> PhoneMappings { get; set; } = new();
 
+    public string ContactPropertyDataSource { get; set; } = string.Empty;
+    public string DataType { get; set; } = string.Empty;
+    public string TagNote { get; set; } = string.Empty;
+
     public DedupeSettings DedupeSettings { get; set; } = new();
     public List<Transform> Transforms { get; set; } = new();
     public Dictionary<string, bool> ProcessingRules { get; set; } = new Dictionary<string, bool>(StringComparer.OrdinalIgnoreCase);

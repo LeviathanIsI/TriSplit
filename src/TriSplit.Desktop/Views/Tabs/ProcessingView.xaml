@@ -37,6 +37,7 @@
           <RowDefinition Height="Auto"/>
           <RowDefinition Height="Auto"/>
           <RowDefinition Height="Auto"/>
+          <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
 
         <!-- File Selection -->
@@ -162,8 +163,80 @@
 
         </Grid>
 
-        <!-- Processing Options -->
+        <!-- Tag Builder -->
         <Grid Grid.Row="2" Margin="0,15,0,0">
+          <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+          </Grid.RowDefinitions>
+          <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="120"/>
+            <ColumnDefinition Width="200"/>
+            <ColumnDefinition Width="150"/>
+            <ColumnDefinition Width="*"/>
+            <ColumnDefinition Width="Auto"/>
+          </Grid.ColumnDefinitions>
+
+          <TextBlock Grid.Row="0"
+                     Grid.Column="0"
+                     Text="Tag Date:"
+                     Foreground="{StaticResource TextBrush}"
+                     VerticalAlignment="Center"/>
+
+          <DatePicker Grid.Row="0"
+                      Grid.Column="1"
+                      SelectedDate="{Binding TagDataDate}"
+                      Margin="0,0,10,0"
+                      Height="32"/>
+
+          <Button Grid.Row="0"
+                  Grid.Column="2"
+                  Content="Generate Tags"
+                  Command="{Binding GenerateTagCommand}"
+                  Style="{StaticResource SecondaryButton}"
+                  Margin="0,0,10,0"
+                  Padding="15,6"/>
+
+          <TextBox Grid.Row="0"
+                   Grid.Column="3"
+                   Text="{Binding TagDraft, UpdateSourceTrigger=PropertyChanged}"
+                   Margin="0,0,10,0"
+                   Height="32"
+                   VerticalContentAlignment="Center"/>
+
+          <Button Grid.Row="0"
+                  Grid.Column="4"
+                  Content="Accept"
+                  Command="{Binding AcceptTagCommand}"
+                  Style="{StaticResource PrimaryButton}"
+                  Padding="15,6"/>
+
+          <StackPanel Grid.Row="1"
+                      Grid.Column="1"
+                      Grid.ColumnSpan="4"
+                      Orientation="Vertical"
+                      Margin="0,10,0,0">
+            <TextBlock Text="{Binding TagStatus}"
+                       Foreground="{StaticResource AccentBrush}"
+                       FontStyle="Italic"
+                       Margin="0,0,0,4"/>
+            <TextBlock Foreground="{StaticResource SecondaryTextBrush}"
+                       FontSize="12">
+              <Run Text="Source:"/>
+              <Run Text=" "/>
+              <Run Text="{Binding ProfileTagDataSource}"/>
+              <Run Text="  |  Type:"/>
+              <Run Text=" "/>
+              <Run Text="{Binding ProfileTagDataType}"/>
+              <Run Text="  |  Note:"/>
+              <Run Text=" "/>
+              <Run Text="{Binding ProfileTagNote}"/>
+            </TextBlock>
+          </StackPanel>
+        </Grid>
+
+        <!-- Processing Options -->
+        <Grid Grid.Row="3" Margin="0,15,0,0">
           <Grid.ColumnDefinitions>
             <ColumnDefinition Width="120"/>
             <ColumnDefinition Width="*"/>

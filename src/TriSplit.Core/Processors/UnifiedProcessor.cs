@@ -30,8 +30,10 @@ public class UnifiedProcessor
     private readonly Dictionary<string, string> _contactImportIds = new(StringComparer.OrdinalIgnoreCase);
     private readonly HashSet<string> _additionalPropertyFieldSet = new(StringComparer.OrdinalIgnoreCase);
     private readonly List<string> _additionalPropertyFieldOrder = new();
+    private string? _activeTag;
 
     private const string MailingAssociationLabel = "Mailing Address";
+    private const string PropertyTagFieldName = "Tags";
 
     private static readonly Regex WhitespaceRegex = new(@"\s+", RegexOptions.Compiled);
     private static readonly Regex NonDigitRegex = new(@"[^0-9]", RegexOptions.Compiled);
@@ -92,6 +94,7 @@ public class UnifiedProcessor
 
         try
         {
+            _activeTag = NormalizeTag(options.Tag);
             ReportProgress("Reading input file...", 10);
             var inputData = await _inputReader.ReadAsync(inputFilePath);
 
@@ -216,6 +219,10 @@ public class UnifiedProcessor
                 Success = false,
                 ErrorMessage = ex.Message
             };
+        }
+        finally
+        {
+            _activeTag = null;
         }
     }
 
@@ -400,6 +407,7 @@ public class UnifiedProcessor
                 existing.LinkedContactId = context.LinkedContactId;
 
             existing.AssociationLabel = MergeAssociationLabels(existing.AssociationLabel, BuildContactAssociationLabel(context));
+            ApplyContactTag(existing);
         }
         else
         {
@@ -417,6 +425,7 @@ public class UnifiedProcessor
             };
 
             _contacts[context.ImportId] = record;
+            ApplyContactTag(record);
         }
     }
 
@@ -867,6 +876,8 @@ public class UnifiedProcessor
                 target.AdditionalFields[pair.Key] = pair.Value;
             }
         }
+
+        ApplyPropertyTag(target);
     }
 
     private bool TryGetExistingPropertyRecord(string importId, PropertySnapshot snapshot, string key, out string existingKey, out PropertyRecord? record)
@@ -1395,6 +1406,29 @@ public class UnifiedProcessor
         return string.Join("|", keyParts);
     }
 
+    private void ApplyContactTag(ContactRecord record)
+    {
+        if (string.IsNullOrWhiteSpace(_activeTag))
+            return;
+
+        if (string.IsNullOrWhiteSpace(record.Notes))
+        {
+            record.Notes = _activeTag!;
+        }
+    }
+
+    private void ApplyPropertyTag(PropertyRecord record)
+    {
+        if (string.IsNullOrWhiteSpace(_activeTag))
+            return;
+
+        RegisterAdditionalPropertyField(PropertyTagFieldName);
+        if (!record.AdditionalFields.TryGetValue(PropertyTagFieldName, out var existingValue) || string.IsNullOrWhiteSpace(existingValue))
+        {
+            record.AdditionalFields[PropertyTagFieldName] = _activeTag!;
+        }
+    }
+
     private string GetDedupeValue(ContactContext context, string key)
     {
         if (string.IsNullOrWhiteSpace(key))
@@ -1419,6 +1453,14 @@ public class UnifiedProcessor
             "propertyzip" => context.Property.Zip,
             _ => string.Empty
         };
+    }
+
+    private static string? NormalizeTag(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+            return null;
+
+        return WhitespaceRegex.Replace(value.Trim(), " ");
     }
 
     private static string GenerateImportId() => Guid.NewGuid().ToString();
@@ -1734,6 +1776,9 @@ public class UnifiedProcessor
         csv.WriteField("Email");
         csv.WriteField("Company");
         csv.WriteField("Linked Contact ID");
+        csv.WriteField("Association Label");
+        csv.WriteField("Notes");
+        csv.WriteField("Is Secondary");
         await csv.NextRecordAsync();
 
         foreach (var contact in contacts)
@@ -1746,6 +1791,9 @@ public class UnifiedProcessor
             csv.WriteField(contact.Email);
             csv.WriteField(contact.Company);
             csv.WriteField(contact.LinkedContactId ?? string.Empty);
+            csv.WriteField(contact.AssociationLabel);
+            csv.WriteField(contact.Notes);
+            csv.WriteField(contact.IsSecondary ? "Yes" : "No");
             await csv.NextRecordAsync();
         }
 

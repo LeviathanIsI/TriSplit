@@ -112,6 +112,39 @@ public partial class ProfilesViewModel : ViewModelBase
     }
 
     [ObservableProperty]
+    private string _contactPropertyDataSource = string.Empty;
+
+    partial void OnContactPropertyDataSourceChanged(string value)
+    {
+        if (_isLoadingProfile)
+            return;
+
+        MarkDirty();
+    }
+
+    [ObservableProperty]
+    private string _dataType = string.Empty;
+
+    partial void OnDataTypeChanged(string value)
+    {
+        if (_isLoadingProfile)
+            return;
+
+        MarkDirty();
+    }
+
+    [ObservableProperty]
+    private string _tagNote = string.Empty;
+
+    partial void OnTagNoteChanged(string value)
+    {
+        if (_isLoadingProfile)
+            return;
+
+        MarkDirty();
+    }
+
+    [ObservableProperty]
     private ObservableCollection<ProfileViewModel> _savedProfiles = new();
 
     [ObservableProperty]
@@ -828,6 +861,10 @@ public partial class ProfilesViewModel : ViewModelBase
             profile.PropertyMappings.Clear();
             profile.PhoneMappings.Clear();
 
+            profile.ContactPropertyDataSource = ContactPropertyDataSource?.Trim() ?? string.Empty;
+            profile.DataType = DataType?.Trim() ?? string.Empty;
+            profile.TagNote = TagNote?.Trim() ?? string.Empty;
+
             foreach (var mapping in FieldMappings.Where(m => !string.IsNullOrWhiteSpace(m.SourceField)))
             {
                 var association = mapping.AssociationLabel?.Trim();
@@ -928,6 +965,9 @@ public partial class ProfilesViewModel : ViewModelBase
             ClearSuggestions();
             var profile = SelectedProfile.Profile;
             ProfileName = profile.Name;
+            ContactPropertyDataSource = profile.ContactPropertyDataSource ?? string.Empty;
+            DataType = profile.DataType ?? string.Empty;
+            TagNote = profile.TagNote ?? string.Empty;
 
             await LoadMetadataForProfileAsync(profile);
 
@@ -1266,6 +1306,9 @@ public partial class ProfilesViewModel : ViewModelBase
         _isLoadingProfile = true;
         ProfileName = "New Data Profile";
         SelectedProfile = null;
+        ContactPropertyDataSource = string.Empty;
+        DataType = string.Empty;
+        TagNote = string.Empty;
         FieldMappings.Clear();
         InitializeMappings();
         _isLoadingProfile = false;

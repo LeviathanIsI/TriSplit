@@ -3,6 +3,7 @@ using CommunityToolkit.Mvvm.Input;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Diagnostics;
+using System.Globalization;
 using System.IO;
 using System.IO.Compression;
 using System.Windows;
@@ -69,6 +70,30 @@ public partial class ProcessingViewModel : ViewModelBase
     private bool _outputJson;
 
     [ObservableProperty]
+    private DateTime? _tagDataDate = DateTime.Today;
+
+    [ObservableProperty]
+    private string _tagDraft = string.Empty;
+
+    [ObservableProperty]
+    private string _acceptedTag = string.Empty;
+
+    [ObservableProperty]
+    private bool _tagAccepted;
+
+    [ObservableProperty]
+    private string _tagStatus = "No tag generated";
+
+    [ObservableProperty]
+    private string _profileTagDataSource = string.Empty;
+
+    [ObservableProperty]
+    private string _profileTagDataType = string.Empty;
+
+    [ObservableProperty]
+    private string _profileTagNote = string.Empty;
+
+    [ObservableProperty]
     private bool _removeDuplicates = true;
 
     [ObservableProperty]
@@ -115,6 +140,7 @@ public partial class ProcessingViewModel : ViewModelBase
 
     private string? _outputDirectory;
     private string? _lastProfilePath;
+    private bool _isUpdatingTagDraft;
 
     private static readonly int[] _progressMilestones = new[] { 25, 50, 75 };
     private int _nextProgressMilestoneIndex;
@@ -526,7 +552,8 @@ public partial class ProcessingViewModel : ViewModelBase
             {
                 OutputCsv = OutputCsv,
                 OutputExcel = OutputExcel,
-                OutputJson = OutputJson
+                OutputJson = OutputJson,
+                Tag = string.IsNullOrWhiteSpace(AcceptedTag) ? null : AcceptedTag
             };
 
             var selectedOutputs = new List<string>();
@@ -534,6 +561,8 @@ public partial class ProcessingViewModel : ViewModelBase
             if (options.OutputExcel) selectedOutputs.Add("Excel");
             if (options.OutputJson) selectedOutputs.Add("JSON");
             WriteRunLog($"Outputs: {string.Join(", ", selectedOutputs)}");
+            WriteRunLog($"Tag: {options.Tag ?? "(none)"}");
+            AddLogEntry($"Tag applied: {options.Tag ?? "(none)"}", LogLevel.Info);
 
             // Process the file and generate export files based on selected formats
             var result = await processor.ProcessAsync(InputFilePath, _outputDirectory ?? string.Empty, options, token);
@@ -642,6 +671,64 @@ public partial class ProcessingViewModel : ViewModelBase
             _cancellationTokenSource = null;
         }
     }
+
+    [RelayCommand(CanExecute = nameof(CanGenerateTag))]
+    private void GenerateTag()
+    {
+        if (!TagDataDate.HasValue || SelectedProfile == null)
+        {
+            return;
+        }
+
+        var formattedDate = TagDataDate.Value.ToString("yy.MM.dd", CultureInfo.InvariantCulture);
+        var details = new List<string>();
+
+        if (!string.IsNullOrWhiteSpace(ProfileTagDataSource))
+            details.Add(ProfileTagDataSource.Trim());
+        if (!string.IsNullOrWhiteSpace(ProfileTagDataType))
+            details.Add(ProfileTagDataType.Trim());
+        if (!string.IsNullOrWhiteSpace(ProfileTagNote))
+            details.Add(ProfileTagNote.Trim());
+
+        var suffix = string.Join(" ", details.Where(part => !string.IsNullOrWhiteSpace(part)));
+        var tag = string.IsNullOrWhiteSpace(suffix)
+            ? formattedDate
+            : $"{formattedDate} - {suffix}";
+
+        _isUpdatingTagDraft = true;
+        TagDraft = tag.Trim();
+        _isUpdatingTagDraft = false;
+
+        TagAccepted = false;
+        TagStatus = "Tag generated. Click Accept to apply.";
+        AcceptTagCommand.NotifyCanExecuteChanged();
+    }
+
+    private bool CanGenerateTag() => TagDataDate.HasValue && SelectedProfile != null;
+
+    [RelayCommand(CanExecute = nameof(CanAcceptTag))]
+    private void AcceptTag()
+    {
+        var normalized = NormalizeTagText(TagDraft);
+
+        _isUpdatingTagDraft = true;
+        TagDraft = normalized;
+        _isUpdatingTagDraft = false;
+
+        AcceptedTag = normalized;
+        TagAccepted = !string.IsNullOrWhiteSpace(normalized);
+        TagStatus = TagAccepted
+            ? $"Tag accepted: {AcceptedTag}"
+            : "Tag cleared.";
+
+        var logMessage = TagAccepted
+            ? $"Tag accepted: {AcceptedTag}"
+            : "Tag cleared.";
+        AddLogEntry(logMessage, TagAccepted ? LogLevel.Info : LogLevel.Warning);
+        AcceptTagCommand.NotifyCanExecuteChanged();
+    }
+
+    private bool CanAcceptTag() => !string.IsNullOrWhiteSpace(TagDraft);
 
     [RelayCommand]
     private void CancelProcessing()
@@ -800,6 +887,28 @@ public partial class ProcessingViewModel : ViewModelBase
         _currentRunLogPath = null;
     }
 
+    private static string NormalizeTagText(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return string.Empty;
+        }
+
+        var parts = value.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        return string.Join(" ", parts).Trim();
+    }
+
+    private void ResetTagState()
+    {
+        _isUpdatingTagDraft = true;
+        TagDraft = string.Empty;
+        _isUpdatingTagDraft = false;
+        AcceptedTag = string.Empty;
+        TagAccepted = false;
+        TagStatus = "No tag generated";
+        AcceptTagCommand.NotifyCanExecuteChanged();
+    }
+
     private void WriteRunLog(string message)
     {
         if (_runLogWriter == null)
@@ -862,6 +971,12 @@ public partial class ProcessingViewModel : ViewModelBase
 
     partial void OnSelectedProfileChanged(Profile? value)
     {
+        ProfileTagDataSource = value?.ContactPropertyDataSource ?? string.Empty;
+        ProfileTagDataType = value?.DataType ?? string.Empty;
+        ProfileTagNote = value?.TagNote ?? string.Empty;
+        ResetTagState();
+        GenerateTagCommand.NotifyCanExecuteChanged();
+
         if (value != null && InputFilePath != "No file selected")
         {
             DetectedSourceDisplay = value.Name;
@@ -888,6 +1003,7 @@ public partial class ProcessingViewModel : ViewModelBase
         }
 
         UpdateCanStartProcessing();
+        AcceptTagCommand.NotifyCanExecuteChanged();
     }
 
     partial void OnIsProcessingChanged(bool value)
@@ -909,6 +1025,30 @@ public partial class ProcessingViewModel : ViewModelBase
 
         RefreshSourceActionState();
         CancelOverrideCommand.NotifyCanExecuteChanged();
+    }
+
+    partial void OnTagDataDateChanged(DateTime? value)
+    {
+        TagAccepted = false;
+        GenerateTagCommand.NotifyCanExecuteChanged();
+        if (!_isUpdatingTagDraft && !string.IsNullOrWhiteSpace(TagDraft))
+        {
+            TagStatus = "Tag date changed. Generate tags to update.";
+        }
+    }
+
+    partial void OnTagDraftChanged(string value)
+    {
+        AcceptTagCommand.NotifyCanExecuteChanged();
+        if (_isUpdatingTagDraft)
+        {
+            return;
+        }
+
+        TagAccepted = false;
+        TagStatus = string.IsNullOrWhiteSpace(value)
+            ? "No tag generated"
+            : "Tag edited. Click Accept to apply.";
     }
 
     partial void OnOverrideProfileChanged(Profile? value)
