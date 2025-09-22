@@ -1754,6 +1754,8 @@ public class UnifiedProcessor
             return string.Empty;
         }
 
+        var includeLinkedContact = contacts.Any(c => !string.IsNullOrWhiteSpace(c.LinkedContactId));
+
         var filePath = Path.Combine(outputPath, fileName);
         await using var stream = new FileStream(filePath, FileMode.Create, FileAccess.Write, FileShare.Read);
         await using var writer = new Utf8JsonWriter(stream, new JsonWriterOptions { Indented = true });
@@ -1767,7 +1769,10 @@ public class UnifiedProcessor
             writer.WriteString("LastName", contact.LastName);
             writer.WriteString("Email", contact.Email);
             writer.WriteString("Company", contact.Company);
-            writer.WriteString("LinkedContactId", contact.LinkedContactId);
+            if (includeLinkedContact)
+            {
+                writer.WriteString("LinkedContactId", contact.LinkedContactId);
+            }
             writer.WriteString("AssociationLabel", contact.AssociationLabel);
             writer.WriteString("DataSource", contact.DataSource);
             writer.WriteString("DataType", contact.DataType);
@@ -1897,6 +1902,8 @@ public class UnifiedProcessor
             return string.Empty;
         }
 
+        var includeLinkedContact = contacts.Any(c => !string.IsNullOrWhiteSpace(c.LinkedContactId));
+
         var filePath = Path.Combine(outputPath, fileName);
 
         using var writer = new StreamWriter(filePath, false, Encoding.UTF8);
@@ -1910,7 +1917,10 @@ public class UnifiedProcessor
         csv.WriteField("Last Name");
         csv.WriteField("Email");
         csv.WriteField("Company");
-        csv.WriteField("Linked Contact ID");
+        if (includeLinkedContact)
+        {
+            csv.WriteField("Linked Contact ID");
+        }
         csv.WriteField("Association Label");
         csv.WriteField("Data Source");
         csv.WriteField("Data Type");
@@ -1927,7 +1937,10 @@ public class UnifiedProcessor
             csv.WriteField(contact.LastName);
             csv.WriteField(contact.Email);
             csv.WriteField(contact.Company);
-            csv.WriteField(contact.LinkedContactId ?? string.Empty);
+            if (includeLinkedContact)
+            {
+                csv.WriteField(contact.LinkedContactId ?? string.Empty);
+            }
             csv.WriteField(contact.AssociationLabel);
             csv.WriteField(contact.DataSource);
             csv.WriteField(contact.DataType);

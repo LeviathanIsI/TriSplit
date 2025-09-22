@@ -22,23 +22,50 @@ public class ExcelExporter : IExcelExporter
     public async Task<string> WriteContactsAsync(string outputDirectory, string fileName, IEnumerable<ContactRecord> records, CancellationToken cancellationToken)
     {
         var data = Materialize(records, out var rowCount);
-        var headers = new[] { "Import ID", "First Name", "Last Name", "Email", "Company", "Linked Contact ID", "Association Label", "Data Source", "Data Type", "Tags", "Is Secondary" };
-        var rows = data.Select(r => new[]
+        var includeLinkedContact = data.Any(r => !string.IsNullOrWhiteSpace(r.LinkedContactId));
+
+        var headers = new List<string>
         {
-            r.ImportId,
-            r.FirstName,
-            r.LastName,
-            r.Email,
-            r.Company,
-            r.LinkedContactId,
-            r.AssociationLabel,
-            r.DataSource,
-            r.DataType,
-            r.Tags,
-            r.IsSecondary ? "Yes" : "No"
+            "Import ID",
+            "First Name",
+            "Last Name",
+            "Email",
+            "Company"
+        };
+
+        if (includeLinkedContact)
+        {
+            headers.Add("Linked Contact ID");
+        }
+
+        headers.AddRange(new[] { "Association Label", "Data Source", "Data Type", "Tags", "Is Secondary" });
+
+        var rows = data.Select(r =>
+        {
+            var values = new List<string>
+            {
+                r.ImportId,
+                r.FirstName,
+                r.LastName,
+                r.Email,
+                r.Company
+            };
+
+            if (includeLinkedContact)
+            {
+                values.Add(r.LinkedContactId);
+            }
+
+            values.Add(r.AssociationLabel);
+            values.Add(r.DataSource);
+            values.Add(r.DataType);
+            values.Add(r.Tags);
+            values.Add(r.IsSecondary ? "Yes" : "No");
+
+            return values.ToArray();
         });
 
-        return await WriteWorksheetAsync(outputDirectory, fileName, "Contacts", headers, rows, rowCount, headers.Length, cancellationToken).ConfigureAwait(false);
+        return await WriteWorksheetAsync(outputDirectory, fileName, "Contacts", headers, rows, rowCount, headers.Count, cancellationToken).ConfigureAwait(false);
     }
 
     public async Task<string> WritePhonesAsync(string outputDirectory, string fileName, IEnumerable<PhoneRecord> records, CancellationToken cancellationToken)
