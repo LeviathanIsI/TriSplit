@@ -31,6 +31,7 @@ public partial class ProfilesViewModel : ViewModelBase
     private string? _currentHeaderSourcePath;
     private List<string> _pendingHeaderSignature = new();
     private bool _suppressNewSourcePrompt;
+    private bool _isSessionSyncInProgress;
 
     private static readonly Dictionary<string, string> SynonymMap = new(StringComparer.OrdinalIgnoreCase)
     {
@@ -173,6 +174,7 @@ public partial class ProfilesViewModel : ViewModelBase
         _sampleLoader = sampleLoader;
         _profileMetadataRepository = profileMetadataRepository;
         _appSession.NewSourceRequested += OnNewSourceRequested;
+        _appSession.PropertyChanged += OnSessionPropertyChanged;
         _profileDetectionService = profileDetectionService;
 
         FieldMappings = new ObservableCollection<FieldMappingViewModel>();
@@ -1606,6 +1608,117 @@ public partial class ProfilesViewModel : ViewModelBase
 
         UpdateMappingCount();
     }
+
+    private async void OnSessionPropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(IAppSession.SelectedProfile))
+        {
+            await SyncSelectedProfileFromSessionAsync();
+        }
+        else if (e.PropertyName == nameof(IAppSession.LoadedFilePath))
+        {
+            await SyncLoadedFileFromSessionAsync();
+        }
+    }
+
+    private async Task SyncSelectedProfileFromSessionAsync()
+    {
+        if (_isSessionSyncInProgress)
+        {
+            return;
+        }
+
+        var sessionProfile = _appSession.SelectedProfile;
+        if (sessionProfile == null)
+        {
+            return;
+        }
+
+        if (!SavedProfiles.Any())
+        {
+            await LoadProfilesAsync();
+        }
+
+        var matching = SavedProfiles.FirstOrDefault(p => p.Id == sessionProfile.Id);
+        if (matching == null)
+        {
+            return;
+        }
+
+        if (SelectedProfile?.Id == matching.Id && PathsEqual(_appSession.LoadedFilePath, _currentHeaderSourcePath))
+        {
+            return;
+        }
+
+        try
+        {
+            _isSessionSyncInProgress = true;
+            SelectedProfile = matching;
+            await LoadProfileAsync();
+        }
+        finally
+        {
+            _isSessionSyncInProgress = false;
+        }
+    }
+
+    private async Task SyncLoadedFileFromSessionAsync()
+    {
+        if (_isSessionSyncInProgress)
+        {
+            return;
+        }
+
+        var filePath = _appSession.LoadedFilePath;
+        if (string.IsNullOrWhiteSpace(filePath) || !File.Exists(filePath))
+        {
+            return;
+        }
+
+        if (_appSession.SelectedProfile == null)
+        {
+            return;
+        }
+
+        if (PathsEqual(filePath, _currentHeaderSourcePath))
+        {
+            return;
+        }
+
+        try
+        {
+            _isSessionSyncInProgress = true;
+            await LoadHeaderSuggestionsAsync(filePath);
+        }
+        finally
+        {
+            _isSessionSyncInProgress = false;
+        }
+    }
+
+    private static bool PathsEqual(string? left, string? right)
+    {
+        if (string.IsNullOrWhiteSpace(left) || string.IsNullOrWhiteSpace(right))
+        {
+            return string.Equals(left?.Trim(), right?.Trim(), StringComparison.OrdinalIgnoreCase);
+        }
+
+        try
+        {
+            var normalizedLeft = Path.GetFullPath(left)
+                .TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+            var normalizedRight = Path.GetFullPath(right)
+                .TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+
+            return string.Equals(normalizedLeft, normalizedRight, StringComparison.OrdinalIgnoreCase);
+        }
+        catch
+        {
+            return string.Equals(left, right, StringComparison.OrdinalIgnoreCase);
+        }
+    }
+
+
 }
 
 
