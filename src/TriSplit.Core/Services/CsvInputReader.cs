@@ -21,7 +21,12 @@ public class CsvInputReader : IInputReader
         {
             HasHeaderRecord = true,
             TrimOptions = TrimOptions.Trim,
-            MissingFieldFound = null
+            MissingFieldFound = null,
+            BadDataFound = null,
+            DetectDelimiter = true,
+            DetectDelimiterValues = new[] { ",", ";", "\t", "|" },
+            IgnoreBlankLines = true,
+            ReadingExceptionOccurred = _ => false
         });
 
         await csv.ReadAsync();
