@@ -943,21 +943,25 @@ public partial class ProfilesViewModel : ViewModelBase
                 return;
             }
 
-            profile.Name = ProfileName;
-            profile.ContactMappings ??= new List<FieldMapping>();
-            profile.PropertyMappings ??= new List<FieldMapping>();
-            profile.PhoneMappings ??= new List<FieldMapping>();
+            var updatedProfile = new Profile
+            {
+                Id = profile.Id,
+                Name = ProfileName,
+                CreatedAt = profile.CreatedAt,
+                UpdatedAt = profile.UpdatedAt,
+                ContactPropertyDataSource = ContactPropertyDataSource?.Trim() ?? string.Empty,
+                PhoneDataSource = PhoneDataSource?.Trim() ?? string.Empty,
+                DataType = DataType?.Trim() ?? string.Empty,
+                TagNote = TagNote?.Trim() ?? string.Empty,
+                DefaultAssociationLabel = DefaultAssociationLabel?.Trim() ?? string.Empty,
+                DedupeSettings = profile.DedupeSettings,
+                Transforms = profile.Transforms,
+                ProcessingRules = profile.ProcessingRules,
+                MetadataFileName = profile.MetadataFileName,
+                SourceHeaders = profile.SourceHeaders
+            };
 
-            profile.ContactMappings.Clear();
-            profile.PropertyMappings.Clear();
-            profile.PhoneMappings.Clear();
-
-            profile.ContactPropertyDataSource = ContactPropertyDataSource?.Trim() ?? string.Empty;
-            profile.PhoneDataSource = PhoneDataSource?.Trim() ?? string.Empty;
-            profile.DataType = DataType?.Trim() ?? string.Empty;
-            profile.TagNote = TagNote?.Trim() ?? string.Empty;
-            profile.DefaultAssociationLabel = DefaultAssociationLabel?.Trim() ?? string.Empty;
-            var defaultAssociation = profile.DefaultAssociationLabel;
+            var defaultAssociation = updatedProfile.DefaultAssociationLabel;
 
             foreach (var mapping in FieldMappings.Where(m => !string.IsNullOrWhiteSpace(m.SourceField)))
             {
@@ -996,34 +1000,34 @@ public partial class ProfilesViewModel : ViewModelBase
                 switch (targetBucket)
                 {
                     case MappingObjectTypes.Property:
-                        profile.PropertyMappings.Add(fieldMapping);
+                        updatedProfile.PropertyMappings.Add(fieldMapping);
                         break;
                     case MappingObjectTypes.PhoneNumber:
-                        profile.PhoneMappings.Add(fieldMapping);
+                        updatedProfile.PhoneMappings.Add(fieldMapping);
                         break;
                     default:
-                        profile.ContactMappings.Add(fieldMapping);
+                        updatedProfile.ContactMappings.Add(fieldMapping);
                         break;
                 }
             }
 
-            var totalMappings = profile.ContactMappings.Count + profile.PropertyMappings.Count + profile.PhoneMappings.Count;
+            var totalMappings = updatedProfile.ContactMappings.Count + updatedProfile.PropertyMappings.Count + updatedProfile.PhoneMappings.Count;
 
             if (_pendingHeaderSignature.Count > 0)
             {
-                await _profileMetadataRepository.SaveMetadataAsync(profile, _pendingHeaderSignature);
-                profile.SourceHeaders = _pendingHeaderSignature.ToList();
+                await _profileMetadataRepository.SaveMetadataAsync(updatedProfile, _pendingHeaderSignature);
+                updatedProfile.SourceHeaders = _pendingHeaderSignature.ToList();
             }
 
-            await _profileStore.SaveProfileAsync(profile);
-            _loadedProfileId = profile.Id;
+            var savedProfile = await _profileStore.SaveProfileAsync(updatedProfile);
+            _loadedProfileId = savedProfile.Id;
             SaveProfileCommand.NotifyCanExecuteChanged();
             SaveProfileAsCommand.NotifyCanExecuteChanged();
 
             if (!isAutoSave)
             {
                 await LoadProfilesAsync();
-                SelectedProfile = SavedProfiles.FirstOrDefault(p => p.Id == profile.Id);
+                SelectedProfile = SavedProfiles.FirstOrDefault(p => p.Id == savedProfile.Id);
                 ProfileStatus = isUpdate
                     ? $"Data profile '{ProfileName}' updated with {totalMappings} mappings"
                     : $"Data profile '{ProfileName}' saved with {totalMappings} mappings";
@@ -1031,11 +1035,11 @@ public partial class ProfilesViewModel : ViewModelBase
             }
             else
             {
-                ProfileStatus = $"Autosaved '{profile.Name}' at {DateTime.Now:t}";
+                ProfileStatus = $"Autosaved '{savedProfile.Name}' at {DateTime.Now:t}";
                 AutosaveStatus = "*Auto-Saved*";
             }
 
-            _appSession.SelectedProfile = profile;
+            _appSession.SelectedProfile = savedProfile;
             _autosaveTimer?.Stop();
             IsDirty = false;
         }
