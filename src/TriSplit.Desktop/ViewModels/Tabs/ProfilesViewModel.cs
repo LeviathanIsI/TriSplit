@@ -98,6 +98,7 @@ public partial class ProfilesViewModel : ViewModelBase
     [ObservableProperty]
     private bool _canPasteBlock;
     public ObservableCollection<string> AssociationLabels { get; }
+    public ObservableCollection<string> DefaultAssociationOptions { get; }
     public ObservableCollection<string> HubSpotHeaders { get; }
     public ObservableCollection<string> ObjectTypes { get; }
 
@@ -253,11 +254,21 @@ public partial class ProfilesViewModel : ViewModelBase
         MappingSuggestions.CollectionChanged += (s, e) => UpdateSuggestionState();
 
         // Initialize Association Labels
-        AssociationLabels = new ObservableCollection<string>
+        DefaultAssociationOptions = new ObservableCollection<string>
         {
             string.Empty,
             "Owner",
             "Executor"
+        };
+
+        AssociationLabels = new ObservableCollection<string>
+        {
+            string.Empty,
+            "Owner",
+            "Executor",
+            "Mailing Address",
+            "Relative",
+            "Associate"
         };
 
         // Initialize HubSpot Headers (alphabetically sorted)
