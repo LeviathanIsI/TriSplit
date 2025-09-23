@@ -1949,7 +1949,6 @@ public class UnifiedProcessor
         {
             csv.WriteField("Linked Contact ID");
         }
-        csv.WriteField("Association Label");
         csv.WriteField("Data Source");
         csv.WriteField("Data Type");
         csv.WriteField("Tags");
@@ -1968,8 +1967,8 @@ public class UnifiedProcessor
             {
                 csv.WriteField(string.IsNullOrWhiteSpace(contact.LinkedContactId) ? string.Empty : contact.LinkedContactId);
             }
-            csv.WriteField(contact.AssociationLabel);
             csv.WriteField(contact.DataSource);
+            csv.WriteField(contact.DataType);
             csv.WriteField(contact.Tags);
             await csv.NextRecordAsync();
         }
