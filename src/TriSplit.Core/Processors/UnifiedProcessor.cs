@@ -359,7 +359,7 @@ public class UnifiedProcessor
         foreach (var mapping in contactMappings)
         {
             var association = ResolveAssociation(mapping.AssociationType);
-            var normalizedProperty = (mapping.HubSpotProperty ?? string.Empty).Trim().ToLowerInvariant();
+            var normalizedProperty = NormalizeContactProperty(mapping.HubSpotProperty);
             var value = GetValueFromMapping(row, mapping);
             if (string.IsNullOrWhiteSpace(value))
                 continue;
@@ -472,6 +472,47 @@ public class UnifiedProcessor
         }
 
         return contexts.FirstOrDefault(c => !string.IsNullOrWhiteSpace(c.FirstName) || !string.IsNullOrWhiteSpace(c.LastName));
+    }
+
+    private static string NormalizeContactProperty(string? property)
+    {
+        if (string.IsNullOrWhiteSpace(property))
+            return string.Empty;
+
+        var normalized = property.Trim().ToLowerInvariant();
+        var spaced = WhitespaceRegex.Replace(normalized.Replace('_', ' ').Replace('-', ' '), " " ).Trim();
+
+        bool ContainsToken(string token)
+        {
+            if (string.IsNullOrWhiteSpace(token))
+                return false;
+
+            if (spaced.Contains(token))
+                return true;
+
+            var compact = token.Replace(" ", string.Empty);
+            return normalized.Contains(compact);
+        }
+
+        if (ContainsToken("email"))
+            return "email";
+
+        if (ContainsToken("company") || ContainsToken("business name"))
+            return "company";
+
+        if (ContainsToken("first name"))
+            return "first name";
+
+        if (ContainsToken("last name") || ContainsToken("surname"))
+            return "last name";
+
+        if (ContainsToken("full name"))
+            return "full name";
+
+        if (spaced.EndsWith(" name") && !ContainsToken("company") && !ContainsToken("business"))
+            return "name";
+
+        return normalized;
     }
 
     private static void AssignContactFieldValue(ContactContext context, string property, string value)
