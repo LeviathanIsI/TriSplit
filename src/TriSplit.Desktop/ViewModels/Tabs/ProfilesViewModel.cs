@@ -900,13 +900,7 @@ public partial class ProfilesViewModel : ViewModelBase
             var selectedProfileId = SelectedProfile?.Profile.Id;
             if (!forceNewProfile && selectedProfileId.HasValue && (!_loadedProfileId.HasValue || _loadedProfileId.Value != selectedProfileId.Value))
             {
-                if (isAutoSave)
-                {
-                    return;
-                }
-
-                await _dialogService.ShowMessageAsync("Load Profile First", "Select and load the profile you want to modify before saving.");
-                return;
+                _loadedProfileId = selectedProfileId.Value;
             }
 
             if (!forceNewProfile && SelectedProfile != null && SelectedProfile.Profile.Id != Guid.Empty)
