@@ -1058,6 +1058,68 @@ public partial class ProfilesViewModel : ViewModelBase
         }
     }
 
+    private bool NormalizeDefaultAssociation(Profile profile, out string normalizedDefault)
+    {
+        normalizedDefault = profile.DefaultAssociationLabel?.Trim() ?? string.Empty;
+        var changed = false;
+
+        static string Normalize(string? value) => string.IsNullOrWhiteSpace(value) ? string.Empty : value.Trim();
+        static bool IsSupportedDefault(string? value) =>
+            string.Equals(value, "Owner", StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(value, "Executor", StringComparison.OrdinalIgnoreCase);
+
+        IEnumerable<FieldMapping> EnumerateMappings()
+        {
+            foreach (var mapping in profile.ContactMappings)
+                yield return mapping;
+            foreach (var mapping in profile.PropertyMappings)
+                yield return mapping;
+            foreach (var mapping in profile.PhoneMappings)
+                yield return mapping;
+        }
+
+        var allMappings = EnumerateMappings().ToList();
+
+        if (string.IsNullOrWhiteSpace(normalizedDefault))
+        {
+            var distinctAssociations = allMappings
+                .Select(m => Normalize(m.AssociationType))
+                .Where(value => !string.IsNullOrEmpty(value))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
+
+            if (distinctAssociations.Count == 1 && IsSupportedDefault(distinctAssociations[0]))
+            {
+                normalizedDefault = distinctAssociations[0];
+                changed = true;
+            }
+        }
+
+        if (!IsSupportedDefault(normalizedDefault))
+        {
+            normalizedDefault = string.Empty;
+        }
+
+        if (!string.IsNullOrWhiteSpace(normalizedDefault))
+        {
+            foreach (var mapping in allMappings)
+            {
+                var association = Normalize(mapping.AssociationType);
+                if (string.Equals(association, normalizedDefault, StringComparison.OrdinalIgnoreCase))
+                {
+                    if (!string.IsNullOrEmpty(mapping.AssociationType))
+                    {
+                        mapping.AssociationType = string.Empty;
+                        changed = true;
+                    }
+                }
+            }
+        }
+
+        profile.DefaultAssociationLabel = normalizedDefault;
+        return changed;
+    }
+
     [RelayCommand]
     private async Task LoadProfileAsync()
     {
@@ -1067,17 +1129,21 @@ public partial class ProfilesViewModel : ViewModelBase
             return;
         }
 
+        var normalizationApplied = false;
+        string normalizedDefault = string.Empty;
+
         try
         {
             _isLoadingProfile = true;
             ClearSuggestions();
             var profile = SelectedProfile.Profile;
+            normalizationApplied = NormalizeDefaultAssociation(profile, out normalizedDefault);
             ProfileName = profile.Name;
             ContactPropertyDataSource = profile.ContactPropertyDataSource ?? string.Empty;
             PhoneDataSource = profile.PhoneDataSource ?? string.Empty;
             DataType = profile.DataType ?? string.Empty;
             TagNote = profile.TagNote ?? string.Empty;
-            DefaultAssociationLabel = profile.DefaultAssociationLabel ?? string.Empty;
+            DefaultAssociationLabel = normalizedDefault;
 
             await LoadMetadataForProfileAsync(profile);
 
@@ -1133,14 +1199,13 @@ public partial class ProfilesViewModel : ViewModelBase
             }
 
             UpdateMappingCount();
-            ProfileStatus = $"Data profile '{profile.Name}' loaded with {loadedMappings} mappings";
+            ProfileStatus = normalizationApplied
+                ? $"Data profile '{profile.Name}' loaded with {loadedMappings} mappings. Default association '{normalizedDefault}' applied."
+                : $"Data profile '{profile.Name}' loaded with {loadedMappings} mappings";
             _appSession.SelectedProfile = profile;
             _loadedProfileId = profile.Id;
             SaveProfileCommand.NotifyCanExecuteChanged();
             SaveProfileAsCommand.NotifyCanExecuteChanged();
-            IsDirty = false;
-            _autosaveTimer?.Stop();
-            AutosaveStatus = string.Empty;
         }
         catch (Exception ex)
         {
@@ -1151,6 +1216,18 @@ public partial class ProfilesViewModel : ViewModelBase
             _isLoadingProfile = false;
             SaveProfileCommand.NotifyCanExecuteChanged();
             SaveProfileAsCommand.NotifyCanExecuteChanged();
+
+            if (normalizationApplied)
+            {
+                ProfileStatus = $"{ProfileStatus} Click Save to commit default association changes.";
+                MarkDirty();
+            }
+            else
+            {
+                IsDirty = false;
+                _autosaveTimer?.Stop();
+                AutosaveStatus = string.Empty;
+            }
         }
     }
 
