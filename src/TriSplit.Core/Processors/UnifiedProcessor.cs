@@ -736,7 +736,7 @@ public class UnifiedProcessor
         if (missingSurname.Count > 0)
         {
             var message = $"Additional owners associated but missing surname data for {string.Join(", ", missingSurname.Select(FormatContactSummary))}. Applied profile mappings without mailing label.";
-            ReportProgress(message, 0, ProcessingProgressSeverity.Warning);
+            ReportProgress(message, 0, ProcessingProgressSeverity.Info);
         }
 
         var differentSurname = ownerCandidates
