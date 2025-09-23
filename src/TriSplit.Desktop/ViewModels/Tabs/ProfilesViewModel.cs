@@ -5,6 +5,7 @@ using System.Collections.ObjectModel;
 using System.Collections.Generic;
 using System.Collections.Specialized;
 using System.ComponentModel;
+using System.Diagnostics;
 using System.Linq;
 using System.IO;
 using System.Text;
@@ -67,6 +68,7 @@ public partial class ProfilesViewModel : ViewModelBase
     private bool _isUpdatingMappingState;
     private bool _isLoadingProfile;
     private readonly TimeSpan _autosaveDelay = TimeSpan.FromSeconds(5);
+    private static readonly string ProfileSaveLogPath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "TriSplit", "Logs", "profile-save.log");
     private DispatcherTimer? _autosaveTimer;
     private bool _isAutosaving;
     private int _remainingAutosaveTime;
@@ -881,6 +883,97 @@ public partial class ProfilesViewModel : ViewModelBase
         return !_isLoadingProfile;
     }
 
+    private static void LogProfileSaveSnapshot(string stage, Profile? existingProfile, Profile snapshot, IEnumerable<FieldMappingViewModel> fieldMappings)
+    {
+        try
+        {
+            var mappingList = fieldMappings?.ToList() ?? new List<FieldMappingViewModel>();
+            var directory = Path.GetDirectoryName(ProfileSaveLogPath);
+            if (!string.IsNullOrEmpty(directory))
+            {
+                Directory.CreateDirectory(directory);
+            }
+
+            var sb = new StringBuilder();
+            sb.AppendLine(new string('-', 80));
+            sb.AppendLine($"{DateTime.Now:O} [{stage}] SaveProfileInternal");
+            sb.AppendLine($"ExistingProfileId={existingProfile?.Id}");
+            sb.AppendLine($"ExistingProfileFile={existingProfile?.FilePath}");
+            sb.AppendLine($"SnapshotProfileId={snapshot.Id}");
+            sb.AppendLine($"SnapshotProfileFile={snapshot.FilePath}");
+            sb.AppendLine($"ExistingDefault='{existingProfile?.DefaultAssociationLabel}'");
+            sb.AppendLine($"SnapshotDefault='{snapshot.DefaultAssociationLabel}'");
+            sb.AppendLine($"UI mapping count={mappingList.Count(m => !string.IsNullOrWhiteSpace(m.SourceField))}");
+            sb.AppendLine($"Snapshot contacts={snapshot.ContactMappings.Count}, properties={snapshot.PropertyMappings.Count}, phones={snapshot.PhoneMappings.Count}");
+
+            sb.AppendLine("UI preview:");
+            foreach (var mapping in mappingList.Where(m => !string.IsNullOrWhiteSpace(m.SourceField)).Take(25))
+            {
+                sb.AppendLine($"  {mapping.SourceField} | Assoc='{mapping.AssociationLabel}' | Type='{mapping.ObjectType}' | HubSpot='{mapping.HubSpotHeader}'");
+            }
+
+            sb.AppendLine("Property mappings preview:");
+            foreach (var mapping in snapshot.PropertyMappings.Take(25))
+            {
+                sb.AppendLine($"  {mapping.SourceColumn} | Assoc='{mapping.AssociationType}' | Obj='{mapping.ObjectType}' | HubSpot='{mapping.HubSpotProperty}'");
+            }
+
+            sb.AppendLine("Contact mappings preview:");
+            foreach (var mapping in snapshot.ContactMappings.Take(25))
+            {
+                sb.AppendLine($"  {mapping.SourceColumn} | Assoc='{mapping.AssociationType}' | Obj='{mapping.ObjectType}' | HubSpot='{mapping.HubSpotProperty}'");
+            }
+
+            sb.AppendLine("Phone mappings preview:");
+            foreach (var mapping in snapshot.PhoneMappings.Take(25))
+            {
+                sb.AppendLine($"  {mapping.SourceColumn} | Assoc='{mapping.AssociationType}' | Obj='{mapping.ObjectType}' | HubSpot='{mapping.HubSpotProperty}'");
+            }
+
+            File.AppendAllText(ProfileSaveLogPath, sb.ToString());
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"Failed to log profile save snapshot: {ex}");
+        }
+    }
+
+    private static void LogPersistedProfile(Profile savedProfile)
+    {
+        try
+        {
+            if (string.IsNullOrWhiteSpace(savedProfile.FilePath) || !File.Exists(savedProfile.FilePath))
+            {
+                return;
+            }
+
+            var directory = Path.GetDirectoryName(ProfileSaveLogPath);
+            if (!string.IsNullOrEmpty(directory))
+            {
+                Directory.CreateDirectory(directory);
+            }
+
+            var json = File.ReadAllText(savedProfile.FilePath);
+            var previewLength = Math.Min(json.Length, 4000);
+            var preview = json.Substring(0, previewLength);
+            if (previewLength < json.Length)
+            {
+                preview += "... (truncated)";
+            }
+
+            var sb = new StringBuilder();
+            sb.AppendLine(new string('-', 80));
+            sb.AppendLine($"{DateTime.Now:O} [file] {savedProfile.FilePath}");
+            sb.AppendLine(preview);
+
+            File.AppendAllText(ProfileSaveLogPath, sb.ToString());
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"Failed to log persisted profile: {ex}");
+        }
+    }
+
     private async Task SaveProfileInternalAsync(bool isAutoSave, bool forceNewProfile = false)
     {
         if (string.IsNullOrWhiteSpace(ProfileName))
@@ -963,6 +1056,8 @@ public partial class ProfilesViewModel : ViewModelBase
 
             var defaultAssociation = updatedProfile.DefaultAssociationLabel;
 
+            LogProfileSaveSnapshot("before-save", profile, updatedProfile, FieldMappings);
+
             foreach (var mapping in FieldMappings.Where(m => !string.IsNullOrWhiteSpace(m.SourceField)))
             {
                 var association = mapping.AssociationLabel?.Trim();
@@ -1020,6 +1115,8 @@ public partial class ProfilesViewModel : ViewModelBase
             }
 
             var savedProfile = await _profileStore.SaveProfileAsync(updatedProfile);
+            LogProfileSaveSnapshot("after-save", profile, savedProfile, FieldMappings);
+            LogPersistedProfile(savedProfile);
             _loadedProfileId = savedProfile.Id;
             SaveProfileCommand.NotifyCanExecuteChanged();
             SaveProfileAsCommand.NotifyCanExecuteChanged();
