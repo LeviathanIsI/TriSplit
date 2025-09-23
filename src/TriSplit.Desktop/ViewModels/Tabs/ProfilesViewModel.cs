@@ -963,10 +963,16 @@ public partial class ProfilesViewModel : ViewModelBase
             profile.DataType = DataType?.Trim() ?? string.Empty;
             profile.TagNote = TagNote?.Trim() ?? string.Empty;
             profile.DefaultAssociationLabel = DefaultAssociationLabel?.Trim() ?? string.Empty;
+            var defaultAssociation = profile.DefaultAssociationLabel;
 
             foreach (var mapping in FieldMappings.Where(m => !string.IsNullOrWhiteSpace(m.SourceField)))
             {
                 var association = mapping.AssociationLabel?.Trim();
+                if (!string.IsNullOrWhiteSpace(defaultAssociation) && string.Equals(association, defaultAssociation, StringComparison.OrdinalIgnoreCase))
+                {
+                    association = string.Empty;
+                }
+
                 var objectTypeValue = mapping.ObjectType?.Trim();
                 var normalizedObjectType = string.IsNullOrWhiteSpace(objectTypeValue)
                     ? string.Empty
