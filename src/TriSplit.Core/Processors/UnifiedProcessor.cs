@@ -709,8 +709,17 @@ public class UnifiedProcessor
             return;
         }
 
-        var sharedMailing = contexts
-            .Where(c => !ReferenceEquals(c, primaryContext) && c.SharesMailingWithPrimary)
+        var ownerCandidates = contexts
+            .Where(c => !ReferenceEquals(c, primaryContext) && !c.IsSecondary)
+            .ToList();
+
+        if (ownerCandidates.Count == 0)
+        {
+            return;
+        }
+
+        var sharedMailing = ownerCandidates
+            .Where(c => c.SharesMailingWithPrimary)
             .ToList();
 
         if (sharedMailing.Count > 0)
@@ -719,9 +728,8 @@ public class UnifiedProcessor
             ReportProgress(message, 0, ProcessingProgressSeverity.Info);
         }
 
-        var missingSurname = contexts
-            .Where(c => !ReferenceEquals(c, primaryContext)
-                && !c.SharesMailingWithPrimary
+        var missingSurname = ownerCandidates
+            .Where(c => !c.SharesMailingWithPrimary
                 && (string.IsNullOrWhiteSpace(c.LastName) || string.IsNullOrWhiteSpace(primaryContext.LastName)))
             .ToList();
 
@@ -731,9 +739,8 @@ public class UnifiedProcessor
             ReportProgress(message, 0, ProcessingProgressSeverity.Warning);
         }
 
-        var differentSurname = contexts
-            .Where(c => !ReferenceEquals(c, primaryContext)
-                && !c.SharesMailingWithPrimary
+        var differentSurname = ownerCandidates
+            .Where(c => !c.SharesMailingWithPrimary
                 && !string.IsNullOrWhiteSpace(c.LastName)
                 && !string.IsNullOrWhiteSpace(primaryContext.LastName)
                 && !HasSameSurname(c, primaryContext))
