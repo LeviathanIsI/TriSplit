@@ -149,6 +149,17 @@ public partial class ProfilesViewModel : ViewModelBase
     }
 
     [ObservableProperty]
+    private bool _createSecondaryContactsFile;
+
+    partial void OnCreateSecondaryContactsFileChanged(bool value)
+    {
+        if (_isLoadingProfile)
+            return;
+
+        MarkDirty();
+    }
+
+    [ObservableProperty]
     private string _tagNote = string.Empty;
 
     partial void OnTagNoteChanged(string value)
@@ -1046,6 +1057,7 @@ public partial class ProfilesViewModel : ViewModelBase
                 PhoneDataSource = PhoneDataSource?.Trim() ?? string.Empty,
                 DataType = DataType?.Trim() ?? string.Empty,
                 TagNote = TagNote?.Trim() ?? string.Empty,
+                CreateSecondaryContactsFile = CreateSecondaryContactsFile,
                 DefaultAssociationLabel = DefaultAssociationLabel?.Trim() ?? string.Empty,
                 DedupeSettings = profile.DedupeSettings,
                 Transforms = profile.Transforms,
@@ -1237,6 +1249,7 @@ public partial class ProfilesViewModel : ViewModelBase
             ContactPropertyDataSource = profile.ContactPropertyDataSource ?? string.Empty;
             PhoneDataSource = profile.PhoneDataSource ?? string.Empty;
             DataType = profile.DataType ?? string.Empty;
+            CreateSecondaryContactsFile = profile.CreateSecondaryContactsFile;
             TagNote = profile.TagNote ?? string.Empty;
             DefaultAssociationLabel = normalizedDefault;
 
@@ -1596,6 +1609,7 @@ public partial class ProfilesViewModel : ViewModelBase
         ContactPropertyDataSource = string.Empty;
         PhoneDataSource = string.Empty;
         DataType = string.Empty;
+        CreateSecondaryContactsFile = false;
         TagNote = string.Empty;
         DefaultAssociationLabel = string.Empty;
         FieldMappings.Clear();

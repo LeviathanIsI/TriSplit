@@ -6,6 +6,38 @@
              mc:Ignorable="d"
              d:DesignHeight="800" d:DesignWidth="1400"
              Background="{StaticResource BackgroundBrush}">
+  <UserControl.Resources>
+    <Style x:Key="TagDateCalendarDayButtonStyle" TargetType="CalendarDayButton" BasedOn="{StaticResource DarkCalendarDayButtonStyle}">
+      <Setter Property="Foreground" Value="{StaticResource TextBrush}"/>
+      <Setter Property="Background" Value="{StaticResource SurfaceBrush}"/>
+      <Setter Property="BorderBrush" Value="{StaticResource BorderBrush}"/>
+      <Setter Property="FontWeight" Value="SemiBold"/>
+      <Style.Triggers>
+        <Trigger Property="IsMouseOver" Value="True">
+          <Setter Property="Background" Value="{StaticResource HoverBrush}"/>
+          <Setter Property="Foreground" Value="{StaticResource BackgroundBrush}"/>
+        </Trigger>
+        <Trigger Property="IsSelected" Value="True">
+          <Setter Property="Background" Value="{StaticResource AccentBrush}"/>
+          <Setter Property="Foreground" Value="{StaticResource BackgroundBrush}"/>
+        </Trigger>
+        <Trigger Property="IsInactive" Value="True">
+          <Setter Property="Foreground" Value="{StaticResource TextBrush}"/>
+          <Setter Property="Opacity" Value="0.85"/>
+        </Trigger>
+        <Trigger Property="IsEnabled" Value="False">
+          <Setter Property="Opacity" Value="0.45"/>
+        </Trigger>
+      </Style.Triggers>
+    </Style>
+    <Style x:Key="TagDateCalendarStyle" TargetType="Calendar" BasedOn="{StaticResource DarkCalendarStyle}">
+      <Setter Property="CalendarDayButtonStyle" Value="{StaticResource TagDateCalendarDayButtonStyle}"/>
+      <Setter Property="Foreground" Value="{StaticResource TextBrush}"/>
+      <Setter Property="Background" Value="{StaticResource SurfaceBrush}"/>
+      <Setter Property="BorderBrush" Value="{StaticResource AccentBrush}"/>
+      <Setter Property="BorderThickness" Value="1"/>
+    </Style>
+  </UserControl.Resources>
 
   <Grid Margin="20">
     <Grid.RowDefinitions>
@@ -186,6 +218,11 @@
           <DatePicker Grid.Row="0"
                       Grid.Column="1"
                       SelectedDate="{Binding TagDataDate}"
+                      CalendarStyle="{StaticResource TagDateCalendarStyle}"
+                      Foreground="{StaticResource TextBrush}"
+                      Background="{StaticResource SurfaceBrush}"
+                      BorderBrush="{StaticResource AccentBrush}"
+                      BorderThickness="1"
                       Margin="0,0,10,0"
                       Height="32"/>
 

@@ -19,6 +19,7 @@ public class Profile
     public string PhoneDataSource { get; set; } = string.Empty;
     public string DataType { get; set; } = string.Empty;
     public string TagNote { get; set; } = string.Empty;
+    public bool CreateSecondaryContactsFile { get; set; }
     public string DefaultAssociationLabel { get; set; } = string.Empty;
 
     public DedupeSettings DedupeSettings { get; set; } = new();
@@ -67,3 +68,4 @@ public enum MergeStrategy
     PreferOlder,
     Manual
 }
+

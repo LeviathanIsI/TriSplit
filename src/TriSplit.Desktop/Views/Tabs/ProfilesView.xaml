@@ -58,6 +58,7 @@
             <ColumnDefinition Width="200"/>
             <ColumnDefinition Width="160"/>
             <ColumnDefinition Width="200"/>
+            <ColumnDefinition Width="200"/>
             <ColumnDefinition Width="Auto"/>
           </Grid.ColumnDefinitions>
 
@@ -66,9 +67,9 @@
           <TextBlock Grid.Row="0" Grid.Column="2" Text="Contact/Property Data Source" Foreground="{StaticResource SecondaryTextBrush}" Margin="0,0,10,2"/>
           <TextBlock Grid.Row="0" Grid.Column="3" Text="Phone Number Data Source" Foreground="{StaticResource SecondaryTextBrush}" Margin="0,0,10,2"/>
           <TextBlock Grid.Row="0" Grid.Column="4" Text="Data Type" Foreground="{StaticResource SecondaryTextBrush}" Margin="0,0,10,2"/>
-          <TextBlock Grid.Row="0" Grid.Column="5" Text="Tag Note" Foreground="{StaticResource SecondaryTextBrush}" Margin="0,0,10,2"/>
-          <TextBlock Grid.Row="0" Grid.Column="6" Text="Actions" Foreground="{StaticResource SecondaryTextBrush}" Margin="0,0,0,2"/>
-
+          <TextBlock Grid.Row="0" Grid.Column="5" Text="Create Secondary Contacts File" Foreground="{StaticResource SecondaryTextBrush}" Margin="0,0,10,2"/>
+          <TextBlock Grid.Row="0" Grid.Column="6" Text="Tag Note" Foreground="{StaticResource SecondaryTextBrush}" Margin="0,0,10,2"/>
+          <TextBlock Grid.Row="0" Grid.Column="7" Text="Actions" Foreground="{StaticResource SecondaryTextBrush}" Margin="0,0,0,2"/>
           <TextBox Grid.Row="1" Grid.Column="0"
                    Width="250"
                    Text="{Binding ProfileName}"
@@ -105,14 +106,20 @@
                    Padding="10,4"
                    VerticalAlignment="Center"
                    VerticalContentAlignment="Center"/>
-          <TextBox Grid.Row="1" Grid.Column="5"
+          <CheckBox Grid.Row="1" Grid.Column="5"
+                    IsChecked="{Binding CreateSecondaryContactsFile}"
+                    HorizontalAlignment="Center"
+                    VerticalAlignment="Center"
+                    Foreground="{StaticResource TextBrush}"
+                    ToolTip="When checked, TriSplit generates linked secondary contact exports."/>
+          <TextBox Grid.Row="1" Grid.Column="6"
                    Width="200"
                    Text="{Binding TagNote}"
                    Margin="0,0,10,0"
                    Padding="10,4"
                    VerticalAlignment="Center"
                    VerticalContentAlignment="Center"/>
-          <StackPanel Grid.Row="1" Grid.Column="6" Orientation="Horizontal" VerticalAlignment="Center">
+          <StackPanel Grid.Row="1" Grid.Column="7" Orientation="Horizontal" VerticalAlignment="Center">
             <Button Content="Save"
                     Command="{Binding SaveProfileCommand}"
                     Style="{StaticResource PrimaryButton}"

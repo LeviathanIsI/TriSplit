@@ -34,9 +34,19 @@ public class UnifiedProcessor
     private string _activeDataSource = string.Empty;
     private string _activePhoneDataSource = string.Empty;
     private string _activeDataType = string.Empty;
+    private readonly bool _createSecondaryContacts;
     private readonly string _defaultAssociationLabel;
 
     private const string MailingAssociationLabel = "Mailing Address";
+    private static readonly HashSet<string> MailingCoreFields = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "Address",
+        "City",
+        "State",
+        "Zip",
+        "County"
+    };
+
 
     private static readonly Regex WhitespaceRegex = new(@"\s+", RegexOptions.Compiled);
     private static readonly Regex NonDigitRegex = new(@"[^0-9]", RegexOptions.Compiled);
@@ -73,6 +83,7 @@ public class UnifiedProcessor
         _inputReader = inputReader;
         _excelExporter = excelExporter;
         _progress = progress;
+        _createSecondaryContacts = profile?.CreateSecondaryContactsFile ?? false;
         _defaultAssociationLabel = NormalizeAssociation(_profile.DefaultAssociationLabel);
     }
 
@@ -138,57 +149,63 @@ public class UnifiedProcessor
                 csvFiles.Add(await WriteContactsFileAsync(outputPath, "01_Primary_Contacts_Import.csv", false, cancellationToken));
                 csvFiles.Add(await WritePhonesFileAsync(outputPath, "02_Primary_Phone_Numbers_Import.csv", false, cancellationToken));
                 csvFiles.Add(await WritePropertiesFileAsync(outputPath, "03_Primary_Properties_Import.csv", false, cancellationToken));
-                var secondaryContactsCsv = await WriteContactsFileAsync(outputPath, "04_Secondary_Contacts_Import.csv", true, cancellationToken);
-                if (!string.IsNullOrEmpty(secondaryContactsCsv))
+                if (_createSecondaryContacts)
                 {
-                    csvFiles.Add(secondaryContactsCsv);
-                }
-                var secondaryPhonesCsv = await WritePhonesFileAsync(outputPath, "05_Secondary_Phone_Numbers_Import.csv", true, cancellationToken);
-                if (!string.IsNullOrEmpty(secondaryPhonesCsv))
-                {
-                    csvFiles.Add(secondaryPhonesCsv);
-                }
-                var secondaryPropertiesCsv = await WritePropertiesFileAsync(outputPath, "06_Secondary_Properties_Import.csv", true, cancellationToken);
-                if (!string.IsNullOrEmpty(secondaryPropertiesCsv))
-                {
-                    csvFiles.Add(secondaryPropertiesCsv);
+                    var secondaryContactsCsv = await WriteContactsFileAsync(outputPath, "04_Secondary_Contacts_Import.csv", true, cancellationToken);
+                    if (!string.IsNullOrEmpty(secondaryContactsCsv))
+                    {
+                        csvFiles.Add(secondaryContactsCsv);
+                    }
+                    var secondaryPhonesCsv = await WritePhonesFileAsync(outputPath, "05_Secondary_Phone_Numbers_Import.csv", true, cancellationToken);
+                    if (!string.IsNullOrEmpty(secondaryPhonesCsv))
+                    {
+                        csvFiles.Add(secondaryPhonesCsv);
+                    }
+                    var secondaryPropertiesCsv = await WritePropertiesFileAsync(outputPath, "06_Secondary_Properties_Import.csv", true, cancellationToken);
+                    if (!string.IsNullOrEmpty(secondaryPropertiesCsv))
+                    {
+                        csvFiles.Add(secondaryPropertiesCsv);
+                    }
                 }
             }
-
             if (options.OutputExcel)
             {
                 ReportProgress("Writing Excel exports...", 85);
                 excelFiles.Add(await WriteContactsExcelAsync(outputPath, "Contacts_Primary.xlsx", false, cancellationToken));
                 excelFiles.Add(await WritePhonesExcelAsync(outputPath, "Phones_Primary.xlsx", false, cancellationToken));
                 excelFiles.Add(await WritePropertiesExcelAsync(outputPath, "Properties_Primary.xlsx", false, cancellationToken));
-                var secondaryContactsExcel = await WriteContactsExcelAsync(outputPath, "Contacts_Secondary.xlsx", true, cancellationToken);
-                if (!string.IsNullOrEmpty(secondaryContactsExcel))
+                if (_createSecondaryContacts)
                 {
-                    excelFiles.Add(secondaryContactsExcel);
-                }
-                var secondaryPhonesExcel = await WritePhonesExcelAsync(outputPath, "Phones_Secondary.xlsx", true, cancellationToken);
-                if (!string.IsNullOrEmpty(secondaryPhonesExcel))
-                {
-                    excelFiles.Add(secondaryPhonesExcel);
-                }
-                var secondaryPropertiesExcel = await WritePropertiesExcelAsync(outputPath, "Properties_Secondary.xlsx", true, cancellationToken);
-                if (!string.IsNullOrEmpty(secondaryPropertiesExcel))
-                {
-                    excelFiles.Add(secondaryPropertiesExcel);
+                    var secondaryContactsExcel = await WriteContactsExcelAsync(outputPath, "Contacts_Secondary.xlsx", true, cancellationToken);
+                    if (!string.IsNullOrEmpty(secondaryContactsExcel))
+                    {
+                        excelFiles.Add(secondaryContactsExcel);
+                    }
+                    var secondaryPhonesExcel = await WritePhonesExcelAsync(outputPath, "Phones_Secondary.xlsx", true, cancellationToken);
+                    if (!string.IsNullOrEmpty(secondaryPhonesExcel))
+                    {
+                        excelFiles.Add(secondaryPhonesExcel);
+                    }
+                    var secondaryPropertiesExcel = await WritePropertiesExcelAsync(outputPath, "Properties_Secondary.xlsx", true, cancellationToken);
+                    if (!string.IsNullOrEmpty(secondaryPropertiesExcel))
+                    {
+                        excelFiles.Add(secondaryPropertiesExcel);
+                    }
                 }
             }
-
             if (options.OutputJson)
             {
                 ReportProgress("Writing JSON exports...", 90);
                 jsonFiles.Add(await WriteContactsJsonAsync(outputPath, "Contacts_Primary.json", false, cancellationToken));
                 jsonFiles.Add(await WritePhonesJsonAsync(outputPath, "Phones_Primary.json", false, cancellationToken));
                 jsonFiles.Add(await WritePropertiesJsonAsync(outputPath, "Properties_Primary.json", false, cancellationToken));
-                jsonFiles.Add(await WriteContactsJsonAsync(outputPath, "Contacts_Secondary.json", true, cancellationToken));
-                jsonFiles.Add(await WritePhonesJsonAsync(outputPath, "Phones_Secondary.json", true, cancellationToken));
-                jsonFiles.Add(await WritePropertiesJsonAsync(outputPath, "Properties_Secondary.json", true, cancellationToken));
+                if (_createSecondaryContacts)
+                {
+                    jsonFiles.Add(await WriteContactsJsonAsync(outputPath, "Contacts_Secondary.json", true, cancellationToken));
+                    jsonFiles.Add(await WritePhonesJsonAsync(outputPath, "Phones_Secondary.json", true, cancellationToken));
+                    jsonFiles.Add(await WritePropertiesJsonAsync(outputPath, "Properties_Secondary.json", true, cancellationToken));
+                }
             }
-
             ReportProgress("Processing complete!", 100);
 
             var primaryContactsCount = _contacts.Values.Count(c => !c.IsSecondary);
@@ -282,6 +299,7 @@ public class UnifiedProcessor
         }
 
         ApplyMailingInheritance(contexts, primaryContext);
+        EnsureMailingSnapshots(contexts);
 
         AssignImportId(primaryContext);
 
@@ -309,9 +327,9 @@ public class UnifiedProcessor
 
             var sharesMailing = ShouldShareMailingWithPrimary(context, primaryContext);
             context.SharesMailingWithPrimary = sharesMailing;
-            var isSecondaryAssociation = IsSecondaryAssociation(context.Association);
+            var isSecondaryAssociation = _createSecondaryContacts && IsSecondaryAssociation(context.Association);
             context.IsSecondary = isSecondaryAssociation;
-            context.LinkedContactId = (sharesMailing || isSecondaryAssociation) && !string.IsNullOrWhiteSpace(primaryImportId)
+            context.LinkedContactId = _createSecondaryContacts && (sharesMailing || isSecondaryAssociation) && !string.IsNullOrWhiteSpace(primaryImportId)
                 ? primaryImportId
                 : null;
         }
@@ -408,6 +426,17 @@ public class UnifiedProcessor
             if (!context.Mailing.HasCoreAddress && primaryContext.Mailing.HasCoreAddress)
             {
                 context.Mailing = primaryContext.Mailing;
+            }
+        }
+    }
+
+    private static void EnsureMailingSnapshots(IEnumerable<ContactContext> contexts)
+    {
+        foreach (var context in contexts)
+        {
+            if (!context.Mailing.HasCoreAddress && context.Property.HasCoreAddress)
+            {
+                context.Mailing = context.Property;
             }
         }
     }
@@ -585,18 +614,15 @@ public class UnifiedProcessor
     {
         var associationLabel = DeterminePropertyAssociationLabel(context, primaryContext);
 
-        if (!context.IsSecondary && context.Property.HasCoreAddress)
+        if ( !context.IsSecondary && context.Property.HasCoreAddress) 
         {
             PersistPropertySnapshot(context.ImportId, context.Property, associationLabel, context.IsSecondary);
         }
 
-        if (context.Mailing.HasCoreAddress)
+        var mailingSnapshot = context.Mailing.HasCoreAddress ? context.Mailing : context.Property;
+        if (mailingSnapshot.HasCoreAddress)
         {
-            PersistPropertySnapshot(context.ImportId, context.Mailing, MailingAssociationLabel, context.IsSecondary);
-        }
-        else if (context.IsSecondary && context.Property.HasCoreAddress)
-        {
-            PersistPropertySnapshot(context.ImportId, context.Property, MailingAssociationLabel, context.IsSecondary);
+            PersistPropertySnapshot(context.ImportId, mailingSnapshot, MailingAssociationLabel, context.IsSecondary);
         }
     }
     private bool ShouldShareMailingWithPrimary(ContactContext context, ContactContext primaryContext)
@@ -890,6 +916,7 @@ public class UnifiedProcessor
     private PropertySnapshot BuildPropertySnapshot(Dictionary<string, object> row, string? association)
     {
         var normalizedAssociation = ResolveAssociation(association);
+        var isMailing = string.Equals(normalizedAssociation, MailingAssociationLabel, StringComparison.OrdinalIgnoreCase);
 
         var address = string.Empty;
         var city = string.Empty;
@@ -922,7 +949,18 @@ public class UnifiedProcessor
             var rawValue = GetMappedValue(row, normalizedAssociation, propertyName, MappingObjectTypes.Property);
             var value = rawValue ?? string.Empty;
 
-            if (TryAssignCoreProperty(propertyName, value, ref address, ref city, ref state, ref zip, ref county, ref propertyType, ref propertyValue))
+            var coreKey = GetCorePropertyKey(propertyName);
+            if (isMailing && coreKey is not null && !MailingCoreFields.Contains(coreKey))
+            {
+                continue;
+            }
+
+            if (coreKey is not null && TryAssignCoreProperty(propertyName, value, ref address, ref city, ref state, ref zip, ref county, ref propertyType, ref propertyValue))
+            {
+                continue;
+            }
+
+            if (isMailing)
             {
                 continue;
             }
@@ -933,18 +971,20 @@ public class UnifiedProcessor
 
         return new PropertySnapshot(address, city, state, zip, county, propertyType, propertyValue, additionalFields);
     }
-
-
     private void PersistPropertySnapshot(string importId, PropertySnapshot snapshot, string associationLabel, bool isSecondary)
     {
-        if (!snapshot.HasCoreAddress)
+        var effectiveSnapshot = string.Equals(associationLabel, MailingAssociationLabel, StringComparison.OrdinalIgnoreCase)
+            ? snapshot.ForMailingOnly()
+            : snapshot;
+
+        if (!effectiveSnapshot.HasCoreAddress)
             return;
 
-        var key = BuildPropertyKey(importId, snapshot);
+        var key = BuildPropertyKey(importId, effectiveSnapshot);
 
-        if (!TryGetExistingPropertyRecord(importId, snapshot, key, out var existingKey, out var existing))
+        if (!TryGetExistingPropertyRecord(importId, effectiveSnapshot, key, out var existingKey, out var existing))
         {
-            var record = snapshot.ToPropertyRecord(importId, associationLabel, isSecondary);
+            var record = effectiveSnapshot.ToPropertyRecord(importId, associationLabel, isSecondary);
             foreach (var fieldName in record.AdditionalFields.Keys)
             {
                 RegisterAdditionalPropertyField(fieldName);
@@ -967,21 +1007,21 @@ public class UnifiedProcessor
         target.IsSecondary = target.IsSecondary || isSecondary;
 
         if (string.IsNullOrWhiteSpace(target.Address))
-            target.Address = snapshot.Address;
+            target.Address = effectiveSnapshot.Address;
         if (string.IsNullOrWhiteSpace(target.City))
-            target.City = snapshot.City;
+            target.City = effectiveSnapshot.City;
         if (string.IsNullOrWhiteSpace(target.State))
-            target.State = snapshot.State;
+            target.State = effectiveSnapshot.State;
         if (string.IsNullOrWhiteSpace(target.Zip))
-            target.Zip = snapshot.Zip;
+            target.Zip = effectiveSnapshot.Zip;
         if (string.IsNullOrWhiteSpace(target.County))
-            target.County = snapshot.County;
+            target.County = effectiveSnapshot.County;
         if (string.IsNullOrWhiteSpace(target.PropertyType))
-            target.PropertyType = snapshot.PropertyType;
+            target.PropertyType = effectiveSnapshot.PropertyType;
         if (string.IsNullOrWhiteSpace(target.PropertyValue))
-            target.PropertyValue = snapshot.PropertyValue;
+            target.PropertyValue = effectiveSnapshot.PropertyValue;
 
-        foreach (var pair in snapshot.AdditionalFields)
+        foreach (var pair in effectiveSnapshot.AdditionalFields)
         {
             RegisterAdditionalPropertyField(pair.Key);
 
@@ -1786,7 +1826,7 @@ public class UnifiedProcessor
             return string.Empty;
         }
 
-        var includeLinkedContact = contacts.Any(c => !string.IsNullOrWhiteSpace(c.LinkedContactId));
+        var includeLinkedContact = _createSecondaryContacts && contacts.Any(c => !string.IsNullOrWhiteSpace(c.LinkedContactId));
 
         var filePath = Path.Combine(outputPath, fileName);
         await using var stream = new FileStream(filePath, FileMode.Create, FileAccess.Write, FileShare.Read);
@@ -1805,8 +1845,8 @@ public class UnifiedProcessor
             {
                 writer.WriteString("LinkedContactId", contact.LinkedContactId);
             }
-                writer.WriteString("AssociationLabel", contact.AssociationLabel);
             writer.WriteString("DataSource", contact.DataSource);
+            writer.WriteString("DataType", contact.DataType);
             writer.WriteString("Tags", contact.Tags);
             writer.WriteEndObject();
         }
@@ -1930,7 +1970,7 @@ public class UnifiedProcessor
             return string.Empty;
         }
 
-        var includeLinkedContact = contacts.Any(c => !string.IsNullOrWhiteSpace(c.LinkedContactId));
+        var includeLinkedContact = _createSecondaryContacts && contacts.Any(c => !string.IsNullOrWhiteSpace(c.LinkedContactId));
 
         var filePath = Path.Combine(outputPath, fileName);
 
@@ -2134,6 +2174,11 @@ public class UnifiedProcessor
         }
 
         public static PropertySnapshot Empty { get; } = new(string.Empty, string.Empty, string.Empty, string.Empty, string.Empty, string.Empty, string.Empty, EmptyAdditionalFields);
+        public PropertySnapshot ForMailingOnly()
+        {
+            return new PropertySnapshot(Address, City, State, Zip, County, string.Empty, string.Empty, EmptyAdditionalFields);
+        }
+
 
         public string Address { get; }
         public string City { get; }
@@ -2260,12 +2305,6 @@ public enum ProcessingProgressSeverity
     Warning,
     Error
 }
-
-
-
-
-
-
 
 
 

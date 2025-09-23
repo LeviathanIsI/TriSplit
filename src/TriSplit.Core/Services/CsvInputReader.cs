@@ -1,6 +1,10 @@
+using System;
+using System.Collections.Generic;
+using System.Globalization;
+using System.IO;
+using System.Linq;
 using CsvHelper;
 using CsvHelper.Configuration;
-using System.Globalization;
 using TriSplit.Core.Interfaces;
 
 namespace TriSplit.Core.Services;
@@ -11,38 +15,56 @@ public class CsvInputReader : IInputReader
 
     public async Task<SampleData> ReadAsync(string filePath, int? limit = null)
     {
+        try
+        {
+            return await ReadWithConfigurationAsync(filePath, limit, ignoreQuotes: false).ConfigureAwait(false);
+        }
+        catch (CsvHelperException ex) when (ShouldRetryWithoutQuotes(ex))
+        {
+            return await ReadWithConfigurationAsync(filePath, limit, ignoreQuotes: true).ConfigureAwait(false);
+        }
+    }
+
+    private static bool ShouldRetryWithoutQuotes(CsvHelperException exception)
+    {
+        Exception? current = exception;
+        while (current is not null)
+        {
+            if (current is BadDataException || current is ParserException)
+            {
+                return true;
+            }
+
+            current = current.InnerException;
+        }
+
+        return false;
+    }
+
+    private async Task<SampleData> ReadWithConfigurationAsync(string filePath, int? limit, bool ignoreQuotes)
+    {
         var result = new SampleData
         {
             SourceFile = filePath
         };
 
         using var reader = new StreamReader(filePath);
-        using var csv = new CsvReader(reader, new CsvConfiguration(CultureInfo.InvariantCulture)
-        {
-            HasHeaderRecord = true,
-            TrimOptions = TrimOptions.Trim,
-            MissingFieldFound = null,
-            BadDataFound = null,
-            DetectDelimiter = true,
-            DetectDelimiterValues = new[] { ",", ";", "\t", "|" },
-            IgnoreBlankLines = true,
-            ReadingExceptionOccurred = _ => false
-        });
+        using var csv = new CsvReader(reader, CreateConfiguration(ignoreQuotes));
 
-        await csv.ReadAsync();
-        csv.ReadHeader();
-
-        if (csv.HeaderRecord != null)
+        if (await csv.ReadAsync().ConfigureAwait(false))
         {
-            result.Headers = csv.HeaderRecord.ToList();
+            csv.ReadHeader();
+            if (csv.HeaderRecord is not null)
+            {
+                result.Headers = csv.HeaderRecord.ToList();
+            }
         }
 
-        int rowCount = 0;
-        while (await csv.ReadAsync())
+        var rowCount = 0;
+        while (await csv.ReadAsync().ConfigureAwait(false))
         {
             if (limit.HasValue && rowCount >= limit.Value)
             {
-                // STOP reading the file - just use what we have
                 break;
             }
 
@@ -58,12 +80,34 @@ public class CsvInputReader : IInputReader
                     row[header] = string.Empty;
                 }
             }
+
             result.Rows.Add(row);
             rowCount++;
         }
 
-        // For preview, we only know the rows we've read
         result.TotalRows = rowCount;
         return result;
+    }
+
+    private static CsvConfiguration CreateConfiguration(bool ignoreQuotes)
+    {
+        var configuration = new CsvConfiguration(CultureInfo.InvariantCulture)
+        {
+            HasHeaderRecord = true,
+            TrimOptions = TrimOptions.Trim,
+            MissingFieldFound = null,
+            BadDataFound = null,
+            DetectDelimiter = true,
+            DetectDelimiterValues = new[] { ",", ";", "\t", "|" },
+            IgnoreBlankLines = true,
+            ReadingExceptionOccurred = _ => false
+        };
+
+        if (ignoreQuotes)
+        {
+            configuration.Mode = CsvMode.NoEscape;
+        }
+
+        return configuration;
     }
 }
