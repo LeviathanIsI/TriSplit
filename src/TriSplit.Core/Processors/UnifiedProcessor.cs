@@ -618,6 +618,12 @@ public class UnifiedProcessor
     {
         if (!existing.IsSecondary && !incoming.IsSecondary)
         {
+            if (MatchesIdentity(existing, incoming))
+            {
+                incoming.LinkedContactId ??= existing.ImportId;
+                return;
+            }
+
             if (incoming.SharesMailingWithPrimary)
             {
                 incoming.LinkedContactId ??= existing.ImportId;
@@ -641,6 +647,32 @@ public class UnifiedProcessor
         }
 
         existing.IsSecondary = true;
+    }
+
+    private static bool MatchesIdentity(ContactRecord record, ContactContext context)
+    {
+        bool EqualsOrdinal(string? left, string? right)
+        {
+            return string.Equals((left ?? string.Empty).Trim(), (right ?? string.Empty).Trim(), StringComparison.OrdinalIgnoreCase);
+        }
+
+        var namesMatch = !string.IsNullOrWhiteSpace(record.FirstName) && !string.IsNullOrWhiteSpace(record.LastName)
+            && EqualsOrdinal(record.FirstName, context.FirstName)
+            && EqualsOrdinal(record.LastName, context.LastName);
+
+        var emailMatch = !string.IsNullOrWhiteSpace(record.Email) && EqualsOrdinal(record.Email, context.Email);
+        var companyMatch = !string.IsNullOrWhiteSpace(record.Company) && EqualsOrdinal(record.Company, context.Company);
+
+        if (namesMatch)
+            return true;
+
+        if (!string.IsNullOrWhiteSpace(record.Email) || !string.IsNullOrWhiteSpace(context.Email))
+            return emailMatch;
+
+        if (!string.IsNullOrWhiteSpace(record.Company) || !string.IsNullOrWhiteSpace(context.Company))
+            return companyMatch;
+
+        return false;
     }
 
     private void LogPrimaryConflict(ContactRecord existing, ContactContext incoming)
