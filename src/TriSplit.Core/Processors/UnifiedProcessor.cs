@@ -106,6 +106,7 @@ public class UnifiedProcessor
         _properties.Clear();
         _contactImportIds.Clear();
 
+        InitializeAdditionalPhoneFieldRegistry();
         InitializeAdditionalPropertyFieldRegistry();
 
         var outputPath = ResolveOutputPath(inputFilePath, outputDirectory);
