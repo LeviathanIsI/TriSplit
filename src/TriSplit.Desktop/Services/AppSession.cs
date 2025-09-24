@@ -194,7 +194,7 @@ public class AppSession : IAppSession
                 return;
             }
 
-            _loadedFilePath = snapshot.LoadedFilePath;
+            _loadedFilePath = null;
             _outputCsv = snapshot.OutputCsv;
             _outputExcel = snapshot.OutputExcel;
             _outputJson = snapshot.OutputJson;
@@ -237,7 +237,6 @@ public class AppSession : IAppSession
             var snapshot = new SessionSnapshot
             {
                 SelectedProfileId = _lastProfileId,
-                LoadedFilePath = _loadedFilePath,
                 OutputCsv = _outputCsv,
                 OutputExcel = _outputExcel,
                 OutputJson = _outputJson
@@ -260,7 +259,6 @@ public class AppSession : IAppSession
     private sealed class SessionSnapshot
     {
         public Guid? SelectedProfileId { get; set; }
-        public string? LoadedFilePath { get; set; }
         public bool OutputCsv { get; set; } = true;
         public bool OutputExcel { get; set; }
         public bool OutputJson { get; set; }
