@@ -14,10 +14,19 @@ namespace TriSplit.Desktop;
 public partial class App : Application
 {
     private IHost? _host;
+    private SplashScreenWindow? _splashWindow;
+    private MainWindow? _mainWindow;
+    private bool _splashAnimationCompleted;
+    private bool _mainWindowReady;
+
 
     protected override void OnStartup(StartupEventArgs e)
     {
         base.OnStartup(e);
+
+        _splashWindow = new SplashScreenWindow();
+        _splashWindow.AnimationCompleted += OnSplashAnimationCompleted;
+        _splashWindow.Show();
 
         // Register encoding provider once at startup (for Excel reading)
         Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
@@ -69,9 +78,29 @@ public partial class App : Application
                 MessageBoxImage.Warning);
         }
 
-        var mainWindow = _host.Services.GetRequiredService<MainWindow>();
-        mainWindow.DataContext = _host.Services.GetRequiredService<MainWindowViewModel>();
-        mainWindow.Show();
+        _mainWindow = _host.Services.GetRequiredService<MainWindow>();
+        _mainWindow.DataContext = _host.Services.GetRequiredService<MainWindowViewModel>();
+        MainWindow = _mainWindow;
+        _mainWindowReady = true;
+        TryShowMainWindow();
+    }
+
+    private void OnSplashAnimationCompleted(object? sender, EventArgs e)
+    {
+        _splashAnimationCompleted = true;
+        TryShowMainWindow();
+    }
+
+    private void TryShowMainWindow()
+    {
+        if (!_splashAnimationCompleted || !_mainWindowReady || _mainWindow is null)
+        {
+            return;
+        }
+
+        _mainWindow.Show();
+        _splashWindow?.Close();
+        _splashWindow = null;
     }
 
     protected override void OnExit(ExitEventArgs e)
@@ -87,9 +116,10 @@ public partial class App : Application
 
         ApplicationLogger.LogShutdown();
         ApplicationLogger.Dispose();
+        _splashWindow?.Close();
+        _splashWindow = null;
         _host?.StopAsync();
         _host?.Dispose();
         base.OnExit(e);
     }
 }
-
