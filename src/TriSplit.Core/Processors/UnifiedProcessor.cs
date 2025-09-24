@@ -824,41 +824,52 @@ public class UnifiedProcessor
 
     private static string BuildContactAssociationLabel(ContactContext context)
     {
-        var tokens = SplitAssociationTokens(context.Association)
+        var rawTokens = SplitAssociationTokens(context.Association)
             .Where(token => !string.IsNullOrWhiteSpace(token))
             .ToList();
 
-        if (context.IsPrimary)
+        if (rawTokens.Count == 0)
         {
-            return string.Join("; ", tokens);
+            return string.Empty;
         }
 
-        tokens = tokens
+        if (context.IsPrimary)
+        {
+            return string.Join("; ", rawTokens);
+        }
+
+        var secondaryTokens = rawTokens
             .Where(token => !PrimaryAssociationTokens.Contains(token))
             .ToList();
 
-        if (context.SharesMailingWithPrimary)
+        if (secondaryTokens.Count == 0)
         {
-            var hasMailing = tokens.Any(token => string.Equals(token, MailingAssociationLabel, StringComparison.OrdinalIgnoreCase));
-            if (hasMailing)
-            {
-                tokens = tokens
-                    .Where(token => string.Equals(token, MailingAssociationLabel, StringComparison.OrdinalIgnoreCase))
-                    .ToList();
-            }
-            else
-            {
-                tokens.Add(MailingAssociationLabel);
-            }
-        }
-        else
-        {
-            tokens = tokens
-                .Where(token => SecondaryAssociationTokens.Contains(token))
-                .ToList();
+            secondaryTokens.AddRange(rawTokens);
         }
 
-        return string.Join("; ", tokens);
+        var associationTokens = secondaryTokens
+            .Where(token => SecondaryAssociationTokens.Contains(token))
+            .ToList();
+
+        if (associationTokens.Count == 0)
+        {
+            associationTokens = new List<string>(secondaryTokens);
+        }
+
+        if (context.SharesMailingWithPrimary)
+        {
+            if (!associationTokens.Any(token => string.Equals(token, MailingAssociationLabel, StringComparison.OrdinalIgnoreCase)))
+            {
+                associationTokens.Add(MailingAssociationLabel);
+            }
+        }
+
+        if (associationTokens.Count == 0)
+        {
+            associationTokens.Add(context.Association.Trim());
+        }
+
+        return string.Join("; ", associationTokens.Distinct(StringComparer.OrdinalIgnoreCase));
     }
 
     private void ProcessPhoneNumbers(Dictionary<string, object> row, List<ContactContext> contexts)
@@ -1413,17 +1424,20 @@ public class UnifiedProcessor
 
     private string DeterminePropertyAssociationLabel(ContactContext context, ContactContext primaryContext)
     {
-        if (context.IsSecondary)
-            return string.Empty;
-
-        if (!string.IsNullOrWhiteSpace(context.Association))
+        var contactLabel = BuildContactAssociationLabel(context);
+        if (!string.IsNullOrWhiteSpace(contactLabel))
         {
-            return context.Association.Trim();
+            return contactLabel;
         }
 
         if (!ReferenceEquals(context, primaryContext) && HasSameSurname(context, primaryContext))
         {
             return MailingAssociationLabel;
+        }
+
+        if (!string.IsNullOrWhiteSpace(context.Association))
+        {
+            return context.Association.Trim();
         }
 
         return string.Empty;
@@ -1968,6 +1982,7 @@ public class UnifiedProcessor
                 {
                     writer.WriteString("LinkedContactId", contact.LinkedContactId);
                 }
+                writer.WriteString("AssociationLabel", contact.AssociationLabel);
                 writer.WriteString("DataSource", contact.DataSource);
                 writer.WriteString("DataType", contact.DataType);
                 writer.WriteString("Tags", contact.Tags);
@@ -2177,6 +2192,7 @@ public class UnifiedProcessor
             {
                 csv.WriteField("Linked Contact ID");
             }
+            csv.WriteField("Association Label");
             csv.WriteField("Data Source");
             csv.WriteField("Data Type");
             csv.WriteField("Tags");
@@ -2195,6 +2211,7 @@ public class UnifiedProcessor
                 {
                     csv.WriteField(string.IsNullOrWhiteSpace(contact.LinkedContactId) ? string.Empty : contact.LinkedContactId);
                 }
+                csv.WriteField(contact.AssociationLabel);
                 csv.WriteField(contact.DataSource);
                 csv.WriteField(contact.DataType);
                 csv.WriteField(contact.Tags);
