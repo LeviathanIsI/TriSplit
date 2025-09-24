@@ -1127,6 +1127,7 @@ public partial class ProfilesViewModel : ViewModelBase
             }
 
             var savedProfile = await _profileStore.SaveProfileAsync(updatedProfile);
+            _profileDetectionService.InvalidateCache();
             LogProfileSaveSnapshot("after-save", profile, savedProfile, FieldMappings);
             LogPersistedProfile(savedProfile);
             _loadedProfileId = savedProfile.Id;

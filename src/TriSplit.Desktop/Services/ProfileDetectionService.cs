@@ -12,6 +12,7 @@ namespace TriSplit.Desktop.Services;
 public interface IProfileDetectionService
 {
     Task<ProfileDetectionResult> DetectProfileAsync(IReadOnlyList<string> headers, string? sourceFilePath, CancellationToken cancellationToken = default);
+    void InvalidateCache();
 }
 
 public class ProfileDetectionService : IProfileDetectionService
@@ -50,6 +51,14 @@ public class ProfileDetectionService : IProfileDetectionService
         }
 
         return StartDetectionAsync(signature, headers, sourceFilePath, cancellationToken);
+    }
+
+    public void InvalidateCache()
+    {
+        _lastDetectionSignature = null;
+        _lastDetectionResult = null;
+        _inFlightDetectionSignature = null;
+        _inFlightDetectionTask = null;
     }
 
     private Task<ProfileDetectionResult> StartDetectionAsync(string signature, IReadOnlyList<string> headers, string? sourceFilePath, CancellationToken cancellationToken)
