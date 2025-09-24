@@ -107,8 +107,11 @@ public class UnifiedProcessor
         var outputPath = ResolveOutputPath(inputFilePath, outputDirectory);
         Directory.CreateDirectory(outputPath);
 
+        string currentStage = "initializing";
+
         try
         {
+            currentStage = "configuring data sources";
             _activeDataSource = (_profile.ContactPropertyDataSource ?? string.Empty).Trim();
             _activePhoneDataSource = (_profile.PhoneDataSource ?? string.Empty).Trim();
             if (string.IsNullOrWhiteSpace(_activePhoneDataSource))
@@ -117,6 +120,7 @@ public class UnifiedProcessor
             }
             _activeDataType = (_profile.DataType ?? string.Empty).Trim();
             _activeTag = NormalizeTag(options.Tag) ?? NormalizeTag(_profile.TagNote);
+            currentStage = "reading input file";
             ReportProgress("Reading input file...", 10);
             var inputData = await _inputReader.ReadAsync(inputFilePath);
 
@@ -132,6 +136,8 @@ public class UnifiedProcessor
             {
                 cancellationToken.ThrowIfCancellationRequested();
 
+                var rowNumber = processedRows + 1;
+                currentStage = $"processing row {rowNumber}";
                 await ProcessRowAsync(row);
 
                 processedRows++;
@@ -145,22 +151,28 @@ public class UnifiedProcessor
 
             if (options.OutputCsv)
             {
+                currentStage = "writing primary contacts CSV";
                 ReportProgress("Writing CSV exports...", 80);
                 csvFiles.Add(await WriteContactsFileAsync(outputPath, "01_Primary_Contacts_Import.csv", false, cancellationToken));
+                currentStage = "writing primary phone CSV";
                 csvFiles.Add(await WritePhonesFileAsync(outputPath, "02_Primary_Phone_Numbers_Import.csv", false, cancellationToken));
+                currentStage = "writing primary property CSV";
                 csvFiles.Add(await WritePropertiesFileAsync(outputPath, "03_Primary_Properties_Import.csv", false, cancellationToken));
                 if (_createSecondaryContacts)
                 {
+                    currentStage = "writing secondary contacts CSV";
                     var secondaryContactsCsv = await WriteContactsFileAsync(outputPath, "04_Secondary_Contacts_Import.csv", true, cancellationToken);
                     if (!string.IsNullOrEmpty(secondaryContactsCsv))
                     {
                         csvFiles.Add(secondaryContactsCsv);
                     }
+                    currentStage = "writing secondary phone CSV";
                     var secondaryPhonesCsv = await WritePhonesFileAsync(outputPath, "05_Secondary_Phone_Numbers_Import.csv", true, cancellationToken);
                     if (!string.IsNullOrEmpty(secondaryPhonesCsv))
                     {
                         csvFiles.Add(secondaryPhonesCsv);
                     }
+                    currentStage = "writing secondary property CSV";
                     var secondaryPropertiesCsv = await WritePropertiesFileAsync(outputPath, "06_Secondary_Properties_Import.csv", true, cancellationToken);
                     if (!string.IsNullOrEmpty(secondaryPropertiesCsv))
                     {
@@ -170,22 +182,28 @@ public class UnifiedProcessor
             }
             if (options.OutputExcel)
             {
+                currentStage = "writing primary contacts Excel";
                 ReportProgress("Writing Excel exports...", 85);
                 excelFiles.Add(await WriteContactsExcelAsync(outputPath, "Contacts_Primary.xlsx", false, cancellationToken));
+                currentStage = "writing primary phone Excel";
                 excelFiles.Add(await WritePhonesExcelAsync(outputPath, "Phones_Primary.xlsx", false, cancellationToken));
+                currentStage = "writing primary property Excel";
                 excelFiles.Add(await WritePropertiesExcelAsync(outputPath, "Properties_Primary.xlsx", false, cancellationToken));
                 if (_createSecondaryContacts)
                 {
+                    currentStage = "writing secondary contacts Excel";
                     var secondaryContactsExcel = await WriteContactsExcelAsync(outputPath, "Contacts_Secondary.xlsx", true, cancellationToken);
                     if (!string.IsNullOrEmpty(secondaryContactsExcel))
                     {
                         excelFiles.Add(secondaryContactsExcel);
                     }
+                    currentStage = "writing secondary phone Excel";
                     var secondaryPhonesExcel = await WritePhonesExcelAsync(outputPath, "Phones_Secondary.xlsx", true, cancellationToken);
                     if (!string.IsNullOrEmpty(secondaryPhonesExcel))
                     {
                         excelFiles.Add(secondaryPhonesExcel);
                     }
+                    currentStage = "writing secondary property Excel";
                     var secondaryPropertiesExcel = await WritePropertiesExcelAsync(outputPath, "Properties_Secondary.xlsx", true, cancellationToken);
                     if (!string.IsNullOrEmpty(secondaryPropertiesExcel))
                     {
@@ -195,17 +213,24 @@ public class UnifiedProcessor
             }
             if (options.OutputJson)
             {
+                currentStage = "writing primary contacts JSON";
                 ReportProgress("Writing JSON exports...", 90);
                 jsonFiles.Add(await WriteContactsJsonAsync(outputPath, "Contacts_Primary.json", false, cancellationToken));
+                currentStage = "writing primary phone JSON";
                 jsonFiles.Add(await WritePhonesJsonAsync(outputPath, "Phones_Primary.json", false, cancellationToken));
+                currentStage = "writing primary property JSON";
                 jsonFiles.Add(await WritePropertiesJsonAsync(outputPath, "Properties_Primary.json", false, cancellationToken));
                 if (_createSecondaryContacts)
                 {
+                    currentStage = "writing secondary contacts JSON";
                     jsonFiles.Add(await WriteContactsJsonAsync(outputPath, "Contacts_Secondary.json", true, cancellationToken));
+                    currentStage = "writing secondary phone JSON";
                     jsonFiles.Add(await WritePhonesJsonAsync(outputPath, "Phones_Secondary.json", true, cancellationToken));
+                    currentStage = "writing secondary property JSON";
                     jsonFiles.Add(await WritePropertiesJsonAsync(outputPath, "Properties_Secondary.json", true, cancellationToken));
                 }
             }
+            currentStage = "finalizing run";
             ReportProgress("Processing complete!", 100);
 
             var primaryContactsCount = _contacts.Values.Count(c => !c.IsSecondary);
@@ -215,6 +240,7 @@ public class UnifiedProcessor
             var primaryPropertiesCount = _properties.Values.Count(p => !p.IsSecondary);
             var secondaryPropertiesCount = _properties.Values.Count(p => p.IsSecondary);
 
+            currentStage = "writing summary report";
             var summaryPath = await WriteSummaryReportAsync(outputPath, processedRows, primaryContactsCount, secondaryContactsCount, primaryPhonesCount, secondaryPhonesCount, primaryPropertiesCount, secondaryPropertiesCount).ConfigureAwait(false);
 
             return new ProcessingResult
@@ -241,7 +267,9 @@ public class UnifiedProcessor
         }
         catch (Exception ex)
         {
-            ReportProgress($"Error: {ex.Message}", -1, ProcessingProgressSeverity.Error);
+            var detailedMessage = $"Error during {currentStage}: {ex.GetType().Name} - {ex.Message}";
+            ReportProgress(detailedMessage, -1, ProcessingProgressSeverity.Error);
+            await WriteFailureLogAsync(outputPath, ex, currentStage).ConfigureAwait(false);
             return new ProcessingResult
             {
                 Success = false,
@@ -1909,30 +1937,37 @@ public class UnifiedProcessor
         var includeLinkedContact = _createSecondaryContacts && contacts.Any(c => !string.IsNullOrWhiteSpace(c.LinkedContactId));
 
         var filePath = Path.Combine(outputPath, fileName);
-        await using var stream = new FileStream(filePath, FileMode.Create, FileAccess.Write, FileShare.Read);
-        await using var writer = new Utf8JsonWriter(stream, new JsonWriterOptions { Indented = true });
-        writer.WriteStartArray();
-        foreach (var contact in contacts)
+        try
         {
-            cancellationToken.ThrowIfCancellationRequested();
-            writer.WriteStartObject();
-            writer.WriteString("ImportId", contact.ImportId);
-            writer.WriteString("FirstName", contact.FirstName);
-            writer.WriteString("LastName", contact.LastName);
-            writer.WriteString("Email", contact.Email);
-            writer.WriteString("Company", contact.Company);
-            if (includeLinkedContact && !string.IsNullOrWhiteSpace(contact.LinkedContactId))
+            await using var stream = new FileStream(filePath, FileMode.Create, FileAccess.Write, FileShare.Read);
+            await using var writer = new Utf8JsonWriter(stream, new JsonWriterOptions { Indented = true });
+            writer.WriteStartArray();
+            foreach (var contact in contacts)
             {
-                writer.WriteString("LinkedContactId", contact.LinkedContactId);
+                cancellationToken.ThrowIfCancellationRequested();
+                writer.WriteStartObject();
+                writer.WriteString("ImportId", contact.ImportId);
+                writer.WriteString("FirstName", contact.FirstName);
+                writer.WriteString("LastName", contact.LastName);
+                writer.WriteString("Email", contact.Email);
+                writer.WriteString("Company", contact.Company);
+                if (includeLinkedContact && !string.IsNullOrWhiteSpace(contact.LinkedContactId))
+                {
+                    writer.WriteString("LinkedContactId", contact.LinkedContactId);
+                }
+                writer.WriteString("DataSource", contact.DataSource);
+                writer.WriteString("DataType", contact.DataType);
+                writer.WriteString("Tags", contact.Tags);
+                writer.WriteEndObject();
             }
-            writer.WriteString("DataSource", contact.DataSource);
-            writer.WriteString("DataType", contact.DataType);
-            writer.WriteString("Tags", contact.Tags);
-            writer.WriteEndObject();
+            writer.WriteEndArray();
+            await writer.FlushAsync(cancellationToken).ConfigureAwait(false);
+            return filePath;
         }
-        writer.WriteEndArray();
-        await writer.FlushAsync(cancellationToken).ConfigureAwait(false);
-        return filePath;
+        catch (IOException ex)
+        {
+            throw new IOException($"Failed writing contacts JSON '{filePath}': {ex.Message}", ex);
+        }
     }
 
     private async Task<string> WritePhonesJsonAsync(string outputPath, string fileName, bool isSecondary, CancellationToken cancellationToken)
@@ -1944,21 +1979,28 @@ public class UnifiedProcessor
         }
 
         var filePath = Path.Combine(outputPath, fileName);
-        await using var stream = new FileStream(filePath, FileMode.Create, FileAccess.Write, FileShare.Read);
-        await using var writer = new Utf8JsonWriter(stream, new JsonWriterOptions { Indented = true });
-        writer.WriteStartArray();
-        foreach (var phone in phones)
+        try
         {
-            cancellationToken.ThrowIfCancellationRequested();
-            writer.WriteStartObject();
-            writer.WriteString("ImportId", phone.ImportId);
-            writer.WriteString("PhoneNumber", phone.PhoneNumber);
-            writer.WriteString("DataSource", phone.DataSource);
-            writer.WriteEndObject();
+            await using var stream = new FileStream(filePath, FileMode.Create, FileAccess.Write, FileShare.Read);
+            await using var writer = new Utf8JsonWriter(stream, new JsonWriterOptions { Indented = true });
+            writer.WriteStartArray();
+            foreach (var phone in phones)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                writer.WriteStartObject();
+                writer.WriteString("ImportId", phone.ImportId);
+                writer.WriteString("PhoneNumber", phone.PhoneNumber);
+                writer.WriteString("DataSource", phone.DataSource);
+                writer.WriteEndObject();
+            }
+            writer.WriteEndArray();
+            await writer.FlushAsync(cancellationToken).ConfigureAwait(false);
+            return filePath;
         }
-        writer.WriteEndArray();
-        await writer.FlushAsync(cancellationToken).ConfigureAwait(false);
-        return filePath;
+        catch (IOException ex)
+        {
+            throw new IOException($"Failed writing phone JSON '{filePath}': {ex.Message}", ex);
+        }
     }
 
     private async Task<string> WritePropertiesJsonAsync(string outputPath, string fileName, bool isSecondary, CancellationToken cancellationToken)
@@ -1970,37 +2012,72 @@ public class UnifiedProcessor
         }
 
         var filePath = Path.Combine(outputPath, fileName);
-        await using var stream = new FileStream(filePath, FileMode.Create, FileAccess.Write, FileShare.Read);
-        await using var writer = new Utf8JsonWriter(stream, new JsonWriterOptions { Indented = true });
-        writer.WriteStartArray();
-        foreach (var property in properties)
+        try
         {
-            cancellationToken.ThrowIfCancellationRequested();
-            writer.WriteStartObject();
-            writer.WriteString("ImportId", property.ImportId);
-            writer.WriteString("Address", property.Address);
-            writer.WriteString("City", property.City);
-            writer.WriteString("State", property.State);
-            writer.WriteString("Zip", property.Zip);
-            writer.WriteString("County", property.County);
-            writer.WriteString("PropertyType", property.PropertyType);
-            writer.WriteString("PropertyValue", property.PropertyValue);
-            writer.WriteString("AssociationLabel", property.AssociationLabel);
-            writer.WriteString("DataSource", property.DataSource);
-            writer.WriteString("DataType", property.DataType);
-            writer.WriteString("Tags", property.Tags);
-            writer.WritePropertyName("AdditionalFields");
-            writer.WriteStartObject();
-            foreach (var kvp in property.AdditionalFields)
+            await using var stream = new FileStream(filePath, FileMode.Create, FileAccess.Write, FileShare.Read);
+            await using var writer = new Utf8JsonWriter(stream, new JsonWriterOptions { Indented = true });
+            writer.WriteStartArray();
+            foreach (var property in properties)
             {
-                writer.WriteString(kvp.Key, kvp.Value);
+                cancellationToken.ThrowIfCancellationRequested();
+                writer.WriteStartObject();
+                writer.WriteString("ImportId", property.ImportId);
+                writer.WriteString("Address", property.Address);
+                writer.WriteString("City", property.City);
+                writer.WriteString("State", property.State);
+                writer.WriteString("Zip", property.Zip);
+                writer.WriteString("County", property.County);
+                writer.WriteString("PropertyType", property.PropertyType);
+                writer.WriteString("PropertyValue", property.PropertyValue);
+                writer.WriteString("AssociationLabel", property.AssociationLabel);
+                writer.WriteString("DataSource", property.DataSource);
+                writer.WriteString("DataType", property.DataType);
+                writer.WriteString("Tags", property.Tags);
+                writer.WritePropertyName("AdditionalFields");
+                writer.WriteStartObject();
+                foreach (var kvp in property.AdditionalFields)
+                {
+                    writer.WriteString(kvp.Key, kvp.Value);
+                }
+                writer.WriteEndObject();
+                writer.WriteEndObject();
             }
-            writer.WriteEndObject();
-            writer.WriteEndObject();
+            writer.WriteEndArray();
+            await writer.FlushAsync(cancellationToken).ConfigureAwait(false);
+            return filePath;
         }
-        writer.WriteEndArray();
-        await writer.FlushAsync(cancellationToken).ConfigureAwait(false);
-        return filePath;
+        catch (IOException ex)
+        {
+            throw new IOException($"Failed writing property JSON '{filePath}': {ex.Message}", ex);
+        }
+    }
+
+    private static async Task WriteFailureLogAsync(string outputPath, Exception exception, string stage)
+    {
+        try
+        {
+            if (string.IsNullOrWhiteSpace(outputPath))
+                return;
+
+            Directory.CreateDirectory(outputPath);
+            var logPath = Path.Combine(outputPath, "processing-error.log");
+            var builder = new StringBuilder();
+            builder.AppendLine($"[{DateTime.Now:O}] Stage: {stage}");
+            builder.AppendLine($"Exception: {exception.GetType().FullName}");
+            builder.AppendLine($"Message: {exception.Message}");
+            if (exception.InnerException != null)
+            {
+                builder.AppendLine($"Inner: {exception.InnerException.GetType().FullName} - {exception.InnerException.Message}");
+            }
+            builder.AppendLine("Stack Trace:");
+            builder.AppendLine(exception.StackTrace ?? "<none>");
+
+            await File.WriteAllTextAsync(logPath, builder.ToString()).ConfigureAwait(false);
+        }
+        catch
+        {
+            // Swallow logging failures; primary exception path already reported.
+        }
     }
 
     private async Task<string> WriteSummaryReportAsync(string outputPath, int processedRows, int primaryContacts, int secondaryContacts, int primaryPhones, int secondaryPhones, int primaryProperties, int secondaryProperties)
@@ -2015,9 +2092,16 @@ public class UnifiedProcessor
         };
 
         var filePath = Path.Combine(outputPath, "processing-summary.json");
-        var json = JsonSerializer.Serialize(summary, new JsonSerializerOptions { WriteIndented = true });
-        await File.WriteAllTextAsync(filePath, json).ConfigureAwait(false);
-        return filePath;
+        try
+        {
+            var json = JsonSerializer.Serialize(summary, new JsonSerializerOptions { WriteIndented = true });
+            await File.WriteAllTextAsync(filePath, json).ConfigureAwait(false);
+            return filePath;
+        }
+        catch (IOException ex)
+        {
+            throw new IOException($"Failed writing summary report '{filePath}': {ex.Message}", ex);
+        }
     }
 
     private IEnumerable<ContactRecord> GetContactsForExport(bool isSecondary)
@@ -2054,47 +2138,54 @@ public class UnifiedProcessor
 
         var filePath = Path.Combine(outputPath, fileName);
 
-        using var writer = new StreamWriter(filePath, false, Encoding.UTF8);
-        using var csv = new CsvWriter(writer, new CsvConfiguration(CultureInfo.InvariantCulture)
+        try
         {
-            HasHeaderRecord = true
-        });
+            using var writer = new StreamWriter(filePath, false, Encoding.UTF8);
+            using var csv = new CsvWriter(writer, new CsvConfiguration(CultureInfo.InvariantCulture)
+            {
+                HasHeaderRecord = true
+            });
 
-        csv.WriteField("Import ID");
-        csv.WriteField("First Name");
-        csv.WriteField("Last Name");
-        csv.WriteField("Email");
-        csv.WriteField("Company");
-        if (includeLinkedContact)
-        {
-            csv.WriteField("Linked Contact ID");
-        }
-        csv.WriteField("Data Source");
-        csv.WriteField("Data Type");
-        csv.WriteField("Tags");
-        await csv.NextRecordAsync();
-
-        foreach (var contact in contacts)
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-
-            csv.WriteField(contact.ImportId);
-            csv.WriteField(contact.FirstName);
-            csv.WriteField(contact.LastName);
-            csv.WriteField(contact.Email);
-            csv.WriteField(contact.Company);
+            csv.WriteField("Import ID");
+            csv.WriteField("First Name");
+            csv.WriteField("Last Name");
+            csv.WriteField("Email");
+            csv.WriteField("Company");
             if (includeLinkedContact)
             {
-                csv.WriteField(string.IsNullOrWhiteSpace(contact.LinkedContactId) ? string.Empty : contact.LinkedContactId);
+                csv.WriteField("Linked Contact ID");
             }
-            csv.WriteField(contact.DataSource);
-            csv.WriteField(contact.DataType);
-            csv.WriteField(contact.Tags);
+            csv.WriteField("Data Source");
+            csv.WriteField("Data Type");
+            csv.WriteField("Tags");
             await csv.NextRecordAsync();
-        }
 
-        await writer.FlushAsync();
-        return filePath;
+            foreach (var contact in contacts)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+
+                csv.WriteField(contact.ImportId);
+                csv.WriteField(contact.FirstName);
+                csv.WriteField(contact.LastName);
+                csv.WriteField(contact.Email);
+                csv.WriteField(contact.Company);
+                if (includeLinkedContact)
+                {
+                    csv.WriteField(string.IsNullOrWhiteSpace(contact.LinkedContactId) ? string.Empty : contact.LinkedContactId);
+                }
+                csv.WriteField(contact.DataSource);
+                csv.WriteField(contact.DataType);
+                csv.WriteField(contact.Tags);
+                await csv.NextRecordAsync();
+            }
+
+            await writer.FlushAsync();
+            return filePath;
+        }
+        catch (IOException ex)
+        {
+            throw new IOException($"Failed writing contacts CSV '{filePath}': {ex.Message}", ex);
+        }
     }
 
     private async Task<string> WritePhonesFileAsync(string outputPath, string fileName, bool isSecondary, CancellationToken cancellationToken)
@@ -2107,30 +2198,37 @@ public class UnifiedProcessor
 
         var filePath = Path.Combine(outputPath, fileName);
 
-        using var writer = new StreamWriter(filePath, false, Encoding.UTF8);
-        using var csv = new CsvWriter(writer, new CsvConfiguration(CultureInfo.InvariantCulture)
+        try
         {
-            HasHeaderRecord = true
-        });
+            using var writer = new StreamWriter(filePath, false, Encoding.UTF8);
+            using var csv = new CsvWriter(writer, new CsvConfiguration(CultureInfo.InvariantCulture)
+            {
+                HasHeaderRecord = true
+            });
 
-        csv.WriteField("Import ID");
-        csv.WriteField("Phone Number");
-        csv.WriteField("Data Source");
-        csv.WriteField("Is Secondary");
-        await csv.NextRecordAsync();
-
-        foreach (var phone in phones)
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-
-            csv.WriteField(phone.ImportId);
-            csv.WriteField(phone.PhoneNumber);
-            csv.WriteField(phone.DataSource);
+            csv.WriteField("Import ID");
+            csv.WriteField("Phone Number");
+            csv.WriteField("Data Source");
+            csv.WriteField("Is Secondary");
             await csv.NextRecordAsync();
-        }
 
-        await writer.FlushAsync();
-        return filePath;
+            foreach (var phone in phones)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+
+                csv.WriteField(phone.ImportId);
+                csv.WriteField(phone.PhoneNumber);
+                csv.WriteField(phone.DataSource);
+                await csv.NextRecordAsync();
+            }
+
+            await writer.FlushAsync();
+            return filePath;
+        }
+        catch (IOException ex)
+        {
+            throw new IOException($"Failed writing phone CSV '{filePath}': {ex.Message}", ex);
+        }
     }
 
     private async Task<string> WritePropertiesFileAsync(string outputPath, string fileName, bool isSecondary, CancellationToken cancellationToken)
@@ -2143,60 +2241,67 @@ public class UnifiedProcessor
 
         var filePath = Path.Combine(outputPath, fileName);
 
-        using var writer = new StreamWriter(filePath, false, Encoding.UTF8);
-        using var csv = new CsvWriter(writer, new CsvConfiguration(CultureInfo.InvariantCulture)
+        try
         {
-            HasHeaderRecord = true
-        });
+            using var writer = new StreamWriter(filePath, false, Encoding.UTF8);
+            using var csv = new CsvWriter(writer, new CsvConfiguration(CultureInfo.InvariantCulture)
+            {
+                HasHeaderRecord = true
+            });
 
-        csv.WriteField("Import ID");
-        csv.WriteField("Property Address");
-        csv.WriteField("City");
-        csv.WriteField("State");
-        csv.WriteField("Zip");
-        csv.WriteField("County");
-        csv.WriteField("Property Type");
-        csv.WriteField("Property Value");
-
-        foreach (var field in _additionalPropertyFieldOrder)
-        {
-            csv.WriteField(field);
-        }
-
-        csv.WriteField("Association Label");
-        csv.WriteField("Data Source");
-        csv.WriteField("Data Type");
-        csv.WriteField("Tags");
-        await csv.NextRecordAsync();
-
-        foreach (var property in properties)
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-
-            csv.WriteField(property.ImportId);
-            csv.WriteField(property.Address);
-            csv.WriteField(property.City);
-            csv.WriteField(property.State);
-            csv.WriteField(property.Zip);
-            csv.WriteField(property.County);
-            csv.WriteField(property.PropertyType);
-            csv.WriteField(property.PropertyValue);
+            csv.WriteField("Import ID");
+            csv.WriteField("Property Address");
+            csv.WriteField("City");
+            csv.WriteField("State");
+            csv.WriteField("Zip");
+            csv.WriteField("County");
+            csv.WriteField("Property Type");
+            csv.WriteField("Property Value");
 
             foreach (var field in _additionalPropertyFieldOrder)
             {
-                property.AdditionalFields.TryGetValue(field, out var value);
-                csv.WriteField(value ?? string.Empty);
+                csv.WriteField(field);
             }
 
-            csv.WriteField(property.AssociationLabel);
-            csv.WriteField(property.DataSource);
-            csv.WriteField(property.DataType);
-            csv.WriteField(property.Tags);
+            csv.WriteField("Association Label");
+            csv.WriteField("Data Source");
+            csv.WriteField("Data Type");
+            csv.WriteField("Tags");
             await csv.NextRecordAsync();
-        }
 
-        await writer.FlushAsync();
-        return filePath;
+            foreach (var property in properties)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+
+                csv.WriteField(property.ImportId);
+                csv.WriteField(property.Address);
+                csv.WriteField(property.City);
+                csv.WriteField(property.State);
+                csv.WriteField(property.Zip);
+                csv.WriteField(property.County);
+                csv.WriteField(property.PropertyType);
+                csv.WriteField(property.PropertyValue);
+
+                foreach (var field in _additionalPropertyFieldOrder)
+                {
+                    property.AdditionalFields.TryGetValue(field, out var value);
+                    csv.WriteField(value ?? string.Empty);
+                }
+
+                csv.WriteField(property.AssociationLabel);
+                csv.WriteField(property.DataSource);
+                csv.WriteField(property.DataType);
+                csv.WriteField(property.Tags);
+                await csv.NextRecordAsync();
+            }
+
+            await writer.FlushAsync();
+            return filePath;
+        }
+        catch (IOException ex)
+        {
+            throw new IOException($"Failed writing property CSV '{filePath}': {ex.Message}", ex);
+        }
     }
 
 
