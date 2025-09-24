@@ -86,14 +86,32 @@ public class ExcelExporter : IExcelExporter
         return await WriteWorksheetAsync(outputDirectory, fileName, "Phone Numbers", headers, rows, rowCount, headers.Length, cancellationToken).ConfigureAwait(false);
     }
 
-    public async Task<string> WritePropertiesAsync(string outputDirectory, string fileName, IEnumerable<PropertyRecord> records, IReadOnlyList<string> additionalFieldOrder, CancellationToken cancellationToken)
+    public async Task<string> WritePropertiesAsync(string outputDirectory, string fileName, IEnumerable<PropertyRecord> records, IReadOnlyList<string> additionalFieldOrder, bool includePropertyType, bool includePropertyValue, CancellationToken cancellationToken)
     {
         var data = Materialize(records, out var rowCount);
-        var baseHeaders = new[] { "Import ID", "Property Address", "City", "State", "Zip", "County", "Property Type", "Property Value" };
-        var headers = baseHeaders
-            .Concat(additionalFieldOrder)
-            .Concat(new[] { "Association Label", "Data Source", "Data Type", "Tags" })
-            .ToArray();
+
+        var headers = new List<string>
+        {
+            "Import ID",
+            "Property Address",
+            "City",
+            "State",
+            "Zip",
+            "County"
+        };
+
+        if (includePropertyType)
+        {
+            headers.Add("Property Type");
+        }
+
+        if (includePropertyValue)
+        {
+            headers.Add("Property Value");
+        }
+
+        headers.AddRange(additionalFieldOrder);
+        headers.AddRange(new[] { "Association Label", "Data Source", "Data Type", "Tags" });
 
         var rows = data.Select(record =>
         {
@@ -104,10 +122,18 @@ public class ExcelExporter : IExcelExporter
                 record.City,
                 record.State,
                 record.Zip,
-                record.County,
-                record.PropertyType,
-                record.PropertyValue
+                record.County
             };
+
+            if (includePropertyType)
+            {
+                baseValues.Add(record.PropertyType);
+            }
+
+            if (includePropertyValue)
+            {
+                baseValues.Add(record.PropertyValue);
+            }
 
             foreach (var field in additionalFieldOrder)
             {
@@ -122,7 +148,7 @@ public class ExcelExporter : IExcelExporter
             return baseValues.ToArray();
         });
 
-        return await WriteWorksheetAsync(outputDirectory, fileName, "Properties", headers, rows, rowCount, headers.Length, cancellationToken).ConfigureAwait(false);
+        return await WriteWorksheetAsync(outputDirectory, fileName, "Properties", headers, rows, rowCount, headers.Count, cancellationToken).ConfigureAwait(false);
     }
 
     private static IReadOnlyList<T> Materialize<T>(IEnumerable<T> source, out int count)

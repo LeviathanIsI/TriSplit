@@ -1933,7 +1933,10 @@ public class UnifiedProcessor
             return string.Empty;
         }
 
-        return await _excelExporter.WritePropertiesAsync(outputPath, fileName, properties, _additionalPropertyFieldOrder, cancellationToken).ConfigureAwait(false);
+        var includePropertyType = properties.Any(p => !string.IsNullOrWhiteSpace(p.PropertyType));
+        var includePropertyValue = properties.Any(p => !string.IsNullOrWhiteSpace(p.PropertyValue));
+
+        return await _excelExporter.WritePropertiesAsync(outputPath, fileName, properties, _additionalPropertyFieldOrder, includePropertyType, includePropertyValue, cancellationToken).ConfigureAwait(false);
     }
 
     private async Task<string> WriteContactsJsonAsync(string outputPath, string fileName, bool isSecondary, CancellationToken cancellationToken)
@@ -2021,6 +2024,9 @@ public class UnifiedProcessor
             return string.Empty;
         }
 
+        var includePropertyType = properties.Any(p => !string.IsNullOrWhiteSpace(p.PropertyType));
+        var includePropertyValue = properties.Any(p => !string.IsNullOrWhiteSpace(p.PropertyValue));
+
         var filePath = Path.Combine(outputPath, fileName);
         try
         {
@@ -2037,8 +2043,14 @@ public class UnifiedProcessor
                 writer.WriteString("State", property.State);
                 writer.WriteString("Zip", property.Zip);
                 writer.WriteString("County", property.County);
-                writer.WriteString("PropertyType", property.PropertyType);
-                writer.WriteString("PropertyValue", property.PropertyValue);
+                if (includePropertyType)
+                {
+                    writer.WriteString("PropertyType", property.PropertyType ?? string.Empty);
+                }
+                if (includePropertyValue)
+                {
+                    writer.WriteString("PropertyValue", property.PropertyValue ?? string.Empty);
+                }
                 writer.WriteString("AssociationLabel", property.AssociationLabel);
                 writer.WriteString("DataSource", property.DataSource);
                 writer.WriteString("DataType", property.DataType);
@@ -2249,6 +2261,9 @@ public class UnifiedProcessor
             return string.Empty;
         }
 
+        var includePropertyType = properties.Any(p => !string.IsNullOrWhiteSpace(p.PropertyType));
+        var includePropertyValue = properties.Any(p => !string.IsNullOrWhiteSpace(p.PropertyValue));
+
         var filePath = Path.Combine(outputPath, fileName);
 
         try
@@ -2265,8 +2280,14 @@ public class UnifiedProcessor
             csv.WriteField("State");
             csv.WriteField("Zip");
             csv.WriteField("County");
-            csv.WriteField("Property Type");
-            csv.WriteField("Property Value");
+            if (includePropertyType)
+            {
+                csv.WriteField("Property Type");
+            }
+            if (includePropertyValue)
+            {
+                csv.WriteField("Property Value");
+            }
 
             foreach (var field in _additionalPropertyFieldOrder)
             {
@@ -2289,8 +2310,14 @@ public class UnifiedProcessor
                 csv.WriteField(property.State);
                 csv.WriteField(property.Zip);
                 csv.WriteField(property.County);
-                csv.WriteField(property.PropertyType);
-                csv.WriteField(property.PropertyValue);
+                if (includePropertyType)
+                {
+                    csv.WriteField(property.PropertyType);
+                }
+                if (includePropertyValue)
+                {
+                    csv.WriteField(property.PropertyValue);
+                }
 
                 foreach (var field in _additionalPropertyFieldOrder)
                 {
