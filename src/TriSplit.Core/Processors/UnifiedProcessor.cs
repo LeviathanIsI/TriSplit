@@ -633,8 +633,7 @@ public class UnifiedProcessor
                 Company = context.Company,
                 LinkedContactId = NormalizeLinkedContactId(context.LinkedContactId, context.ImportId),
                 IsSecondary = context.IsSecondary,
-                AssociationLabel = BuildContactAssociationLabel(context),
-                Notes = string.Empty
+                AssociationLabel = BuildContactAssociationLabel(context)
             };
 
             _contacts[context.ImportId] = record;
@@ -1086,10 +1085,15 @@ public class UnifiedProcessor
             : snapshot;
 
         if (!effectiveSnapshot.HasCoreAddress)
-            return;
+        {
+            var hasAdditionalData = effectiveSnapshot.AdditionalFields.Any(kvp => !string.IsNullOrWhiteSpace(kvp.Value));
+            if (!hasAdditionalData)
+            {
+                return;
+            }
+        }
 
         var key = BuildPropertyKey(importId, effectiveSnapshot);
-
         if (!TryGetExistingPropertyRecord(importId, effectiveSnapshot, key, out var existingKey, out var existing))
         {
             var record = effectiveSnapshot.ToPropertyRecord(importId, associationLabel, isSecondary);
@@ -1712,11 +1716,6 @@ public class UnifiedProcessor
         record.DataSource = FormatAppendValue(_activeDataSource);
         record.DataType = FormatAppendValue(_activeDataType);
         record.Tags = FormatAppendValue(_activeTag);
-
-        if (string.IsNullOrWhiteSpace(record.Notes) && !string.IsNullOrWhiteSpace(_activeTag))
-        {
-            record.Notes = _activeTag!.Trim();
-        }
     }
 
     private void ApplyPropertyMetadata(PropertyRecord record)
@@ -2432,7 +2431,6 @@ public class ContactRecord
     public string LinkedContactId { get; set; } = string.Empty;
     public bool IsSecondary { get; set; }
     public string AssociationLabel { get; set; } = string.Empty;
-    public string Notes { get; set; } = string.Empty;
     public string DataSource { get; set; } = string.Empty;
     public string DataType { get; set; } = string.Empty;
     public string Tags { get; set; } = string.Empty;
