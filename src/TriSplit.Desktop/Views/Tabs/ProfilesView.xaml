@@ -52,7 +52,7 @@
             <RowDefinition Height="Auto"/>
           </Grid.RowDefinitions>
           <Grid.ColumnDefinitions>
-            <ColumnDefinition Width="250"/>
+            <ColumnDefinition Width="320"/>
             <ColumnDefinition Width="180"/>
             <ColumnDefinition Width="200"/>
             <ColumnDefinition Width="200"/>
@@ -147,7 +147,7 @@
     <!-- Main Content Area -->
     <Grid Grid.Row="1">
       <Grid.ColumnDefinitions>
-        <ColumnDefinition Width="250"/>
+        <ColumnDefinition Width="320"/>
         <ColumnDefinition Width="*"/>
       </Grid.ColumnDefinitions>
 
@@ -707,5 +707,6 @@
     </Border>
   </Grid>
 </UserControl>
+
 
 
