@@ -83,7 +83,7 @@ public class ExcelExporter : IExcelExporter
             "Phone Number"
         };
         headers.AddRange(additionalFieldOrder);
-        headers.AddRange(new[] { "Data Source", "Is Secondary" });
+        headers.Add("Data Source");
 
         var rows = data.Select(r =>
         {
@@ -100,7 +100,6 @@ public class ExcelExporter : IExcelExporter
             }
 
             values.Add(r.DataSource);
-            values.Add(r.IsSecondary ? "true" : "false");
 
             return values.ToArray();
         });

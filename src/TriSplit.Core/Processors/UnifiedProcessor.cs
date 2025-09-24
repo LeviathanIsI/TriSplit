@@ -829,52 +829,12 @@ public class UnifiedProcessor
 
     private static string BuildContactAssociationLabel(ContactContext context)
     {
-        var rawTokens = SplitAssociationTokens(context.Association)
-            .Where(token => !string.IsNullOrWhiteSpace(token))
-            .ToList();
-
-        if (rawTokens.Count == 0)
+        if (context.IsPrimary)
         {
             return string.Empty;
         }
 
-        if (context.IsPrimary)
-        {
-            return string.Join("; ", rawTokens);
-        }
-
-        var secondaryTokens = rawTokens
-            .Where(token => !PrimaryAssociationTokens.Contains(token))
-            .ToList();
-
-        if (secondaryTokens.Count == 0)
-        {
-            secondaryTokens.AddRange(rawTokens);
-        }
-
-        var associationTokens = secondaryTokens
-            .Where(token => SecondaryAssociationTokens.Contains(token))
-            .ToList();
-
-        if (associationTokens.Count == 0)
-        {
-            associationTokens = new List<string>(secondaryTokens);
-        }
-
-        if (context.SharesMailingWithPrimary)
-        {
-            if (!associationTokens.Any(token => string.Equals(token, MailingAssociationLabel, StringComparison.OrdinalIgnoreCase)))
-            {
-                associationTokens.Add(MailingAssociationLabel);
-            }
-        }
-
-        if (associationTokens.Count == 0)
-        {
-            associationTokens.Add(context.Association.Trim());
-        }
-
-        return string.Join("; ", associationTokens.Distinct(StringComparer.OrdinalIgnoreCase));
+        return NormalizeAssociation(context.Association);
     }
 
     private void ProcessPhoneNumbers(Dictionary<string, object> row, List<ContactContext> contexts)
@@ -925,6 +885,11 @@ public class UnifiedProcessor
             }
 
             var trimmedValue = NormalizeWhitespace(value);
+            if (string.IsNullOrWhiteSpace(trimmedValue))
+            {
+                continue;
+            }
+
             builder.SetAdditionalField(hubSpotProperty, trimmedValue);
             RegisterAdditionalPhoneField(hubSpotProperty);
         }
@@ -1198,8 +1163,14 @@ public class UnifiedProcessor
                 continue;
             }
 
+            var trimmedValue = value.Trim();
+            if (string.IsNullOrWhiteSpace(trimmedValue))
+            {
+                continue;
+            }
+
             RegisterAdditionalPropertyField(propertyName);
-            additionalFields[propertyName] = value.Trim();
+            additionalFields[propertyName] = trimmedValue;
         }
 
         return new PropertySnapshot(address, city, state, zip, county, propertyType, propertyValue, additionalFields);
@@ -1349,18 +1320,6 @@ public class UnifiedProcessor
     {
         _additionalPhoneFieldSet.Clear();
         _additionalPhoneFieldOrder.Clear();
-
-        foreach (var mapping in GetMappingsByObjectType(MappingObjectTypes.PhoneNumber))
-        {
-            var fieldName = mapping.HubSpotProperty?.Trim();
-            if (string.IsNullOrWhiteSpace(fieldName))
-                continue;
-
-            if (IsCorePhoneField(fieldName))
-                continue;
-
-            RegisterAdditionalPhoneField(fieldName);
-        }
     }
 
     private void RegisterAdditionalPhoneField(string fieldName)
@@ -1386,18 +1345,6 @@ public class UnifiedProcessor
     {
         _additionalPropertyFieldSet.Clear();
         _additionalPropertyFieldOrder.Clear();
-
-        foreach (var mapping in GetMappingsByObjectType(MappingObjectTypes.Property))
-        {
-            var fieldName = mapping.HubSpotProperty?.Trim();
-            if (string.IsNullOrWhiteSpace(fieldName))
-                continue;
-
-            if (GetCorePropertyKey(fieldName) != null)
-                continue;
-
-            RegisterAdditionalPropertyField(fieldName);
-        }
     }
 
     private void RegisterAdditionalPropertyField(string fieldName)
@@ -2119,7 +2066,9 @@ public class UnifiedProcessor
             return string.Empty;
         }
 
-        return await _excelExporter.WritePhonesAsync(outputPath, fileName, phones, _additionalPhoneFieldOrder, cancellationToken).ConfigureAwait(false);
+        var activePhoneFields = GetActivePhoneFieldOrder(phones);
+
+        return await _excelExporter.WritePhonesAsync(outputPath, fileName, phones, activePhoneFields, cancellationToken).ConfigureAwait(false);
     }
 
     private async Task<string> WritePropertiesExcelAsync(string outputPath, string fileName, bool isSecondary, CancellationToken cancellationToken)
@@ -2132,8 +2081,9 @@ public class UnifiedProcessor
 
         var includePropertyType = properties.Any(p => !string.IsNullOrWhiteSpace(p.PropertyType));
         var includePropertyValue = properties.Any(p => !string.IsNullOrWhiteSpace(p.PropertyValue));
+        var activePropertyFields = GetActivePropertyFieldOrder(properties);
 
-        return await _excelExporter.WritePropertiesAsync(outputPath, fileName, properties, _additionalPropertyFieldOrder, includePropertyType, includePropertyValue, cancellationToken).ConfigureAwait(false);
+        return await _excelExporter.WritePropertiesAsync(outputPath, fileName, properties, activePropertyFields, includePropertyType, includePropertyValue, cancellationToken).ConfigureAwait(false);
     }
 
     private async Task<string> WriteContactsJsonAsync(string outputPath, string fileName, bool isSecondary, CancellationToken cancellationToken)
@@ -2189,6 +2139,7 @@ public class UnifiedProcessor
             return string.Empty;
         }
 
+        var activePhoneFields = GetActivePhoneFieldOrder(phones);
         var filePath = Path.Combine(outputPath, fileName);
         try
         {
@@ -2202,15 +2153,17 @@ public class UnifiedProcessor
                 writer.WriteString("ImportId", phone.ImportId);
                 writer.WriteString("PhoneNumber", phone.PhoneNumber);
                 writer.WriteString("DataSource", phone.DataSource);
-                writer.WriteBoolean("IsSecondary", phone.IsSecondary);
-                writer.WritePropertyName("AdditionalFields");
-                writer.WriteStartObject();
-                foreach (var field in _additionalPhoneFieldOrder)
+                if (activePhoneFields.Count > 0)
                 {
-                    phone.AdditionalFields.TryGetValue(field, out var value);
-                    writer.WriteString(field, value ?? string.Empty);
+                    writer.WritePropertyName("AdditionalFields");
+                    writer.WriteStartObject();
+                    foreach (var field in activePhoneFields)
+                    {
+                        phone.AdditionalFields.TryGetValue(field, out var value);
+                        writer.WriteString(field, value ?? string.Empty);
+                    }
+                    writer.WriteEndObject();
                 }
-                writer.WriteEndObject();
                 writer.WriteEndObject();
             }
             writer.WriteEndArray();
@@ -2233,6 +2186,7 @@ public class UnifiedProcessor
 
         var includePropertyType = properties.Any(p => !string.IsNullOrWhiteSpace(p.PropertyType));
         var includePropertyValue = properties.Any(p => !string.IsNullOrWhiteSpace(p.PropertyValue));
+        var activePropertyFields = GetActivePropertyFieldOrder(properties);
 
         var filePath = Path.Combine(outputPath, fileName);
         try
@@ -2262,13 +2216,17 @@ public class UnifiedProcessor
                 writer.WriteString("DataSource", property.DataSource);
                 writer.WriteString("DataType", property.DataType);
                 writer.WriteString("Tags", property.Tags);
-                writer.WritePropertyName("AdditionalFields");
-                writer.WriteStartObject();
-                foreach (var kvp in property.AdditionalFields)
+                if (activePropertyFields.Count > 0)
                 {
-                    writer.WriteString(kvp.Key, kvp.Value);
+                    writer.WritePropertyName("AdditionalFields");
+                    writer.WriteStartObject();
+                    foreach (var field in activePropertyFields)
+                    {
+                        property.AdditionalFields.TryGetValue(field, out var value);
+                        writer.WriteString(field, value ?? string.Empty);
+                    }
+                    writer.WriteEndObject();
                 }
-                writer.WriteEndObject();
                 writer.WriteEndObject();
             }
             writer.WriteEndArray();
@@ -2348,12 +2306,26 @@ public class UnifiedProcessor
             .OrderBy(p => p.ImportId);
     }
 
+    private List<string> GetActivePhoneFieldOrder(IEnumerable<PhoneRecord> phones)
+    {
+        return _additionalPhoneFieldOrder
+            .Where(field => phones.Any(phone => phone.AdditionalFields.TryGetValue(field, out var value) && !string.IsNullOrWhiteSpace(value)))
+            .ToList();
+    }
+
     private IEnumerable<PropertyRecord> GetPropertiesForExport(bool isSecondary)
     {
         return _properties.Values
             .Where(p => p.IsSecondary == isSecondary)
             .OrderBy(p => p.Address)
             .ThenBy(p => p.ImportId);
+    }
+
+    private List<string> GetActivePropertyFieldOrder(IEnumerable<PropertyRecord> properties)
+    {
+        return _additionalPropertyFieldOrder
+            .Where(field => properties.Any(property => property.AdditionalFields.TryGetValue(field, out var value) && !string.IsNullOrWhiteSpace(value)))
+            .ToList();
     }
     private async Task<string> WriteContactsFileAsync(string outputPath, string fileName, bool isSecondary, CancellationToken cancellationToken)
     {
@@ -2427,6 +2399,7 @@ public class UnifiedProcessor
             return string.Empty;
         }
 
+        var activePhoneFields = GetActivePhoneFieldOrder(phones);
         var filePath = Path.Combine(outputPath, fileName);
 
         try
@@ -2439,12 +2412,11 @@ public class UnifiedProcessor
 
             csv.WriteField("Import ID");
             csv.WriteField("Phone Number");
-            foreach (var field in _additionalPhoneFieldOrder)
+            foreach (var field in activePhoneFields)
             {
                 csv.WriteField(field);
             }
             csv.WriteField("Data Source");
-            csv.WriteField("Is Secondary");
             await csv.NextRecordAsync();
 
             foreach (var phone in phones)
@@ -2453,13 +2425,12 @@ public class UnifiedProcessor
 
                 csv.WriteField(phone.ImportId);
                 csv.WriteField(phone.PhoneNumber);
-                foreach (var field in _additionalPhoneFieldOrder)
+                foreach (var field in activePhoneFields)
                 {
                     phone.AdditionalFields.TryGetValue(field, out var value);
                     csv.WriteField(value ?? string.Empty);
                 }
                 csv.WriteField(phone.DataSource);
-                csv.WriteField(phone.IsSecondary);
                 await csv.NextRecordAsync();
             }
 
@@ -2482,6 +2453,7 @@ public class UnifiedProcessor
 
         var includePropertyType = properties.Any(p => !string.IsNullOrWhiteSpace(p.PropertyType));
         var includePropertyValue = properties.Any(p => !string.IsNullOrWhiteSpace(p.PropertyValue));
+        var activePropertyFields = GetActivePropertyFieldOrder(properties);
 
         var filePath = Path.Combine(outputPath, fileName);
 
@@ -2508,7 +2480,7 @@ public class UnifiedProcessor
                 csv.WriteField("Property Value");
             }
 
-            foreach (var field in _additionalPropertyFieldOrder)
+            foreach (var field in activePropertyFields)
             {
                 csv.WriteField(field);
             }
@@ -2538,7 +2510,7 @@ public class UnifiedProcessor
                     csv.WriteField(property.PropertyValue);
                 }
 
-                foreach (var field in _additionalPropertyFieldOrder)
+                foreach (var field in activePropertyFields)
                 {
                     property.AdditionalFields.TryGetValue(field, out var value);
                     csv.WriteField(value ?? string.Empty);
@@ -2766,6 +2738,7 @@ public enum ProcessingProgressSeverity
     Warning,
     Error
 }
+
 
 
 
