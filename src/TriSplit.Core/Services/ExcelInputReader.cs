@@ -1,3 +1,4 @@
+using System.IO;
 using System.Text;
 using TriSplit.Core.Interfaces;
 using ExcelDataReader;
@@ -14,7 +15,7 @@ public class ExcelInputReader : IInputReader
         {
             // Encoding provider registered at app startup
 
-            using var fs = File.OpenRead(filePath);
+            using var fs = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
             using var reader = ExcelReaderFactory.CreateReader(fs); // streaming, forward-only
 
             var result = new SampleData { SourceFile = filePath };
@@ -49,3 +50,8 @@ public class ExcelInputReader : IInputReader
         });
     }
 }
+
+
+
+
+

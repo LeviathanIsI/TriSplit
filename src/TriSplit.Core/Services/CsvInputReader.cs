@@ -48,7 +48,8 @@ public class CsvInputReader : IInputReader
             SourceFile = filePath
         };
 
-        using var reader = new StreamReader(filePath);
+        using var stream = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+        using var reader = new StreamReader(stream);
         using var csv = new CsvReader(reader, CreateConfiguration(ignoreQuotes));
 
         if (await csv.ReadAsync().ConfigureAwait(false))
@@ -111,3 +112,6 @@ public class CsvInputReader : IInputReader
         return configuration;
     }
 }
+
+
+
