@@ -935,6 +935,7 @@ public partial class ProcessingViewModel : ViewModelBase
                             SelectedProfile != null &&
                             !RequiresProfileSetup &&
                             IsSourceConfirmed &&
+                            TagAccepted &&
                             (OutputCsv || OutputExcel || OutputJson);
     }
 
@@ -1057,6 +1058,11 @@ public partial class ProcessingViewModel : ViewModelBase
     }
 
     partial void OnRequiresProfileSetupChanged(bool value)
+    {
+        UpdateCanStartProcessing();
+    }
+
+    partial void OnTagAcceptedChanged(bool value)
     {
         UpdateCanStartProcessing();
     }
