@@ -190,9 +190,8 @@
             Opacity="0">
       <Border.Resources>
         <LinearGradientBrush x:Key="AmberBoxBackground" StartPoint="0,0" EndPoint="1,1">
-          <GradientStop Color="#FFF59E0B" Offset="0"/>
+          <GradientStop Color="#FFD700" Offset="0"/>
           <GradientStop Color="#FFFBBF24" Offset="0.5"/>
-          <GradientStop Color="#FFD97706" Offset="1"/>
         </LinearGradientBrush>
       </Border.Resources>
       <Border.Background>
