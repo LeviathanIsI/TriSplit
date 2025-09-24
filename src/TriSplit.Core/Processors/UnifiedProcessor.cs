@@ -1567,10 +1567,21 @@ public class UnifiedProcessor
 
     private static bool IsPhoneField(FieldMapping mapping)
     {
-        return ContainsKeyword(mapping?.HubSpotProperty, "phone") ||
-               ContainsKeyword(mapping?.SourceColumn, "phone");
-    }
+        if (mapping is null)
+        {
+            return false;
+        }
 
+        var objectType = mapping.ObjectType?.Trim();
+        var isPropertyObject = string.Equals(objectType, "Property", StringComparison.OrdinalIgnoreCase);
+
+        if (!isPropertyObject && ContainsKeyword(mapping.HubSpotProperty, "phone"))
+        {
+            return true;
+        }
+
+        return ContainsKeyword(mapping.SourceColumn, "phone");
+    }
     private static bool IsZipField(FieldMapping mapping)
     {
         return ContainsKeyword(mapping?.HubSpotProperty, "zip", "postal") ||
