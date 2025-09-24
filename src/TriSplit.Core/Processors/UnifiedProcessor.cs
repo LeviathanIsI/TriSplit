@@ -30,6 +30,8 @@ public class UnifiedProcessor
     private readonly Dictionary<string, string> _contactImportIds = new(StringComparer.OrdinalIgnoreCase);
     private readonly HashSet<string> _additionalPropertyFieldSet = new(StringComparer.OrdinalIgnoreCase);
     private readonly List<string> _additionalPropertyFieldOrder = new();
+    private readonly HashSet<string> _additionalPhoneFieldSet = new(StringComparer.OrdinalIgnoreCase);
+    private readonly List<string> _additionalPhoneFieldOrder = new();
     private string? _activeTag;
     private string _activeDataSource = string.Empty;
     private string _activePhoneDataSource = string.Empty;
@@ -51,6 +53,8 @@ public class UnifiedProcessor
     private static readonly Regex WhitespaceRegex = new(@"\s+", RegexOptions.Compiled);
     private static readonly Regex NonDigitRegex = new(@"[^0-9]", RegexOptions.Compiled);
     private static readonly Regex OwnerIndexRegex = new(@"owner\s*(\d+)", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+    private static readonly Regex PhoneIndexRegex = new(@"(\d+)(?!.*\d)", RegexOptions.Compiled);
+    private static readonly Regex PhoneQualifierRegex = new(@"(type|status|tags?|label)", RegexOptions.IgnoreCase | RegexOptions.Compiled);
     private static readonly Dictionary<string, int> OwnerOrdinalLookup = new(StringComparer.OrdinalIgnoreCase)
     {
         ["first"] = 1,
@@ -878,28 +882,62 @@ public class UnifiedProcessor
             return;
 
         var phoneMappings = GetMappingsByObjectType(MappingObjectTypes.PhoneNumber)
-            .Where(m => string.Equals(m.HubSpotProperty, "Phone Number", StringComparison.OrdinalIgnoreCase))
+            .Where(m => !string.IsNullOrWhiteSpace(m.HubSpotProperty))
             .ToList();
 
         if (phoneMappings.Count == 0)
             return;
 
         var primaryContext = DeterminePrimaryContext(contexts) ?? contexts[0];
+        var slotBuilders = new Dictionary<string, PhoneSlotBuilder>(StringComparer.OrdinalIgnoreCase);
 
         foreach (var mapping in phoneMappings)
         {
-            var phone = CleanPhoneNumber(GetValueFromMapping(row, mapping));
-            if (string.IsNullOrWhiteSpace(phone) || phone.Length < 10)
+            var owner = ResolvePhoneOwner(mapping, contexts) ?? primaryContext;
+            if (owner == null || string.IsNullOrWhiteSpace(owner.ImportId))
                 continue;
 
-            var owner = ResolvePhoneOwner(mapping, contexts) ?? primaryContext;
-            var formatted = FormatPhoneNumber(phone);
+            var slotKey = BuildPhoneSlotKey(owner, mapping);
+            if (string.IsNullOrWhiteSpace(slotKey))
+                continue;
 
-            AddPhoneRecord(owner, formatted);
+            if (!slotBuilders.TryGetValue(slotKey, out var builder))
+            {
+                builder = new PhoneSlotBuilder(owner);
+                slotBuilders[slotKey] = builder;
+            }
+
+            var value = GetValueFromMapping(row, mapping);
+            if (string.IsNullOrWhiteSpace(value))
+                continue;
+
+            var hubSpotProperty = mapping.HubSpotProperty?.Trim() ?? string.Empty;
+
+            if (IsPhoneNumberField(hubSpotProperty))
+            {
+                var cleaned = CleanPhoneNumber(value);
+                if (string.IsNullOrWhiteSpace(cleaned) || cleaned.Length < 10)
+                    continue;
+
+                builder.PhoneNumber = FormatPhoneNumber(cleaned);
+                continue;
+            }
+
+            var trimmedValue = NormalizeWhitespace(value);
+            builder.SetAdditionalField(hubSpotProperty, trimmedValue);
+            RegisterAdditionalPhoneField(hubSpotProperty);
+        }
+
+        foreach (var builder in slotBuilders.Values)
+        {
+            if (string.IsNullOrWhiteSpace(builder.PhoneNumber))
+                continue;
+
+            AddPhoneRecord(builder.Owner, builder.PhoneNumber, builder.AdditionalFields);
         }
     }
 
-    private void AddPhoneRecord(ContactContext context, string phoneNumber)
+    private void AddPhoneRecord(ContactContext context, string phoneNumber, IReadOnlyDictionary<string, string> additionalFields)
     {
         if (context == null || string.IsNullOrWhiteSpace(context.ImportId) || string.IsNullOrWhiteSpace(phoneNumber))
             return;
@@ -915,20 +953,96 @@ public class UnifiedProcessor
         if (existingRecord != null)
         {
             existingRecord.IsSecondary |= context.IsSecondary;
+            MergePhoneAdditionalFields(existingRecord, additionalFields);
             ApplyPhoneMetadata(existingRecord);
             return;
         }
 
-        var newRecord = new PhoneRecord
+        var record = new PhoneRecord
         {
             ImportId = importId,
             PhoneNumber = phoneNumber,
-            IsSecondary = context.IsSecondary
+            IsSecondary = context.IsSecondary,
+            AdditionalFields = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
         };
 
-        existing.Add(newRecord);
+        foreach (var kvp in additionalFields)
+        {
+            if (string.IsNullOrWhiteSpace(kvp.Key) || string.IsNullOrWhiteSpace(kvp.Value))
+                continue;
 
-        ApplyPhoneMetadata(newRecord);
+            record.AdditionalFields[kvp.Key] = kvp.Value;
+        }
+
+        existing.Add(record);
+
+        ApplyPhoneMetadata(record);
+    }
+
+    private static void MergePhoneAdditionalFields(PhoneRecord record, IReadOnlyDictionary<string, string> additionalFields)
+    {
+        if (additionalFields == null || additionalFields.Count == 0)
+            return;
+
+        foreach (var kvp in additionalFields)
+        {
+            if (string.IsNullOrWhiteSpace(kvp.Key) || string.IsNullOrWhiteSpace(kvp.Value))
+                continue;
+
+            record.AdditionalFields[kvp.Key] = kvp.Value;
+        }
+    }
+
+    private string BuildPhoneSlotKey(ContactContext owner, FieldMapping mapping)
+    {
+        var identifier = ExtractPhoneSlotIdentifier(mapping);
+        if (string.IsNullOrWhiteSpace(identifier))
+            return string.Empty;
+
+        return $"{owner.ImportId}|{identifier}";
+    }
+
+    private static string ExtractPhoneSlotIdentifier(FieldMapping mapping)
+    {
+        var identifier = ExtractPhoneIdentifier(mapping.SourceColumn);
+        if (!string.IsNullOrWhiteSpace(identifier))
+            return identifier;
+
+        identifier = ExtractPhoneIdentifier(mapping.HubSpotProperty);
+        return string.IsNullOrWhiteSpace(identifier) ? string.Empty : identifier;
+    }
+
+    private static string ExtractPhoneIdentifier(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+            return string.Empty;
+
+        var match = PhoneIndexRegex.Match(value);
+        if (match.Success)
+            return match.Value;
+
+        var sanitized = RemovePhoneQualifiers(value);
+        return string.IsNullOrWhiteSpace(sanitized) ? string.Empty : sanitized;
+    }
+
+    private static string RemovePhoneQualifiers(string value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+            return string.Empty;
+
+        var builder = new StringBuilder();
+        foreach (var ch in value)
+        {
+            if (char.IsLetter(ch))
+            {
+                builder.Append(char.ToLowerInvariant(ch));
+            }
+        }
+
+        var collapsed = builder.ToString();
+        collapsed = PhoneQualifierRegex.Replace(collapsed, string.Empty);
+
+        return collapsed.Trim();
     }
 
     private ContactContext? ResolvePhoneOwner(FieldMapping mapping, List<ContactContext> contexts)
@@ -1230,6 +1344,43 @@ public class UnifiedProcessor
     }
 
 
+    private void InitializeAdditionalPhoneFieldRegistry()
+    {
+        _additionalPhoneFieldSet.Clear();
+        _additionalPhoneFieldOrder.Clear();
+
+        foreach (var mapping in GetMappingsByObjectType(MappingObjectTypes.PhoneNumber))
+        {
+            var fieldName = mapping.HubSpotProperty?.Trim();
+            if (string.IsNullOrWhiteSpace(fieldName))
+                continue;
+
+            if (IsCorePhoneField(fieldName))
+                continue;
+
+            RegisterAdditionalPhoneField(fieldName);
+        }
+    }
+
+    private void RegisterAdditionalPhoneField(string fieldName)
+    {
+        if (string.IsNullOrWhiteSpace(fieldName))
+            return;
+
+        var trimmed = fieldName.Trim();
+        if (IsCorePhoneField(trimmed))
+            return;
+
+        if (_additionalPhoneFieldSet.Add(trimmed))
+        {
+            _additionalPhoneFieldOrder.Add(trimmed);
+        }
+    }
+
+    private static bool IsCorePhoneField(string fieldName)
+    {
+        return string.Equals(fieldName, "Phone Number", StringComparison.OrdinalIgnoreCase);
+    }
     private void InitializeAdditionalPropertyFieldRegistry()
     {
         _additionalPropertyFieldSet.Clear();
@@ -1591,14 +1742,45 @@ public class UnifiedProcessor
         }
 
         var objectType = mapping.ObjectType?.Trim();
-        var isPropertyObject = string.Equals(objectType, "Property", StringComparison.OrdinalIgnoreCase);
+        if (string.Equals(objectType, MappingObjectTypes.Property, StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
 
-        if (!isPropertyObject && ContainsKeyword(mapping.HubSpotProperty, "phone"))
+        var hubSpotProperty = mapping.HubSpotProperty;
+
+        if (IsPhoneNumberField(hubSpotProperty))
         {
             return true;
         }
 
-        return ContainsKeyword(mapping.SourceColumn, "phone");
+        if (ContainsKeyword(hubSpotProperty, "phone"))
+        {
+            if (ContainsKeyword(hubSpotProperty, "type", "status", "tag", "tags", "label"))
+            {
+                return false;
+            }
+
+            return true;
+        }
+
+        var sourceColumn = mapping.SourceColumn;
+        if (ContainsKeyword(sourceColumn, "phone"))
+        {
+            if (ContainsKeyword(sourceColumn, "type", "status", "tag", "tags", "label"))
+            {
+                return false;
+            }
+
+            return true;
+        }
+
+        return false;
+    }
+
+    private static bool IsPhoneNumberField(string? hubSpotProperty)
+    {
+        return string.Equals(hubSpotProperty?.Trim(), "Phone Number", StringComparison.OrdinalIgnoreCase);
     }
     private static bool IsZipField(FieldMapping mapping)
     {
@@ -1936,7 +2118,7 @@ public class UnifiedProcessor
             return string.Empty;
         }
 
-        return await _excelExporter.WritePhonesAsync(outputPath, fileName, phones, cancellationToken).ConfigureAwait(false);
+        return await _excelExporter.WritePhonesAsync(outputPath, fileName, phones, _additionalPhoneFieldOrder, cancellationToken).ConfigureAwait(false);
     }
 
     private async Task<string> WritePropertiesExcelAsync(string outputPath, string fileName, bool isSecondary, CancellationToken cancellationToken)
@@ -2019,6 +2201,15 @@ public class UnifiedProcessor
                 writer.WriteString("ImportId", phone.ImportId);
                 writer.WriteString("PhoneNumber", phone.PhoneNumber);
                 writer.WriteString("DataSource", phone.DataSource);
+                writer.WriteBoolean("IsSecondary", phone.IsSecondary);
+                writer.WritePropertyName("AdditionalFields");
+                writer.WriteStartObject();
+                foreach (var field in _additionalPhoneFieldOrder)
+                {
+                    phone.AdditionalFields.TryGetValue(field, out var value);
+                    writer.WriteString(field, value ?? string.Empty);
+                }
+                writer.WriteEndObject();
                 writer.WriteEndObject();
             }
             writer.WriteEndArray();
@@ -2247,6 +2438,10 @@ public class UnifiedProcessor
 
             csv.WriteField("Import ID");
             csv.WriteField("Phone Number");
+            foreach (var field in _additionalPhoneFieldOrder)
+            {
+                csv.WriteField(field);
+            }
             csv.WriteField("Data Source");
             csv.WriteField("Is Secondary");
             await csv.NextRecordAsync();
@@ -2257,7 +2452,13 @@ public class UnifiedProcessor
 
                 csv.WriteField(phone.ImportId);
                 csv.WriteField(phone.PhoneNumber);
+                foreach (var field in _additionalPhoneFieldOrder)
+                {
+                    phone.AdditionalFields.TryGetValue(field, out var value);
+                    csv.WriteField(value ?? string.Empty);
+                }
                 csv.WriteField(phone.DataSource);
+                csv.WriteField(phone.IsSecondary);
                 await csv.NextRecordAsync();
             }
 
@@ -2368,6 +2569,26 @@ public class UnifiedProcessor
             Timestamp = DateTime.Now,
             Severity = severity
         });
+    }
+
+    private sealed class PhoneSlotBuilder
+    {
+        public PhoneSlotBuilder(ContactContext owner)
+        {
+            Owner = owner;
+        }
+
+        public ContactContext Owner { get; }
+        public string PhoneNumber { get; set; } = string.Empty;
+        public Dictionary<string, string> AdditionalFields { get; } = new(StringComparer.OrdinalIgnoreCase);
+
+        public void SetAdditionalField(string fieldName, string value)
+        {
+            if (string.IsNullOrWhiteSpace(fieldName) || string.IsNullOrWhiteSpace(value))
+                return;
+
+            AdditionalFields[fieldName.Trim()] = value.Trim();
+        }
     }
 
     private sealed class ContactContext
@@ -2486,6 +2707,7 @@ public class PhoneRecord
     public string PhoneNumber { get; set; } = string.Empty;
     public bool IsSecondary { get; set; }
     public string DataSource { get; set; } = string.Empty;
+    public Dictionary<string, string> AdditionalFields { get; set; } = new(StringComparer.OrdinalIgnoreCase);
 }
 
 public class PropertyRecord
@@ -2543,6 +2765,10 @@ public enum ProcessingProgressSeverity
     Warning,
     Error
 }
+
+
+
+
 
 
 

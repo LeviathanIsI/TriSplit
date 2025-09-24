@@ -74,20 +74,39 @@ public class ExcelExporter : IExcelExporter
     }
 
 
-    public async Task<string> WritePhonesAsync(string outputDirectory, string fileName, IEnumerable<PhoneRecord> records, CancellationToken cancellationToken)
+    public async Task<string> WritePhonesAsync(string outputDirectory, string fileName, IEnumerable<PhoneRecord> records, IReadOnlyList<string> additionalFieldOrder, CancellationToken cancellationToken)
     {
         var data = Materialize(records, out var rowCount);
-        var headers = new[] { "Import ID", "Phone Number", "Data Source" };
-        var rows = data.Select(r => new[]
+        var headers = new List<string>
         {
-            r.ImportId,
-            r.PhoneNumber,
-            r.DataSource
+            "Import ID",
+            "Phone Number"
+        };
+        headers.AddRange(additionalFieldOrder);
+        headers.AddRange(new[] { "Data Source", "Is Secondary" });
+
+        var rows = data.Select(r =>
+        {
+            var values = new List<string>
+            {
+                r.ImportId,
+                r.PhoneNumber
+            };
+
+            foreach (var field in additionalFieldOrder)
+            {
+                r.AdditionalFields.TryGetValue(field, out var value);
+                values.Add(value ?? string.Empty);
+            }
+
+            values.Add(r.DataSource);
+            values.Add(r.IsSecondary ? "true" : "false");
+
+            return values.ToArray();
         });
 
-        return await WriteWorksheetAsync(outputDirectory, fileName, "Phone Numbers", headers, rows, rowCount, headers.Length, cancellationToken).ConfigureAwait(false);
+        return await WriteWorksheetAsync(outputDirectory, fileName, "Phone Numbers", headers, rows, rowCount, headers.Count, cancellationToken).ConfigureAwait(false);
     }
-
     public async Task<string> WritePropertiesAsync(string outputDirectory, string fileName, IEnumerable<PropertyRecord> records, IReadOnlyList<string> additionalFieldOrder, bool includePropertyType, bool includePropertyValue, CancellationToken cancellationToken)
     {
         var data = Materialize(records, out var rowCount);
@@ -265,3 +284,5 @@ public class ExcelExporter : IExcelExporter
         writer.WriteEndElement();
     }
 }
+
+
