@@ -23,6 +23,7 @@ public class ExcelExporter : IExcelExporter
     {
         var data = Materialize(records, out var rowCount);
         var includeLinkedContact = data.Any(r => HasValidLinkedContact(r.LinkedContactId, r.ImportId));
+        var includeAssociationLabel = data.Any(r => !string.IsNullOrWhiteSpace(r.AssociationLabel));
 
         var headers = new List<string>
         {
@@ -38,7 +39,11 @@ public class ExcelExporter : IExcelExporter
             headers.Add("Linked Contact ID");
         }
 
-        headers.Add("Association Label");
+        if (includeAssociationLabel)
+        {
+            headers.Add("Association Label");
+        }
+
         headers.AddRange(new[] { "Data Source", "Data Type", "Tags" });
 
         var rows = data.Select(r =>
@@ -57,7 +62,11 @@ public class ExcelExporter : IExcelExporter
                 values.Add(HasValidLinkedContact(r.LinkedContactId, r.ImportId) ? r.LinkedContactId : string.Empty);
             }
 
-            values.Add(r.AssociationLabel);
+            if (includeAssociationLabel)
+            {
+                values.Add(r.AssociationLabel);
+            }
+
             values.Add(r.DataSource);
             values.Add(r.DataType);
             values.Add(r.Tags);
@@ -77,13 +86,18 @@ public class ExcelExporter : IExcelExporter
     public async Task<string> WritePhonesAsync(string outputDirectory, string fileName, IEnumerable<PhoneRecord> records, IReadOnlyList<string> additionalFieldOrder, CancellationToken cancellationToken)
     {
         var data = Materialize(records, out var rowCount);
+        var includeDataSource = data.Any(r => !string.IsNullOrWhiteSpace(r.DataSource));
+
         var headers = new List<string>
         {
             "Import ID",
             "Phone Number"
         };
         headers.AddRange(additionalFieldOrder);
-        headers.Add("Data Source");
+        if (includeDataSource)
+        {
+            headers.Add("Data Source");
+        }
 
         var rows = data.Select(r =>
         {
@@ -99,7 +113,10 @@ public class ExcelExporter : IExcelExporter
                 values.Add(value ?? string.Empty);
             }
 
-            values.Add(r.DataSource);
+            if (includeDataSource)
+            {
+                values.Add(r.DataSource);
+            }
 
             return values.ToArray();
         });

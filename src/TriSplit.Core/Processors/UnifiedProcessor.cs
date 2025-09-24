@@ -119,10 +119,6 @@ public class UnifiedProcessor
             currentStage = "configuring data sources";
             _activeDataSource = (_profile.ContactPropertyDataSource ?? string.Empty).Trim();
             _activePhoneDataSource = (_profile.PhoneDataSource ?? string.Empty).Trim();
-            if (string.IsNullOrWhiteSpace(_activePhoneDataSource))
-            {
-                _activePhoneDataSource = _activeDataSource;
-            }
             _activeDataType = (_profile.DataType ?? string.Empty).Trim();
             _activeTag = NormalizeTag(options.Tag) ?? NormalizeTag(_profile.TagNote);
             currentStage = "reading input file";
@@ -2140,6 +2136,7 @@ public class UnifiedProcessor
         }
 
         var activePhoneFields = GetActivePhoneFieldOrder(phones);
+        var includeDataSource = phones.Any(phone => !string.IsNullOrWhiteSpace(phone.DataSource));
         var filePath = Path.Combine(outputPath, fileName);
         try
         {
@@ -2152,7 +2149,10 @@ public class UnifiedProcessor
                 writer.WriteStartObject();
                 writer.WriteString("ImportId", phone.ImportId);
                 writer.WriteString("PhoneNumber", phone.PhoneNumber);
-                writer.WriteString("DataSource", phone.DataSource);
+                if (includeDataSource)
+                {
+                    writer.WriteString("DataSource", phone.DataSource);
+                }
                 if (activePhoneFields.Count > 0)
                 {
                     writer.WritePropertyName("AdditionalFields");
@@ -2336,6 +2336,7 @@ public class UnifiedProcessor
         }
 
         var includeLinkedContact = _createSecondaryContacts && contacts.Any(c => !string.IsNullOrWhiteSpace(c.LinkedContactId));
+        var includeAssociationLabel = contacts.Any(c => !string.IsNullOrWhiteSpace(c.AssociationLabel));
 
         var filePath = Path.Combine(outputPath, fileName);
 
@@ -2356,7 +2357,10 @@ public class UnifiedProcessor
             {
                 csv.WriteField("Linked Contact ID");
             }
-            csv.WriteField("Association Label");
+            if (includeAssociationLabel)
+            {
+                csv.WriteField("Association Label");
+            }
             csv.WriteField("Data Source");
             csv.WriteField("Data Type");
             csv.WriteField("Tags");
@@ -2375,7 +2379,10 @@ public class UnifiedProcessor
                 {
                     csv.WriteField(string.IsNullOrWhiteSpace(contact.LinkedContactId) ? string.Empty : contact.LinkedContactId);
                 }
-                csv.WriteField(contact.AssociationLabel);
+                if (includeAssociationLabel)
+                {
+                    csv.WriteField(contact.AssociationLabel);
+                }
                 csv.WriteField(contact.DataSource);
                 csv.WriteField(contact.DataType);
                 csv.WriteField(contact.Tags);
@@ -2400,6 +2407,7 @@ public class UnifiedProcessor
         }
 
         var activePhoneFields = GetActivePhoneFieldOrder(phones);
+        var includeDataSource = phones.Any(phone => !string.IsNullOrWhiteSpace(phone.DataSource));
         var filePath = Path.Combine(outputPath, fileName);
 
         try
@@ -2416,7 +2424,10 @@ public class UnifiedProcessor
             {
                 csv.WriteField(field);
             }
-            csv.WriteField("Data Source");
+            if (includeDataSource)
+            {
+                csv.WriteField("Data Source");
+            }
             await csv.NextRecordAsync();
 
             foreach (var phone in phones)
@@ -2430,7 +2441,10 @@ public class UnifiedProcessor
                     phone.AdditionalFields.TryGetValue(field, out var value);
                     csv.WriteField(value ?? string.Empty);
                 }
-                csv.WriteField(phone.DataSource);
+                if (includeDataSource)
+                {
+                    csv.WriteField(phone.DataSource);
+                }
                 await csv.NextRecordAsync();
             }
 
