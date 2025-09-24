@@ -12,97 +12,152 @@
         Loaded="OnSplashLoaded">
   <Window.Resources>
     <CubicEase x:Key="SplashEase" EasingMode="EaseOut"/>
-    <CubicEase x:Key="StrokeEase" EasingMode="EaseInOut"/>
-    <QuadraticEase x:Key="SparkEase" EasingMode="EaseOut"/>
+    <QuinticEase x:Key="StrokeEase" EasingMode="EaseInOut"/>
+    <ExponentialEase x:Key="SparkEase" EasingMode="EaseOut" Exponent="4"/>
 
     <Storyboard x:Key="SplashStoryboard">
+      <!-- Fade in the whole grid -->
       <DoubleAnimation Storyboard.TargetName="RootGrid"
                        Storyboard.TargetProperty="Opacity"
                        From="0"
                        To="1"
-                       Duration="0:0:0.25"/>
+                       Duration="0:0:0.3"/>
+
+      <!-- Amber box fade and scale -->
       <DoubleAnimation Storyboard.TargetName="LogoBorder"
                        Storyboard.TargetProperty="Opacity"
                        From="0"
                        To="1"
-                       Duration="0:0:0.35"/>
+                       Duration="0:0:0.4"/>
       <DoubleAnimation Storyboard.TargetName="LogoScale"
                        Storyboard.TargetProperty="ScaleX"
-                       From="0.9"
+                       From="0.88"
                        To="1"
-                       Duration="0:0:0.35"
+                       Duration="0:0:0.4"
                        EasingFunction="{StaticResource SplashEase}"/>
       <DoubleAnimation Storyboard.TargetName="LogoScale"
                        Storyboard.TargetProperty="ScaleY"
-                       From="0.9"
+                       From="0.88"
                        To="1"
-                       Duration="0:0:0.35"
+                       Duration="0:0:0.4"
                        EasingFunction="{StaticResource SplashEase}"/>
-      <DoubleAnimation Storyboard.TargetName="PathTrace"
+
+      <!-- "TriSplit" text drawing animation -->
+      <DoubleAnimation Storyboard.TargetName="TriSplitPath"
                        Storyboard.TargetProperty="StrokeDashOffset"
-                       BeginTime="0:0:0.3"
-                       From="420"
+                       BeginTime="0:0:0.35"
+                       From="680"
                        To="0"
-                       Duration="0:0:1.6"
+                       Duration="0:0:1.8"
                        EasingFunction="{StaticResource StrokeEase}"/>
-      <DoubleAnimation Storyboard.TargetName="PathTrace"
+      <DoubleAnimation Storyboard.TargetName="TriSplitPath"
                        Storyboard.TargetProperty="Opacity"
-                       BeginTime="0:0:0.3"
+                       BeginTime="0:0:0.35"
                        From="0"
                        To="1"
-                       Duration="0:0:0.25"/>
+                       Duration="0:0:0.3"/>
+
+      <!-- Whispy trail effect -->
+      <DoubleAnimation Storyboard.TargetName="WhispyTrail"
+                       Storyboard.TargetProperty="Opacity"
+                       BeginTime="0:0:0.4"
+                       From="0"
+                       To="0.6"
+                       Duration="0:0:1.4"/>
+      <DoubleAnimation Storyboard.TargetName="WhispyTrail"
+                       Storyboard.TargetProperty="StrokeDashOffset"
+                       BeginTime="0:0:0.4"
+                       From="680"
+                       To="0"
+                       Duration="0:0:1.7"
+                       EasingFunction="{StaticResource StrokeEase}"/>
+
+      <!-- Glow pulse at completion -->
       <DoubleAnimation Storyboard.TargetName="LogoBorder"
                        Storyboard.TargetProperty="(UIElement.Effect).Opacity"
-                       BeginTime="0:0:1.95"
-                       From="0.18"
-                       To="0.55"
-                       Duration="0:0:0.35"
+                       BeginTime="0:0:2.1"
+                       From="0.25"
+                       To="0.65"
+                       Duration="0:0:0.4"
                        AutoReverse="True"/>
+
+      <!-- Floating spark particles -->
       <DoubleAnimation Storyboard.TargetName="Spark1"
-                       Storyboard.TargetProperty="Opacity"
-                       BeginTime="0:0:1.8"
-                       From="0"
-                       To="1"
-                       Duration="0:0:0.15"
-                       AutoReverse="True"/>
-      <DoubleAnimation Storyboard.TargetName="Spark1"
-                       Storyboard.TargetProperty="(Canvas.Top)"
-                       BeginTime="0:0:1.8"
-                       From="48"
-                       To="18"
-                       Duration="0:0:0.6"
-                       EasingFunction="{StaticResource SparkEase}"/>
-      <DoubleAnimation Storyboard.TargetName="Spark2"
                        Storyboard.TargetProperty="Opacity"
                        BeginTime="0:0:2.0"
                        From="0"
-                       To="1"
-                       Duration="0:0:0.15"
-                       AutoReverse="True"/>
-      <DoubleAnimation Storyboard.TargetName="Spark2"
-                       Storyboard.TargetProperty="(Canvas.Top)"
-                       BeginTime="0:0:2.0"
-                       From="58"
-                       To="28"
-                       Duration="0:0:0.6"
-                       EasingFunction="{StaticResource SparkEase}"/>
-      <DoubleAnimation Storyboard.TargetName="Spark3"
+                       To="0.85"
+                       Duration="0:0:0.2"/>
+      <DoubleAnimation Storyboard.TargetName="Spark1"
                        Storyboard.TargetProperty="Opacity"
-                       BeginTime="0:0:2.15"
+                       BeginTime="0:0:2.2"
+                       From="0.85"
+                       To="0"
+                       Duration="0:0:0.5"/>
+      <DoubleAnimation Storyboard.TargetName="Spark1Transform"
+                       Storyboard.TargetProperty="Y"
+                       BeginTime="0:0:2.0"
                        From="0"
-                       To="0.9"
-                       Duration="0:0:0.15"
-                       AutoReverse="True"/>
-      <DoubleAnimation Storyboard.TargetName="Spark3"
-                       Storyboard.TargetProperty="(Canvas.Top)"
-                       BeginTime="0:0:2.15"
-                       From="54"
-                       To="20"
+                       To="-35"
                        Duration="0:0:0.7"
                        EasingFunction="{StaticResource SparkEase}"/>
+
+      <DoubleAnimation Storyboard.TargetName="Spark2"
+                       Storyboard.TargetProperty="Opacity"
+                       BeginTime="0:0:2.15"
+                       From="0"
+                       To="0.75"
+                       Duration="0:0:0.2"/>
+      <DoubleAnimation Storyboard.TargetName="Spark2"
+                       Storyboard.TargetProperty="Opacity"
+                       BeginTime="0:0:2.35"
+                       From="0.75"
+                       To="0"
+                       Duration="0:0:0.55"/>
+      <DoubleAnimation Storyboard.TargetName="Spark2Transform"
+                       Storyboard.TargetProperty="Y"
+                       BeginTime="0:0:2.15"
+                       From="0"
+                       To="-40"
+                       Duration="0:0:0.75"
+                       EasingFunction="{StaticResource SparkEase}"/>
+      <DoubleAnimation Storyboard.TargetName="Spark2Transform"
+                       Storyboard.TargetProperty="X"
+                       BeginTime="0:0:2.15"
+                       From="0"
+                       To="12"
+                       Duration="0:0:0.75"/>
+
+      <DoubleAnimation Storyboard.TargetName="Spark3"
+                       Storyboard.TargetProperty="Opacity"
+                       BeginTime="0:0:2.25"
+                       From="0"
+                       To="0.65"
+                       Duration="0:0:0.2"/>
+      <DoubleAnimation Storyboard.TargetName="Spark3"
+                       Storyboard.TargetProperty="Opacity"
+                       BeginTime="0:0:2.45"
+                       From="0.65"
+                       To="0"
+                       Duration="0:0:0.6"/>
+      <DoubleAnimation Storyboard.TargetName="Spark3Transform"
+                       Storyboard.TargetProperty="Y"
+                       BeginTime="0:0:2.25"
+                       From="0"
+                       To="-38"
+                       Duration="0:0:0.8"
+                       EasingFunction="{StaticResource SparkEase}"/>
+      <DoubleAnimation Storyboard.TargetName="Spark3Transform"
+                       Storyboard.TargetProperty="X"
+                       BeginTime="0:0:2.25"
+                       From="0"
+                       To="-8"
+                       Duration="0:0:0.8"/>
+
+      <!-- Fade out everything -->
       <DoubleAnimation Storyboard.TargetName="RootGrid"
                        Storyboard.TargetProperty="Opacity"
-                       BeginTime="0:0:2.4"
+                       BeginTime="0:0:2.8"
                        From="1"
                        To="0"
                        Duration="0:0:0.35"
@@ -110,57 +165,119 @@
     </Storyboard>
   </Window.Resources>
 
-  <Grid x:Name="RootGrid" Background="#FF2A2A2A" Opacity="0" Margin="60">
+  <Grid x:Name="RootGrid" Background="#FF1A1A1A" Opacity="0" Margin="50">
     <Border x:Name="LogoBorder"
-            Width="320"
-            Height="150"
-            CornerRadius="14"
-            BorderBrush="#80FFFFFF"
-            BorderThickness="1"
+            Width="340"
+            Height="140"
+            CornerRadius="12"
+            BorderBrush="#30FFFFFF"
+            BorderThickness="0.5"
             Opacity="0">
       <Border.Resources>
-        <LinearGradientBrush x:Key="AmberBoxBackground" StartPoint="0.5,0" EndPoint="0.5,1">
-          <GradientStop Color="#FFFBBF4E" Offset="0"/>
-          <GradientStop Color="#FFF59E0B" Offset="0.7"/>
-          <GradientStop Color="#FFE07B00" Offset="1"/>
+        <LinearGradientBrush x:Key="AmberBoxBackground" StartPoint="0,0" EndPoint="1,1">
+          <GradientStop Color="#FFF59E0B" Offset="0"/>
+          <GradientStop Color="#FFFBBF24" Offset="0.5"/>
+          <GradientStop Color="#FFD97706" Offset="1"/>
         </LinearGradientBrush>
       </Border.Resources>
       <Border.Background>
         <StaticResource ResourceKey="AmberBoxBackground"/>
       </Border.Background>
       <Border.RenderTransform>
-        <ScaleTransform x:Name="LogoScale" ScaleX="0.9" ScaleY="0.9"/>
+        <ScaleTransform x:Name="LogoScale" ScaleX="0.88" ScaleY="0.88"/>
       </Border.RenderTransform>
       <Border.RenderTransformOrigin>0.5,0.5</Border.RenderTransformOrigin>
       <Border.Effect>
-        <DropShadowEffect Color="#FFFFD27F" BlurRadius="22" ShadowDepth="0" Opacity="0.18"/>
+        <DropShadowEffect Color="#FFF59E0B" BlurRadius="28" ShadowDepth="0" Opacity="0.25"/>
       </Border.Effect>
+
       <Grid>
-        <Canvas Width="300" Height="110" HorizontalAlignment="Center" VerticalAlignment="Center">
-          <Path x:Name="PathTrace"
-                Stroke="#FFFDF6D8"
-                StrokeThickness="3.5"
+        <Canvas Width="280" Height="100" HorizontalAlignment="Center" VerticalAlignment="Center">
+
+          <!-- Whispy trail effect (renders behind main text) -->
+          <Path x:Name="WhispyTrail"
+                Stroke="#30FFFFFF"
+                StrokeThickness="8"
                 StrokeStartLineCap="Round"
                 StrokeEndLineCap="Round"
-                StrokeDashArray="420 420"
-                StrokeDashOffset="420"
-                Opacity="0"
-                Data="M 20,95 L 20,25 L 70,25 M 90,70 C 90,50 110,50 110,65 C 110,80 90,80 90,60 M 120,65 L 120,45 L 145,45 M 160,45 C 175,45 185,55 185,72 C 185,90 165,95 155,75 M 200,45 L 200,95 M 200,45 C 215,45 230,45 240,65 C 248,80 235,100 210,95 M 250,45 L 270,45 L 270,95 M 270,95 C 290,95 305,85 305,70 C 305,50 285,50 275,60 M 320,45 L 320,95"/>
+                StrokeDashArray="680 680"
+                StrokeDashOffset="680"
+                Opacity="0">
+            <Path.Data>
+              <!-- Same as main path but with blur effect -->
+              M 30,60 L 30,30 L 60,30 M 30,45 L 50,45
+              M 70,45 Q 70,42 73,42 Q 80,42 80,50 L 80,60
+              M 90,50 L 90,60 M 90,42 L 90,43
+              M 110,60 Q 100,60 100,53 Q 100,45 110,45 Q 120,45 120,50 Q 120,55 115,57 Q 110,58 100,55
+              M 130,45 L 130,70 Q 130,75 135,75 Q 140,75 140,70 L 140,45 Q 140,42 143,42 Q 146,42 146,45 L 146,70 Q 146,80 138,80 Q 130,80 130,70
+              M 156,60 L 156,30 M 166,60 L 166,45 M 176,60 L 176,42
+              M 186,50 Q 186,45 191,45 Q 196,45 196,50 L 196,60 M 186,60 L 196,60
+              M 210,42 L 220,42 Q 225,42 225,47 Q 225,52 220,52 L 210,52 L 210,60 L 225,60
+            </Path.Data>
+            <Path.Effect>
+              <BlurEffect Radius="12"/>
+            </Path.Effect>
+          </Path>
 
-          <Canvas x:Name="ParticleLayer" Width="320" Height="110">
-            <Ellipse x:Name="Spark1" Width="8" Height="8" Fill="#FFFFF9C8" Opacity="0" Canvas.Left="235" Canvas.Top="48">
+          <!-- Main "TriSplit" text path -->
+          <Path x:Name="TriSplitPath"
+                Stroke="#FFFEF3C7"
+                StrokeThickness="3"
+                StrokeStartLineCap="Round"
+                StrokeEndLineCap="Round"
+                StrokeDashArray="680 680"
+                StrokeDashOffset="680"
+                StrokeLineJoin="Round"
+                Opacity="0">
+            <Path.Data>
+              <!-- T -->
+              M 30,60 L 30,30 L 60,30 M 30,45 L 50,45
+              <!-- r -->
+              M 70,45 Q 70,42 73,42 Q 80,42 80,50 L 80,60
+              <!-- i -->
+              M 90,50 L 90,60 M 90,42 L 90,43
+              <!-- S -->
+              M 110,60 Q 100,60 100,53 Q 100,45 110,45 Q 120,45 120,50 Q 120,55 115,57 Q 110,58 100,55
+              <!-- p -->
+              M 130,45 L 130,70 Q 130,75 135,75 Q 140,75 140,70 L 140,45 Q 140,42 143,42 Q 146,42 146,45 L 146,70 Q 146,80 138,80 Q 130,80 130,70
+              <!-- l -->
+              M 156,60 L 156,30 M 166,60 L 166,45 M 176,60 L 176,42
+              <!-- i -->
+              M 186,50 Q 186,45 191,45 Q 196,45 196,50 L 196,60 M 186,60 L 196,60
+              <!-- t -->
+              M 210,42 L 220,42 Q 225,42 225,47 Q 225,52 220,52 L 210,52 L 210,60 L 225,60
+            </Path.Data>
+          </Path>
+
+          <!-- Particle effects layer -->
+          <Canvas x:Name="ParticleLayer">
+            <Ellipse x:Name="Spark1" Width="4" Height="4" Fill="#FFFFF0" Opacity="0" 
+                     Canvas.Left="138" Canvas.Top="65">
+              <Ellipse.RenderTransform>
+                <TranslateTransform x:Name="Spark1Transform"/>
+              </Ellipse.RenderTransform>
               <Ellipse.Effect>
-                <BlurEffect Radius="6"/>
+                <BlurEffect Radius="3"/>
               </Ellipse.Effect>
             </Ellipse>
-            <Ellipse x:Name="Spark2" Width="6" Height="6" Fill="#FFFFE9A3" Opacity="0" Canvas.Left="255" Canvas.Top="58">
+
+            <Ellipse x:Name="Spark2" Width="3" Height="3" Fill="#FFFEF3C7" Opacity="0" 
+                     Canvas.Left="180" Canvas.Top="60">
+              <Ellipse.RenderTransform>
+                <TranslateTransform x:Name="Spark2Transform"/>
+              </Ellipse.RenderTransform>
               <Ellipse.Effect>
-                <BlurEffect Radius="5"/>
+                <BlurEffect Radius="2.5"/>
               </Ellipse.Effect>
             </Ellipse>
-            <Ellipse x:Name="Spark3" Width="5" Height="5" Fill="#FFFFF9DC" Opacity="0" Canvas.Left="215" Canvas.Top="54">
+
+            <Ellipse x:Name="Spark3" Width="3.5" Height="3.5" Fill="#FFFFE8B4" Opacity="0" 
+                     Canvas.Left="220" Canvas.Top="58">
+              <Ellipse.RenderTransform>
+                <TranslateTransform x:Name="Spark3Transform"/>
+              </Ellipse.RenderTransform>
               <Ellipse.Effect>
-                <BlurEffect Radius="4"/>
+                <BlurEffect Radius="3"/>
               </Ellipse.Effect>
             </Ellipse>
           </Canvas>
