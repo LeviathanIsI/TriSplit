@@ -46,7 +46,7 @@
       <DoubleAnimation Storyboard.TargetName="TriSplitPath"
                        Storyboard.TargetProperty="StrokeDashOffset"
                        BeginTime="0:0:0.35"
-                       From="680"
+                       From="800"
                        To="0"
                        Duration="0:0:1.8"
                        EasingFunction="{StaticResource StrokeEase}"/>
@@ -67,7 +67,7 @@
       <DoubleAnimation Storyboard.TargetName="WhispyTrail"
                        Storyboard.TargetProperty="StrokeDashOffset"
                        BeginTime="0:0:0.4"
-                       From="680"
+                       From="800"
                        To="0"
                        Duration="0:0:1.7"
                        EasingFunction="{StaticResource StrokeEase}"/>
@@ -200,20 +200,10 @@
                 StrokeThickness="8"
                 StrokeStartLineCap="Round"
                 StrokeEndLineCap="Round"
-                StrokeDashArray="680 680"
-                StrokeDashOffset="680"
-                Opacity="0">
-            <Path.Data>
-              <!-- Same as main path but with blur effect -->
-              M 30,60 L 30,30 L 60,30 M 30,45 L 50,45
-              M 70,45 Q 70,42 73,42 Q 80,42 80,50 L 80,60
-              M 90,50 L 90,60 M 90,42 L 90,43
-              M 110,60 Q 100,60 100,53 Q 100,45 110,45 Q 120,45 120,50 Q 120,55 115,57 Q 110,58 100,55
-              M 130,45 L 130,70 Q 130,75 135,75 Q 140,75 140,70 L 140,45 Q 140,42 143,42 Q 146,42 146,45 L 146,70 Q 146,80 138,80 Q 130,80 130,70
-              M 156,60 L 156,30 M 166,60 L 166,45 M 176,60 L 176,42
-              M 186,50 Q 186,45 191,45 Q 196,45 196,50 L 196,60 M 186,60 L 196,60
-              M 210,42 L 220,42 Q 225,42 225,47 Q 225,52 220,52 L 210,52 L 210,60 L 225,60
-            </Path.Data>
+                StrokeDashArray="800 800"
+                StrokeDashOffset="800"
+                Opacity="0"
+                Data="M 10 20 L 50 20 L 50 30 L 35 30 L 35 70 L 25 70 L 25 30 L 10 30 Z M 60 45 Q 60 40 65 40 Q 72 40 72 48 L 72 70 L 62 70 L 62 50 Z M 82 45 L 82 70 L 92 70 L 92 45 Z M 87 35 Q 87 32 90 32 Q 93 32 93 35 Q 93 38 90 38 Q 87 38 87 35 Z M 115 30 Q 105 30 105 40 Q 105 50 120 50 Q 135 50 135 60 Q 135 70 120 70 Q 105 70 105 60 L 115 60 Q 115 65 120 65 Q 125 65 125 60 Q 125 55 110 55 Q 95 55 95 40 Q 95 25 115 25 Q 135 25 135 35 L 125 35 Q 125 30 115 30 Z M 150 45 L 150 80 Q 150 90 160 90 Q 170 90 170 80 L 170 65 Q 170 60 165 60 Q 160 60 160 65 L 160 80 L 150 80 M 150 45 Q 150 35 160 35 Q 170 35 170 45 Q 170 55 160 55 Q 150 55 150 45 Z M 185 35 L 185 90 L 195 90 L 195 35 Z M 210 45 L 210 70 L 220 70 L 220 45 Z M 215 35 Q 215 32 218 32 Q 221 32 221 35 Q 221 38 218 38 Q 215 38 215 35 Z M 235 35 L 245 35 L 245 55 L 255 55 L 255 65 L 245 65 L 245 90 L 235 90 L 235 65 L 225 65 L 225 55 L 235 55 Z">
             <Path.Effect>
               <BlurEffect Radius="12"/>
             </Path.Effect>
@@ -225,29 +215,11 @@
                 StrokeThickness="3"
                 StrokeStartLineCap="Round"
                 StrokeEndLineCap="Round"
-                StrokeDashArray="680 680"
-                StrokeDashOffset="680"
+                StrokeDashArray="800 800"
+                StrokeDashOffset="800"
                 StrokeLineJoin="Round"
-                Opacity="0">
-            <Path.Data>
-              <!-- T -->
-              M 30,60 L 30,30 L 60,30 M 30,45 L 50,45
-              <!-- r -->
-              M 70,45 Q 70,42 73,42 Q 80,42 80,50 L 80,60
-              <!-- i -->
-              M 90,50 L 90,60 M 90,42 L 90,43
-              <!-- S -->
-              M 110,60 Q 100,60 100,53 Q 100,45 110,45 Q 120,45 120,50 Q 120,55 115,57 Q 110,58 100,55
-              <!-- p -->
-              M 130,45 L 130,70 Q 130,75 135,75 Q 140,75 140,70 L 140,45 Q 140,42 143,42 Q 146,42 146,45 L 146,70 Q 146,80 138,80 Q 130,80 130,70
-              <!-- l -->
-              M 156,60 L 156,30 M 166,60 L 166,45 M 176,60 L 176,42
-              <!-- i -->
-              M 186,50 Q 186,45 191,45 Q 196,45 196,50 L 196,60 M 186,60 L 196,60
-              <!-- t -->
-              M 210,42 L 220,42 Q 225,42 225,47 Q 225,52 220,52 L 210,52 L 210,60 L 225,60
-            </Path.Data>
-          </Path>
+                Opacity="0"
+                Data="M 10 20 L 50 20 L 50 30 L 35 30 L 35 70 L 25 70 L 25 30 L 10 30 Z M 60 45 Q 60 40 65 40 Q 72 40 72 48 L 72 70 L 62 70 L 62 50 Z M 82 45 L 82 70 L 92 70 L 92 45 Z M 87 35 Q 87 32 90 32 Q 93 32 93 35 Q 93 38 90 38 Q 87 38 87 35 Z M 115 30 Q 105 30 105 40 Q 105 50 120 50 Q 135 50 135 60 Q 135 70 120 70 Q 105 70 105 60 L 115 60 Q 115 65 120 65 Q 125 65 125 60 Q 125 55 110 55 Q 95 55 95 40 Q 95 25 115 25 Q 135 25 135 35 L 125 35 Q 125 30 115 30 Z M 150 45 L 150 80 Q 150 90 160 90 Q 170 90 170 80 L 170 65 Q 170 60 165 60 Q 160 60 160 65 L 160 80 L 150 80 M 150 45 Q 150 35 160 35 Q 170 35 170 45 Q 170 55 160 55 Q 150 55 150 45 Z M 185 35 L 185 90 L 195 90 L 195 35 Z M 210 45 L 210 70 L 220 70 L 220 45 Z M 215 35 Q 215 32 218 32 Q 221 32 221 35 Q 221 38 218 38 Q 215 38 215 35 Z M 235 35 L 245 35 L 245 55 L 255 55 L 255 65 L 245 65 L 245 90 L 235 90 L 235 65 L 225 65 L 225 55 L 235 55 Z"/>
 
           <!-- Particle effects layer -->
           <Canvas x:Name="ParticleLayer">
