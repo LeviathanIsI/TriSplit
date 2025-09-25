@@ -521,11 +521,16 @@ public partial class ProcessingViewModel : ViewModelBase
                     }
                 }
 
-                await _dialogService.ShowMessageAsync("Profile setup incomplete", builder.ToString());
-                return;
+                builder.AppendLine();
+                builder.AppendLine("Choose Ignore to run anyway.");
+
+                var ignoreWarning = await _dialogService.ShowConfirmationDialogAsync("Profile setup incomplete", builder.ToString(), "Ignore", "Go Back");
+                if (!ignoreWarning)
+                {
+                    return;
+                }
             }
         }
-
 
         if (!OutputCsv && !OutputExcel && !OutputJson)
         {

@@ -6,7 +6,7 @@ public interface IDialogService
 {
     Task<string?> ShowOpenFileDialogAsync(string title, string filter);
     Task<string?> ShowSaveFileDialogAsync(string title, string filter, string defaultFileName = "");
-    Task<bool> ShowConfirmationDialogAsync(string title, string message);
+    Task<bool> ShowConfirmationDialogAsync(string title, string message, string primaryButtonText = "Yes", string secondaryButtonText = "No");
     Task ShowMessageAsync(string title, string message);
     Task<ProfileMatchCandidate?> ShowProfileSelectionDialogAsync(IReadOnlyList<ProfileMatchCandidate> candidates);
     Task<PartialMatchDecision> ShowPartialMatchDialogAsync(ProfileMatchCandidate candidate);

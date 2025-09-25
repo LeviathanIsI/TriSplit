@@ -45,11 +45,11 @@ public class DialogService : IDialogService
         });
     }
 
-    public Task<bool> ShowConfirmationDialogAsync(string title, string message)
+    public Task<bool> ShowConfirmationDialogAsync(string title, string message, string primaryButtonText = "Yes", string secondaryButtonText = "No")
     {
         return InvokeOnDispatcherAsync(() =>
         {
-            var dialog = new MessageDialog(title, message, "Yes", "No")
+            var dialog = new MessageDialog(title, message, primaryButtonText, secondaryButtonText)
             {
                 Owner = GetActiveWindow()
             };
