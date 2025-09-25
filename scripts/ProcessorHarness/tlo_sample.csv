@@ -1,0 +1,4 @@
+owner1_first_name,owner1_last_name,property_address,city,state,zip,owner_mailing_address,owner_mailing_city,owner_mailing_state,owner_mailing_zip,TloPhone1,TloPhone1PhoneType
+John,Doe,1300 West First Street,Easton,Pennsylvania,18042,1300 West First Street,Easton,Pennsylvania,18042,6105551234,Home
+Jane,Smith,200 South Second Ave.,Bethlehem,PA,18015,PO Box 123,Bethlehem,PA,18016,6105555678,Cell
+Jake,Johnson,789 north pine rd,Allentown,pa,,789 north pine rd,Allentown,pa,,6105559999,Work
