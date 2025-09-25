@@ -52,6 +52,10 @@ public class UnifiedProcessor
 
     private static readonly Regex WhitespaceRegex = new(@"\s+", RegexOptions.Compiled);
     private static readonly Regex NonDigitRegex = new(@"[^0-9]", RegexOptions.Compiled);
+    private static readonly Regex OrdinalRegex = new(@"\b(\d+)(ST|ND|RD|TH)\b", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+    private static readonly Regex DirectionRegex = new(@"\b(North|South|East|West)\s+(?!St\.?|Street|Ave\.?|Avenue|Dr\.?|Drive|Blvd\.?|Boulevard|Ln\.?|Lane|Rd\.?|Road|Ct\.?|Court|Pl\.?|Place)\b", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+    private static readonly Regex StreetAbbreviationPeriodRegex = new(@"\b(St|Ave|Dr|Blvd|Ln|Rd|Ct|Pl)\.", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+    private static readonly Regex StreetTypeWordRegex = new(@"\b(street|drive|avenue|boulevard|lane|road|court|place)\b", RegexOptions.IgnoreCase | RegexOptions.Compiled);
     private static readonly Regex OwnerIndexRegex = new(@"owner\s*(\d+)", RegexOptions.IgnoreCase | RegexOptions.Compiled);
     private static readonly Regex PhoneIndexRegex = new(@"(\d+)(?!.*\d)", RegexOptions.Compiled);
     private static readonly Regex PhoneQualifierRegex = new(@"(type|status|tags?|label)", RegexOptions.IgnoreCase | RegexOptions.Compiled);
@@ -79,6 +83,82 @@ public class UnifiedProcessor
     {
         "Relative",
         "Associate"
+    };
+
+    private static readonly Dictionary<string, string> DirectionAbbreviationLookup = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ["North"] = "N",
+        ["South"] = "S",
+        ["East"] = "E",
+        ["West"] = "W"
+    };
+
+    private static readonly Dictionary<string, string> StreetTypeAbbreviationLookup = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ["street"] = "St",
+        ["drive"] = "Dr",
+        ["avenue"] = "Ave",
+        ["boulevard"] = "Blvd",
+        ["lane"] = "Ln",
+        ["road"] = "Rd",
+        ["court"] = "Ct",
+        ["place"] = "Pl"
+    };
+
+    private static readonly Dictionary<string, string> StateAbbreviationLookup = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ["alabama"] = "AL",
+        ["alaska"] = "AK",
+        ["arizona"] = "AZ",
+        ["arkansas"] = "AR",
+        ["california"] = "CA",
+        ["colorado"] = "CO",
+        ["connecticut"] = "CT",
+        ["delaware"] = "DE",
+        ["florida"] = "FL",
+        ["georgia"] = "GA",
+        ["hawaii"] = "HI",
+        ["idaho"] = "ID",
+        ["illinois"] = "IL",
+        ["indiana"] = "IN",
+        ["iowa"] = "IA",
+        ["kansas"] = "KS",
+        ["kentucky"] = "KY",
+        ["louisiana"] = "LA",
+        ["maine"] = "ME",
+        ["maryland"] = "MD",
+        ["massachusetts"] = "MA",
+        ["michigan"] = "MI",
+        ["minnesota"] = "MN",
+        ["mississippi"] = "MS",
+        ["missouri"] = "MO",
+        ["montana"] = "MT",
+        ["nebraska"] = "NE",
+        ["nevada"] = "NV",
+        ["new hampshire"] = "NH",
+        ["new jersey"] = "NJ",
+        ["new mexico"] = "NM",
+        ["new york"] = "NY",
+        ["north carolina"] = "NC",
+        ["north dakota"] = "ND",
+        ["ohio"] = "OH",
+        ["oklahoma"] = "OK",
+        ["oregon"] = "OR",
+        ["pennsylvania"] = "PA",
+        ["rhode island"] = "RI",
+        ["south carolina"] = "SC",
+        ["south dakota"] = "SD",
+        ["tennessee"] = "TN",
+        ["texas"] = "TX",
+        ["utah"] = "UT",
+        ["vermont"] = "VT",
+        ["virginia"] = "VA",
+        ["washington"] = "WA",
+        ["west virginia"] = "WV",
+        ["wisconsin"] = "WI",
+        ["wyoming"] = "WY",
+        ["district of columbia"] = "DC",
+        ["puerto rico"] = "PR"
     };
 
     public UnifiedProcessor(Profile profile, IInputReader inputReader, IExcelExporter excelExporter, IProgress<ProcessingProgress>? progress = null)
@@ -1379,13 +1459,13 @@ public class UnifiedProcessor
             case "City":
                 if (hasValue || string.IsNullOrWhiteSpace(city))
                 {
-                    city = trimmedValue;
+                    city = CleanCity(normalizedInput);
                 }
                 break;
             case "State":
                 if (hasValue || string.IsNullOrWhiteSpace(state))
                 {
-                    state = trimmedValue.ToUpperInvariant();
+                    state = CleanState(normalizedInput);
                 }
                 break;
             case "Zip":
@@ -1397,7 +1477,7 @@ public class UnifiedProcessor
             case "County":
                 if (hasValue || string.IsNullOrWhiteSpace(county))
                 {
-                    county = trimmedValue;
+                    county = CleanCounty(normalizedInput);
                 }
                 break;
             case "PropertyType":
@@ -1960,32 +2040,127 @@ public class UnifiedProcessor
         if (string.IsNullOrWhiteSpace(value))
             return string.Empty;
 
-        value = WhitespaceRegex.Replace(value, " ").Trim();
+        var standardized = StandardizeOrdinals(value);
+        standardized = standardized.Replace("#", string.Empty);
 
-        value = Regex.Replace(value, @"\bST\b", "Street", RegexOptions.IgnoreCase);
-        value = Regex.Replace(value, @"\bAVE\b", "Avenue", RegexOptions.IgnoreCase);
-        value = Regex.Replace(value, @"\bRD\b", "Road", RegexOptions.IgnoreCase);
-        value = Regex.Replace(value, @"\bDR\b", "Drive", RegexOptions.IgnoreCase);
-        value = Regex.Replace(value, @"\bLN\b", "Lane", RegexOptions.IgnoreCase);
-        value = Regex.Replace(value, @"\bCT\b", "Court", RegexOptions.IgnoreCase);
-        value = Regex.Replace(value, @"\bPL\b", "Place", RegexOptions.IgnoreCase);
-        value = Regex.Replace(value, @"\bBLVD\b", "Boulevard", RegexOptions.IgnoreCase);
+        standardized = DirectionRegex.Replace(standardized, match =>
+        {
+            var token = match.Groups[1].Value;
+            return DirectionAbbreviationLookup.TryGetValue(token, out var abbreviation)
+                ? abbreviation + " "
+                : token + " ";
+        });
 
-        return value;
+        standardized = StreetAbbreviationPeriodRegex.Replace(standardized, match => match.Groups[1].Value);
+        standardized = StreetTypeWordRegex.Replace(standardized, match => StreetTypeAbbreviationLookup.TryGetValue(match.Value, out var abbreviation) ? abbreviation : match.Value);
+
+        standardized = ToHubSpotTitleCase(standardized);
+        standardized = WhitespaceRegex.Replace(standardized, " ");
+
+        return standardized.Trim();
     }
 
     private static string CleanZip(string value)
     {
+        var digits = string.IsNullOrWhiteSpace(value) ? string.Empty : NonDigitRegex.Replace(value, string.Empty);
+        if (digits.Length > 5)
+        {
+            digits = digits[..5];
+        }
+
+        return digits.PadLeft(5, '0');
+    }
+
+    private static string CleanCity(string value)
+    {
         if (string.IsNullOrWhiteSpace(value))
             return string.Empty;
 
-        var digits = NonDigitRegex.Replace(value, string.Empty);
-        if (digits.Length >= 5)
+        var sanitized = value.Replace("(", string.Empty).Replace(")", string.Empty);
+        sanitized = WhitespaceRegex.Replace(sanitized, " ").Trim();
+
+        return sanitized.Length == 0 ? string.Empty : ToHubSpotTitleCase(sanitized);
+    }
+
+    private static string CleanCounty(string value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+            return string.Empty;
+
+        var sanitized = value.Replace("(", string.Empty).Replace(")", string.Empty);
+        sanitized = WhitespaceRegex.Replace(sanitized, " ").Trim();
+
+        return sanitized.Length == 0 ? string.Empty : ToHubSpotTitleCase(sanitized);
+    }
+
+    private static string CleanState(string value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+            return string.Empty;
+
+        var sanitized = value.Replace("(", string.Empty).Replace(")", string.Empty);
+        sanitized = WhitespaceRegex.Replace(sanitized, " ").Trim();
+
+        if (sanitized.Length == 0)
+            return string.Empty;
+
+        return StateAbbreviationLookup.TryGetValue(sanitized, out var abbreviation)
+            ? abbreviation
+            : sanitized.ToUpperInvariant();
+    }
+
+    private static string StandardizeOrdinals(string value)
+    {
+        return OrdinalRegex.Replace(value, match =>
         {
-            return digits[..5];
+            var numberGroup = match.Groups[1].Value;
+            if (!int.TryParse(numberGroup, NumberStyles.Integer, CultureInfo.InvariantCulture, out var number))
+            {
+                return match.Value;
+            }
+
+            var lastTwoDigits = number % 100;
+            var suffix = lastTwoDigits is >= 11 and <= 13
+                ? "th"
+                : (number % 10) switch
+                {
+                    1 => "st",
+                    2 => "nd",
+                    3 => "rd",
+                    _ => "th"
+                };
+
+            return numberGroup + suffix;
+        });
+    }
+
+    private static string ToHubSpotTitleCase(string value)
+    {
+        if (string.IsNullOrEmpty(value))
+            return string.Empty;
+
+        var characters = value.ToLowerInvariant().ToCharArray();
+        var startOfWord = true;
+
+        for (var i = 0; i < characters.Length; i++)
+        {
+            var current = characters[i];
+            if (char.IsLetterOrDigit(current))
+            {
+                if (startOfWord && char.IsLetter(current))
+                {
+                    characters[i] = char.ToUpperInvariant(current);
+                }
+
+                startOfWord = false;
+            }
+            else
+            {
+                startOfWord = true;
+            }
         }
 
-        return digits;
+        return new string(characters);
     }
 
     private static string CleanPhoneNumber(string phone)
