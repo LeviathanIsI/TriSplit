@@ -1328,7 +1328,7 @@ public class UnifiedProcessor
 
         var key = BuildPropertyKey(importId, effectiveSnapshot);
         var groupLabel = FormatPropertyGroup(effectiveSnapshot.PropertyGroup, associationLabel);
-        if (!TryGetExistingPropertyRecord(importId, effectiveSnapshot, key, out var existingKey, out var existing))
+        if (!TryGetExistingPropertyRecord(importId, effectiveSnapshot, key, associationLabel, out var existingKey, out var existing))
         {
             var record = effectiveSnapshot.ToPropertyRecord(importId, associationLabel, isSecondary);
             record.PropertyGroup = groupLabel;
@@ -1398,7 +1398,7 @@ public class UnifiedProcessor
         ApplyPropertyMetadata(target);
     }
 
-    private bool TryGetExistingPropertyRecord(string importId, PropertySnapshot snapshot, string key, out string existingKey, out PropertyRecord? record)
+    private bool TryGetExistingPropertyRecord(string importId, PropertySnapshot snapshot, string key, string associationLabel, out string existingKey, out PropertyRecord? record)
     {
         if (_properties.TryGetValue(key, out var exactMatch))
         {
@@ -1407,11 +1407,16 @@ public class UnifiedProcessor
             return true;
         }
 
+        var snapshotGroupLabel = FormatPropertyGroup(snapshot.PropertyGroup, associationLabel);
+
         foreach (var entry in _properties)
         {
             var candidate = entry.Value;
 
             if (!string.Equals(candidate.ImportId, importId, StringComparison.OrdinalIgnoreCase))
+                continue;
+
+            if (!string.Equals(candidate.PropertyGroup, snapshotGroupLabel, StringComparison.OrdinalIgnoreCase))
                 continue;
 
             if (!CoreLocationMatches(snapshot, candidate))
@@ -1683,6 +1688,7 @@ public class UnifiedProcessor
         return string.Join("|", new[]
         {
             NormalizeKeyPart(importId),
+            NormalizeKeyPart(snapshot.PropertyGroup),
             NormalizeKeyPart(snapshot.Address),
             NormalizeKeyPart(snapshot.City),
             NormalizeKeyPart(snapshot.State),
