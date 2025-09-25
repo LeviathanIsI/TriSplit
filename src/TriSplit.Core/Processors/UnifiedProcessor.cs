@@ -169,7 +169,7 @@ public class UnifiedProcessor
         _excelExporter = excelExporter;
         _progress = progress;
         _createSecondaryContacts = profile?.CreateSecondaryContactsFile ?? false;
-        _defaultAssociationLabel = NormalizeAssociation(_profile.DefaultAssociationLabel);
+        _defaultAssociationLabel = NormalizeAssociation(ResolveLegacyDefaultAssociationLabel(profile));
     }
 
     public async Task<ProcessingResult> ProcessAsync(string inputFilePath, string outputDirectory, ProcessingOptions options, CancellationToken cancellationToken = default)
@@ -198,10 +198,10 @@ public class UnifiedProcessor
         try
         {
             currentStage = "configuring data sources";
-            _activeDataSource = (_profile.ContactPropertyDataSource ?? string.Empty).Trim();
-            _activePhoneDataSource = (_profile.PhoneDataSource ?? string.Empty).Trim();
-            _activeDataType = (_profile.DataType ?? string.Empty).Trim();
-            _activeTag = NormalizeTag(options.Tag) ?? NormalizeTag(_profile.TagNote);
+            _activeDataSource = string.Empty;
+            _activePhoneDataSource = string.Empty;
+            _activeDataType = string.Empty;
+            _activeTag = NormalizeTag(options.Tag);
             currentStage = "reading input file";
             ReportProgress("Reading input file...", 10);
             var inputData = await _inputReader.ReadAsync(inputFilePath);
@@ -1430,6 +1430,43 @@ public class UnifiedProcessor
         existingKey = string.Empty;
         record = null;
         return false;
+    }
+
+    private static string ResolveLegacyDefaultAssociationLabel(Profile profile)
+    {
+        if (profile == null)
+        {
+            return string.Empty;
+        }
+
+        foreach (var candidate in EnumerateAssociationCandidates(profile))
+        {
+            if (!string.IsNullOrWhiteSpace(candidate))
+            {
+                return candidate.Trim();
+            }
+        }
+
+        return string.Empty;
+    }
+
+    private static IEnumerable<string> EnumerateAssociationCandidates(Profile profile)
+    {
+        if (profile.PropertyMappings != null)
+        {
+            foreach (var mapping in profile.PropertyMappings)
+            {
+                yield return mapping.AssociationType;
+            }
+        }
+
+        if (profile.ContactMappings != null)
+        {
+            foreach (var mapping in profile.ContactMappings)
+            {
+                yield return mapping.AssociationType;
+            }
+        }
     }
 
     private string ResolveAssociation(string? association)
