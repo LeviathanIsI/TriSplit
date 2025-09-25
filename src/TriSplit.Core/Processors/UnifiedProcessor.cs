@@ -1322,6 +1322,7 @@ public class UnifiedProcessor
                 target.AdditionalFields[pair.Key] = pair.Value;
             }
         }
+        UpdatePropertyDedupeKeys(target);
         ApplyPropertyMetadata(target);
     }
 
@@ -2109,6 +2110,33 @@ public class UnifiedProcessor
             : sanitized.ToUpperInvariant();
     }
 
+    private static void UpdatePropertyDedupeKeys(PropertyRecord record)
+    {
+        if (record is null)
+            return;
+
+        record.DedupeKeyAddressCityState = BuildDedupeKey(record.Address, record.City, record.State);
+        record.DedupeKeyAddressZip = BuildDedupeKey(record.Address, record.Zip);
+    }
+
+    private static string BuildDedupeKey(params string[] parts)
+    {
+        if (parts.Length == 0)
+            return string.Empty;
+
+        var segments = new List<string>(parts.Length);
+        foreach (var part in parts)
+        {
+            var trimmed = part?.Trim();
+            if (!string.IsNullOrWhiteSpace(trimmed))
+            {
+                segments.Add(trimmed);
+            }
+        }
+
+        return segments.Count == 0 ? string.Empty : string.Join(" | ", segments);
+    }
+
     private static string StandardizeOrdinals(string value)
     {
         return OrdinalRegex.Replace(value, match =>
@@ -2379,6 +2407,8 @@ public class UnifiedProcessor
                 writer.WriteString("State", property.State);
                 writer.WriteString("Zip", property.Zip);
                 writer.WriteString("County", property.County);
+                writer.WriteString("dedupe_key_address_city_state", property.DedupeKeyAddressCityState);
+                writer.WriteString("dedupe_key_address_zip", property.DedupeKeyAddressZip);
                 if (includePropertyType)
                 {
                     writer.WriteString("PropertyType", property.PropertyType ?? string.Empty);
@@ -2660,6 +2690,8 @@ public class UnifiedProcessor
             csv.WriteField("State");
             csv.WriteField("Zip");
             csv.WriteField("County");
+            csv.WriteField("dedupe_key_address_city_state");
+            csv.WriteField("dedupe_key_address_zip");
             if (includePropertyType)
             {
                 csv.WriteField("Property Type");
@@ -2690,6 +2722,8 @@ public class UnifiedProcessor
                 csv.WriteField(property.State);
                 csv.WriteField(property.Zip);
                 csv.WriteField(property.County);
+                csv.WriteField(property.DedupeKeyAddressCityState);
+                csv.WriteField(property.DedupeKeyAddressZip);
                 if (includePropertyType)
                 {
                     csv.WriteField(property.PropertyType);
@@ -2826,7 +2860,7 @@ public class UnifiedProcessor
 
         public PropertyRecord ToPropertyRecord(string importId, string associationLabel, bool isSecondary)
         {
-            return new PropertyRecord
+            var record = new PropertyRecord
             {
                 ImportId = importId,
                 Address = Address,
@@ -2840,6 +2874,9 @@ public class UnifiedProcessor
                 IsSecondary = isSecondary,
                 AdditionalFields = new Dictionary<string, string>(AdditionalFields, StringComparer.OrdinalIgnoreCase)
             };
+
+            UpdatePropertyDedupeKeys(record);
+            return record;
         }
 
 
@@ -2880,6 +2917,8 @@ public class PropertyRecord
     public string State { get; set; } = string.Empty;
     public string Zip { get; set; } = string.Empty;
     public string County { get; set; } = string.Empty;
+    public string DedupeKeyAddressCityState { get; set; } = string.Empty;
+    public string DedupeKeyAddressZip { get; set; } = string.Empty;
     public string AssociationLabel { get; set; } = string.Empty;
     public string PropertyType { get; set; } = string.Empty;
     public string PropertyValue { get; set; } = string.Empty;

@@ -134,7 +134,9 @@ public class ExcelExporter : IExcelExporter
             "City",
             "State",
             "Zip",
-            "County"
+            "County",
+            "dedupe_key_address_city_state",
+            "dedupe_key_address_zip"
         };
 
         if (includePropertyType)
@@ -159,7 +161,9 @@ public class ExcelExporter : IExcelExporter
                 record.City,
                 record.State,
                 record.Zip,
-                record.County
+                record.County,
+                record.DedupeKeyAddressCityState,
+                record.DedupeKeyAddressZip
             };
 
             if (includePropertyType)
