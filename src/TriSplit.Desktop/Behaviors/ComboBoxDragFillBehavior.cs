@@ -248,6 +248,12 @@ public static class ComboBoxDragFillBehavior
             return;
         }
 
+        if (!startElement.CaptureMouse())
+        {
+            LogDebug("Drag aborted: failed to capture mouse");
+            return;
+        }
+
         _currentState = state;
         LogDebug($"Tracking started for property '{propertyName}' with value '{value}'");
     }
@@ -297,7 +303,7 @@ public static class ComboBoxDragFillBehavior
         if (state.IsDragging)
             return true;
 
-        if (!state.StartElement.CaptureMouse())
+        if (!state.StartElement.IsMouseCaptured && !state.StartElement.CaptureMouse())
             return false;
 
         state.IsDragging = true;
