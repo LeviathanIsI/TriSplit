@@ -8,6 +8,7 @@ using System.IO;
 using System.IO.Compression;
 using System.Windows;
 using System.Linq;
+using System.Text;
 using System.Windows.Media;
 using TriSplit.Core.Interfaces;
 using TriSplit.Core.Models;
@@ -452,6 +453,79 @@ public partial class ProcessingViewModel : ViewModelBase
             await _dialogService.ShowMessageAsync("Error", "Please select a file and data profile first");
             return;
         }
+
+        if (SelectedProfile is { } profile)
+        {
+            var missingFields = new List<string>();
+
+            if (string.IsNullOrWhiteSpace(profile.ContactPropertyDataSource))
+            {
+                missingFields.Add("Contact/Property Data Source");
+            }
+
+            var hasPhoneMappings = (profile.PhoneMappings?.Count > 0) ||
+                                   (profile.ContactMappings?.Any(m => string.Equals(m.ObjectType, MappingObjectTypes.PhoneNumber, StringComparison.OrdinalIgnoreCase)) ?? false) ||
+                                   (profile.PropertyMappings?.Any(m => string.Equals(m.ObjectType, MappingObjectTypes.PhoneNumber, StringComparison.OrdinalIgnoreCase)) ?? false);
+
+            if (hasPhoneMappings && string.IsNullOrWhiteSpace(profile.PhoneDataSource))
+            {
+                missingFields.Add("Phone Number Data Source");
+            }
+
+            if (string.IsNullOrWhiteSpace(profile.DataType))
+            {
+                missingFields.Add("Data Type");
+            }
+
+            var allMappings = (profile.ContactMappings ?? Enumerable.Empty<FieldMapping>())
+                .Concat(profile.PropertyMappings ?? Enumerable.Empty<FieldMapping>())
+                .Concat(profile.PhoneMappings ?? Enumerable.Empty<FieldMapping>());
+
+            var missingObjectMappings = allMappings
+                .Where(m => string.IsNullOrWhiteSpace(m.ObjectType))
+                .ToList();
+
+            if (missingFields.Count > 0 || missingObjectMappings.Count > 0)
+            {
+                var builder = new StringBuilder();
+                builder.AppendLine("Finish setting your data profile before processing:");
+
+                foreach (var item in missingFields)
+                {
+                    builder.AppendLine($"- {item}");
+                }
+
+                if (missingObjectMappings.Count > 0)
+                {
+                    var exampleFields = missingObjectMappings
+                        .Select(m => string.IsNullOrWhiteSpace(m.SourceColumn) ? "(source column not set)" : m.SourceColumn.Trim())
+                        .Distinct(StringComparer.OrdinalIgnoreCase)
+                        .Take(5)
+                        .ToList();
+
+                    if (exampleFields.Count > 0)
+                    {
+                        var preview = string.Join(", ", exampleFields);
+                        if (missingObjectMappings.Count > exampleFields.Count)
+                        {
+                            builder.AppendLine($"- Object Type for {missingObjectMappings.Count} mapping(s) (e.g. {preview})");
+                        }
+                        else
+                        {
+                            builder.AppendLine($"- Object Type for: {preview}");
+                        }
+                    }
+                    else
+                    {
+                        builder.AppendLine($"- Object Type for {missingObjectMappings.Count} mapping(s)");
+                    }
+                }
+
+                await _dialogService.ShowMessageAsync("Profile setup incomplete", builder.ToString());
+                return;
+            }
+        }
+
 
         if (!OutputCsv && !OutputExcel && !OutputJson)
         {
