@@ -40,6 +40,7 @@ public class UnifiedProcessor
     private readonly string _defaultAssociationLabel;
 
     private const string MailingAssociationLabel = "Mailing Address";
+    private const string ProfileDefaultPropertyGroupLabel = "Profile Default";
     private static readonly HashSet<string> MailingCoreFields = new(StringComparer.OrdinalIgnoreCase)
     {
         "Address",
@@ -508,11 +509,28 @@ public class UnifiedProcessor
         foreach (var pair in associationBuckets)
         {
             var association = pair.Key;
+            var propertyGroups = GetPropertyGroupKeys(association);
+
             foreach (var context in pair.Value)
             {
-                if (context.Property == PropertySnapshot.Empty)
+                context.PropertyGroups.Clear();
+
+                foreach (var group in propertyGroups)
                 {
-                    context.Property = BuildPropertySnapshot(row, association);
+                    var normalizedGroup = NormalizePropertyGroup(group);
+                    var snapshot = BuildPropertySnapshot(row, association, group);
+                    context.PropertyGroups[normalizedGroup] = snapshot;
+
+                    if (string.IsNullOrEmpty(normalizedGroup))
+                    {
+                        context.Property = snapshot;
+                    }
+                }
+
+                if (!context.PropertyGroups.TryGetValue(string.Empty, out var defaultSnapshot))
+                {
+                    var firstSnapshot = context.PropertyGroups.Values.FirstOrDefault(p => p.HasCoreAddress) ?? PropertySnapshot.Empty;
+                    context.Property = firstSnapshot;
                 }
             }
         }
@@ -795,9 +813,29 @@ public class UnifiedProcessor
     {
         var associationLabel = DeterminePropertyAssociationLabel(context, primaryContext);
 
-        if ( !context.IsSecondary && context.Property.HasCoreAddress) 
+        if (!context.IsSecondary && context.Property.HasCoreAddress)
         {
             PersistPropertySnapshot(context.ImportId, context.Property, associationLabel, context.IsSecondary);
+        }
+
+        if (!context.IsSecondary && context.PropertyGroups.Count > 0)
+        {
+            foreach (var pair in context.PropertyGroups)
+            {
+                if (string.IsNullOrEmpty(pair.Key))
+                {
+                    continue;
+                }
+
+                var snapshot = pair.Value;
+                var hasAdditional = snapshot.AdditionalFields.Any(kvp => !string.IsNullOrWhiteSpace(kvp.Value));
+                if (!snapshot.HasCoreAddress && !hasAdditional)
+                {
+                    continue;
+                }
+
+                PersistPropertySnapshot(context.ImportId, snapshot, associationLabel, context.IsSecondary);
+            }
         }
 
         var mailingSnapshot = context.Mailing.HasCoreAddress ? context.Mailing : context.Property;
@@ -1187,9 +1225,10 @@ public class UnifiedProcessor
 
         return false;
     }
-    private PropertySnapshot BuildPropertySnapshot(Dictionary<string, object> row, string? association)
+    private PropertySnapshot BuildPropertySnapshot(Dictionary<string, object> row, string? association, string propertyGroup = "")
     {
         var normalizedAssociation = ResolveAssociation(association);
+        var normalizedGroup = NormalizePropertyGroup(propertyGroup);
         var isMailing = string.Equals(normalizedAssociation, MailingAssociationLabel, StringComparison.OrdinalIgnoreCase);
 
         var address = string.Empty;
@@ -1203,12 +1242,13 @@ public class UnifiedProcessor
         var additionalFields = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
 
         var propertyMappings = GetMappingsByObjectType(MappingObjectTypes.Property)
+            .Where(m => string.Equals(NormalizePropertyGroup(m.PropertyGroup), normalizedGroup, StringComparison.OrdinalIgnoreCase))
             .Where(m => !string.IsNullOrWhiteSpace(m.HubSpotProperty))
             .ToList();
 
         if (propertyMappings.Count == 0)
         {
-            return new PropertySnapshot(address, city, state, zip, county, propertyType, propertyValue, additionalFields);
+            return new PropertySnapshot(address, city, state, zip, county, propertyType, propertyValue, additionalFields, normalizedGroup);
         }
 
         var seenProperties = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
@@ -1220,7 +1260,7 @@ public class UnifiedProcessor
                 continue;
             }
 
-            var rawValue = GetMappedValue(row, normalizedAssociation, propertyName, MappingObjectTypes.Property);
+            var rawValue = GetMappedValue(row, normalizedAssociation, propertyName, MappingObjectTypes.Property, normalizedGroup);
             var value = rawValue ?? string.Empty;
 
             var coreKey = GetCorePropertyKey(propertyName);
@@ -1249,8 +1289,28 @@ public class UnifiedProcessor
             additionalFields[propertyName] = trimmedValue;
         }
 
-        return new PropertySnapshot(address, city, state, zip, county, propertyType, propertyValue, additionalFields);
+        return new PropertySnapshot(address, city, state, zip, county, propertyType, propertyValue, additionalFields, normalizedGroup);
     }
+
+    private List<string> GetPropertyGroupKeys(string? association)
+    {
+        var normalizedAssociation = ResolveAssociation(association);
+
+        var groups = GetMappingsByObjectType(MappingObjectTypes.Property)
+            .Where(m => string.Equals(ResolveAssociation(m.AssociationType), normalizedAssociation, StringComparison.OrdinalIgnoreCase))
+            .Select(m => NormalizePropertyGroup(m.PropertyGroup))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .Where(group => !string.IsNullOrEmpty(group))
+            .ToList();
+
+        if (!groups.Contains(string.Empty, StringComparer.OrdinalIgnoreCase))
+        {
+            groups.Insert(0, string.Empty);
+        }
+
+        return groups;
+    }
+
     private void PersistPropertySnapshot(string importId, PropertySnapshot snapshot, string associationLabel, bool isSecondary)
     {
         var effectiveSnapshot = string.Equals(associationLabel, MailingAssociationLabel, StringComparison.OrdinalIgnoreCase)
@@ -1267,9 +1327,11 @@ public class UnifiedProcessor
         }
 
         var key = BuildPropertyKey(importId, effectiveSnapshot);
+        var groupLabel = FormatPropertyGroup(effectiveSnapshot.PropertyGroup, associationLabel);
         if (!TryGetExistingPropertyRecord(importId, effectiveSnapshot, key, out var existingKey, out var existing))
         {
             var record = effectiveSnapshot.ToPropertyRecord(importId, associationLabel, isSecondary);
+            record.PropertyGroup = groupLabel;
             foreach (var fieldName in record.AdditionalFields.Keys)
             {
                 RegisterAdditionalPropertyField(fieldName);
@@ -1286,6 +1348,16 @@ public class UnifiedProcessor
         {
             _properties.Remove(existingKey);
             _properties[key] = target;
+        }
+
+        if (string.IsNullOrWhiteSpace(target.PropertyGroup))
+        {
+            target.PropertyGroup = groupLabel;
+        }
+        else if (string.Equals(target.PropertyGroup, ProfileDefaultPropertyGroupLabel, StringComparison.OrdinalIgnoreCase)
+            && !string.Equals(groupLabel, ProfileDefaultPropertyGroupLabel, StringComparison.OrdinalIgnoreCase))
+        {
+            target.PropertyGroup = groupLabel;
         }
 
         target.AssociationLabel = MergeAssociationLabels(target.AssociationLabel, associationLabel);
@@ -1371,6 +1443,26 @@ public class UnifiedProcessor
     {
         return string.IsNullOrWhiteSpace(association) ? string.Empty : association.Trim();
     }
+
+    private static string NormalizePropertyGroup(string? propertyGroup)
+    {
+        return string.IsNullOrWhiteSpace(propertyGroup) ? string.Empty : propertyGroup.Trim();
+    }
+    private string FormatPropertyGroup(string propertyGroup, string associationLabel)
+    {
+        if (!string.IsNullOrWhiteSpace(propertyGroup))
+        {
+            return propertyGroup.Trim();
+        }
+
+        if (string.Equals(associationLabel, MailingAssociationLabel, StringComparison.OrdinalIgnoreCase))
+        {
+            return MailingAssociationLabel;
+        }
+
+        return ProfileDefaultPropertyGroupLabel;
+    }
+
 
 
     private static bool CoreLocationMatches(PropertySnapshot snapshot, PropertyRecord record)
@@ -1667,7 +1759,7 @@ public class UnifiedProcessor
         return EnumerateResolvedMappings().Select(pair => pair.Mapping);
     }
 
-    private IEnumerable<FieldMapping> GetMappings(string? associationType, string hubSpotProperty, string? objectType = null)
+    private IEnumerable<FieldMapping> GetMappings(string? associationType, string hubSpotProperty, string? objectType = null, string? propertyGroup = null)
     {
         var normalizedAssociation = NormalizeAssociation(associationType);
         if (string.IsNullOrWhiteSpace(normalizedAssociation))
@@ -1681,6 +1773,12 @@ public class UnifiedProcessor
         if (!string.IsNullOrWhiteSpace(objectType))
         {
             candidates = candidates.Where(pair => string.Equals(pair.ObjectType, objectType, StringComparison.OrdinalIgnoreCase));
+        }
+
+        if (propertyGroup != null)
+        {
+            var normalizedGroup = NormalizePropertyGroup(propertyGroup);
+            candidates = candidates.Where(pair => string.Equals(NormalizePropertyGroup(pair.Mapping.PropertyGroup), normalizedGroup, StringComparison.OrdinalIgnoreCase));
         }
 
         var candidateList = candidates.ToList();
@@ -1700,14 +1798,14 @@ public class UnifiedProcessor
             .Select(pair => pair.Mapping);
     }
 
-    private string GetMappedValue(Dictionary<string, object> row, string? associationType, string hubSpotProperty, string? objectType = null)
+    private string GetMappedValue(Dictionary<string, object> row, string? associationType, string hubSpotProperty, string? objectType = null, string? propertyGroup = null)
     {
         if (string.IsNullOrWhiteSpace(hubSpotProperty))
             return string.Empty;
 
         string? fallback = null;
 
-        foreach (var mapping in GetMappings(associationType, hubSpotProperty, objectType))
+        foreach (var mapping in GetMappings(associationType, hubSpotProperty, objectType, propertyGroup))
         {
             var value = GetValueFromMapping(row, mapping);
             if (!string.IsNullOrEmpty(value))
@@ -2417,6 +2515,7 @@ public class UnifiedProcessor
                 {
                     writer.WriteString("PropertyValue", property.PropertyValue ?? string.Empty);
                 }
+                writer.WriteString("PropertyGroup", property.PropertyGroup);
                 writer.WriteString("AssociationLabel", property.AssociationLabel);
                 writer.WriteString("DataSource", property.DataSource);
                 writer.WriteString("DataType", property.DataType);
@@ -2706,6 +2805,7 @@ public class UnifiedProcessor
                 csv.WriteField(field);
             }
 
+            csv.WriteField("Property Group");
             csv.WriteField("Association Label");
             csv.WriteField("Data Source");
             csv.WriteField("Data Type");
@@ -2739,6 +2839,7 @@ public class UnifiedProcessor
                     csv.WriteField(value ?? string.Empty);
                 }
 
+                csv.WriteField(property.PropertyGroup);
                 csv.WriteField(property.AssociationLabel);
                 csv.WriteField(property.DataSource);
                 csv.WriteField(property.DataType);
@@ -2808,6 +2909,7 @@ public class UnifiedProcessor
         public string ImportId { get; set; } = string.Empty;
         public PropertySnapshot Property { get; set; } = PropertySnapshot.Empty;
         public PropertySnapshot Mailing { get; set; } = PropertySnapshot.Empty;
+        public Dictionary<string, PropertySnapshot> PropertyGroups { get; } = new(StringComparer.OrdinalIgnoreCase);
         public Dictionary<string, string> AdditionalContactFields { get; } = new(StringComparer.OrdinalIgnoreCase);
 
         public bool HasContactData => !string.IsNullOrWhiteSpace(FirstName) || !string.IsNullOrWhiteSpace(LastName) || !string.IsNullOrWhiteSpace(Email) || !string.IsNullOrWhiteSpace(Company);
@@ -2817,7 +2919,7 @@ public class UnifiedProcessor
     {
         private static readonly IReadOnlyDictionary<string, string> EmptyAdditionalFields = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
 
-        public PropertySnapshot(string address, string city, string state, string zip, string county, string propertyType, string propertyValue, IReadOnlyDictionary<string, string>? additionalFields = null)
+        public PropertySnapshot(string address, string city, string state, string zip, string county, string propertyType, string propertyValue, IReadOnlyDictionary<string, string>? additionalFields = null, string propertyGroup = "")
         {
             Address = address;
             City = city;
@@ -2827,12 +2929,13 @@ public class UnifiedProcessor
             PropertyType = propertyType;
             PropertyValue = propertyValue;
             AdditionalFields = additionalFields ?? EmptyAdditionalFields;
+            PropertyGroup = propertyGroup ?? string.Empty;
         }
 
-        public static PropertySnapshot Empty { get; } = new(string.Empty, string.Empty, string.Empty, string.Empty, string.Empty, string.Empty, string.Empty, EmptyAdditionalFields);
+        public static PropertySnapshot Empty { get; } = new(string.Empty, string.Empty, string.Empty, string.Empty, string.Empty, string.Empty, string.Empty, EmptyAdditionalFields, string.Empty);
         public PropertySnapshot ForMailingOnly()
         {
-            return new PropertySnapshot(Address, City, State, Zip, County, string.Empty, string.Empty, EmptyAdditionalFields);
+            return new PropertySnapshot(Address, City, State, Zip, County, string.Empty, string.Empty, EmptyAdditionalFields, PropertyGroup);
         }
 
 
@@ -2844,6 +2947,7 @@ public class UnifiedProcessor
         public string PropertyType { get; }
         public string PropertyValue { get; }
         public IReadOnlyDictionary<string, string> AdditionalFields { get; }
+        public string PropertyGroup { get; }
 
         public bool HasCoreAddress => !string.IsNullOrWhiteSpace(Address) || !string.IsNullOrWhiteSpace(City) || !string.IsNullOrWhiteSpace(State) || !string.IsNullOrWhiteSpace(Zip);
 
@@ -2872,6 +2976,7 @@ public class UnifiedProcessor
                 PropertyType = PropertyType,
                 PropertyValue = PropertyValue,
                 IsSecondary = isSecondary,
+                PropertyGroup = PropertyGroup,
                 AdditionalFields = new Dictionary<string, string>(AdditionalFields, StringComparer.OrdinalIgnoreCase)
             };
 
@@ -2900,6 +3005,7 @@ public class ContactRecord
     public string Tags { get; set; } = string.Empty;
 }
 
+
 public class PhoneRecord
 {
     public string ImportId { get; set; } = string.Empty;
@@ -2926,8 +3032,10 @@ public class PropertyRecord
     public string DataSource { get; set; } = string.Empty;
     public string DataType { get; set; } = string.Empty;
     public string Tags { get; set; } = string.Empty;
+    public string PropertyGroup { get; set; } = string.Empty;
     public Dictionary<string, string> AdditionalFields { get; set; } = new(StringComparer.OrdinalIgnoreCase);
 }
+
 
 public class ProcessingResult
 {

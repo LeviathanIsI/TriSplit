@@ -150,7 +150,7 @@ public class ExcelExporter : IExcelExporter
         }
 
         headers.AddRange(additionalFieldOrder);
-        headers.AddRange(new[] { "Association Label", "Data Source", "Data Type", "Tags" });
+        headers.AddRange(new[] { "Property Group", "Association Label", "Data Source", "Data Type", "Tags" });
 
         var rows = data.Select(record =>
         {
@@ -182,6 +182,7 @@ public class ExcelExporter : IExcelExporter
                 baseValues.Add(value ?? string.Empty);
             }
 
+            baseValues.Add(record.PropertyGroup);
             baseValues.Add(record.AssociationLabel);
             baseValues.Add(record.DataSource);
             baseValues.Add(record.DataType);

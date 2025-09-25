@@ -495,6 +495,12 @@ public static class ComboBoxDragFillBehavior
                     mapping.AssociationLabel = value;
                 }
                 break;
+            case nameof(FieldMappingViewModel.PropertyGroup):
+                if (!string.Equals(mapping.PropertyGroup, value, StringComparison.Ordinal))
+                {
+                    mapping.PropertyGroup = value;
+                }
+                break;
             case nameof(FieldMappingViewModel.ObjectType):
                 if (!string.Equals(mapping.ObjectType, value, StringComparison.Ordinal))
                 {

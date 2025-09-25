@@ -103,6 +103,7 @@ public partial class ProfilesViewModel : ViewModelBase
     public ObservableCollection<string> DefaultAssociationOptions { get; }
     public ObservableCollection<string> HubSpotHeaders { get; }
     public ObservableCollection<string> ObjectTypes { get; }
+    public ObservableCollection<string> PropertyGroups { get; }
 
     [ObservableProperty]
     private string _profileName = "New Data Profile";
@@ -357,6 +358,9 @@ public partial class ProfilesViewModel : ViewModelBase
             MappingObjectTypes.PhoneNumber,
             MappingObjectTypes.Property
         };
+
+        PropertyGroups = new ObservableCollection<string>(
+            new[] { string.Empty }.Concat(Enumerable.Range(1, 10).Select(i => $"Property Group {i}")));
 
         _isLoadingProfile = true;
         InitializeMappings();
@@ -649,6 +653,7 @@ public partial class ProfilesViewModel : ViewModelBase
             _blockClipboard.Add(new MappingBlockSnapshot(
                 mapping.SourceField ?? string.Empty,
                 mapping.AssociationLabel ?? string.Empty,
+                mapping.PropertyGroup ?? string.Empty,
                 mapping.ObjectType ?? string.Empty,
                 mapping.HubSpotHeader ?? string.Empty));
         }
@@ -691,6 +696,7 @@ public partial class ProfilesViewModel : ViewModelBase
             {
                 SourceField = snapshot.SourceField,
                 AssociationLabel = snapshot.AssociationLabel,
+                PropertyGroup = snapshot.PropertyGroup,
                 ObjectType = snapshot.ObjectType,
                 HubSpotHeader = snapshot.HubSpotHeader
             };
@@ -742,7 +748,7 @@ public partial class ProfilesViewModel : ViewModelBase
     }
 #endif
 
-    private sealed record MappingBlockSnapshot(string SourceField, string AssociationLabel, string ObjectType, string HubSpotHeader);
+    private sealed record MappingBlockSnapshot(string SourceField, string AssociationLabel, string PropertyGroup, string ObjectType, string HubSpotHeader);
 
     private void OnFieldMappingsCollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)
     {
@@ -920,25 +926,25 @@ public partial class ProfilesViewModel : ViewModelBase
             sb.AppendLine("UI preview:");
             foreach (var mapping in mappingList.Where(m => !string.IsNullOrWhiteSpace(m.SourceField)).Take(25))
             {
-                sb.AppendLine($"  {mapping.SourceField} | Assoc='{mapping.AssociationLabel}' | Type='{mapping.ObjectType}' | HubSpot='{mapping.HubSpotHeader}'");
+                sb.AppendLine($"  {mapping.SourceField} | Assoc='{mapping.AssociationLabel}' | Group='{mapping.PropertyGroup}' | Type='{mapping.ObjectType}' | HubSpot='{mapping.HubSpotHeader}'");
             }
 
             sb.AppendLine("Property mappings preview:");
             foreach (var mapping in snapshot.PropertyMappings.Take(25))
             {
-                sb.AppendLine($"  {mapping.SourceColumn} | Assoc='{mapping.AssociationType}' | Obj='{mapping.ObjectType}' | HubSpot='{mapping.HubSpotProperty}'");
+                sb.AppendLine($"  {mapping.SourceColumn} | Assoc='{mapping.AssociationType}' | Group='{mapping.PropertyGroup}' | Obj='{mapping.ObjectType}' | HubSpot='{mapping.HubSpotProperty}'");
             }
 
             sb.AppendLine("Contact mappings preview:");
             foreach (var mapping in snapshot.ContactMappings.Take(25))
             {
-                sb.AppendLine($"  {mapping.SourceColumn} | Assoc='{mapping.AssociationType}' | Obj='{mapping.ObjectType}' | HubSpot='{mapping.HubSpotProperty}'");
+                sb.AppendLine($"  {mapping.SourceColumn} | Assoc='{mapping.AssociationType}' | Group='{mapping.PropertyGroup}' | Obj='{mapping.ObjectType}' | HubSpot='{mapping.HubSpotProperty}'");
             }
 
             sb.AppendLine("Phone mappings preview:");
             foreach (var mapping in snapshot.PhoneMappings.Take(25))
             {
-                sb.AppendLine($"  {mapping.SourceColumn} | Assoc='{mapping.AssociationType}' | Obj='{mapping.ObjectType}' | HubSpot='{mapping.HubSpotProperty}'");
+                sb.AppendLine($"  {mapping.SourceColumn} | Assoc='{mapping.AssociationType}' | Group='{mapping.PropertyGroup}' | Obj='{mapping.ObjectType}' | HubSpot='{mapping.HubSpotProperty}'");
             }
 
             File.AppendAllText(ProfileSaveLogPath, sb.ToString());
@@ -1088,7 +1094,8 @@ public partial class ProfilesViewModel : ViewModelBase
                     SourceColumn = mapping.SourceField ?? string.Empty,
                     HubSpotProperty = mapping.HubSpotHeader ?? string.Empty,
                     AssociationType = association ?? string.Empty,
-                    ObjectType = normalizedObjectType
+                    ObjectType = normalizedObjectType,
+                    PropertyGroup = mapping.PropertyGroup?.Trim() ?? string.Empty
                 };
 
                 var targetBucket = normalizedObjectType;
@@ -1266,6 +1273,7 @@ public partial class ProfilesViewModel : ViewModelBase
                 {
                     SourceField = mapping.SourceColumn,
                     AssociationLabel = mapping.AssociationType,
+                    PropertyGroup = mapping.PropertyGroup,
                     HubSpotHeader = mapping.HubSpotProperty,
                     ObjectType = string.IsNullOrWhiteSpace(mapping.ObjectType)
                         ? string.Empty
@@ -1280,6 +1288,7 @@ public partial class ProfilesViewModel : ViewModelBase
                 {
                     SourceField = mapping.SourceColumn,
                     AssociationLabel = mapping.AssociationType,
+                    PropertyGroup = mapping.PropertyGroup,
                     HubSpotHeader = mapping.HubSpotProperty,
                     ObjectType = string.IsNullOrWhiteSpace(mapping.ObjectType)
                         ? string.Empty
@@ -1294,6 +1303,7 @@ public partial class ProfilesViewModel : ViewModelBase
                 {
                     SourceField = mapping.SourceColumn,
                     AssociationLabel = mapping.AssociationType,
+                    PropertyGroup = mapping.PropertyGroup,
                     HubSpotHeader = mapping.HubSpotProperty,
                     ObjectType = string.IsNullOrWhiteSpace(mapping.ObjectType)
                         ? string.Empty
@@ -1927,6 +1937,7 @@ public partial class ProfilesViewModel : ViewModelBase
         if (string.IsNullOrEmpty(e.PropertyName) ||
             e.PropertyName == nameof(FieldMappingViewModel.SourceField) ||
             e.PropertyName == nameof(FieldMappingViewModel.AssociationLabel) ||
+            e.PropertyName == nameof(FieldMappingViewModel.PropertyGroup) ||
             e.PropertyName == nameof(FieldMappingViewModel.ObjectType) ||
             e.PropertyName == nameof(FieldMappingViewModel.HubSpotHeader))
         {
@@ -2090,6 +2101,9 @@ public partial class FieldMappingViewModel : ObservableObject
 
     [ObservableProperty]
     private string _associationLabel = string.Empty;
+
+    [ObservableProperty]
+    private string _propertyGroup = string.Empty;
 
     [ObservableProperty]
     private string _objectType = string.Empty;

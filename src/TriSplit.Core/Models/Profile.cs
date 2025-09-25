@@ -41,6 +41,7 @@ public class FieldMapping
     public string HubSpotProperty { get; set; } = string.Empty;
     public string AssociationType { get; set; } = string.Empty;
     public string ObjectType { get; set; } = string.Empty;
+    public string PropertyGroup { get; set; } = string.Empty;
     public bool IsRequired { get; set; }
     public List<Transform> Transforms { get; set; } = new();
 }

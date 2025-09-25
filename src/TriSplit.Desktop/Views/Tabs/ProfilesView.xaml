@@ -272,6 +272,8 @@
                 <ColumnDefinition Width="*"/>
                 <ColumnDefinition Width="20"/>
                 <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="20"/>
+                <ColumnDefinition Width="*"/>
                 <ColumnDefinition Width="60"/>
               </Grid.ColumnDefinitions>
               <TextBlock Grid.Column="1"
@@ -287,18 +289,24 @@
                          FontSize="12"/>
 
               <TextBlock Grid.Column="5"
-                         Text="OBJECT TYPE"
+                         Text="PROPERTY GROUP"
                          Foreground="{StaticResource AccentBrush}"
                          FontWeight="SemiBold"
                          FontSize="12"/>
 
               <TextBlock Grid.Column="7"
+                         Text="OBJECT TYPE"
+                         Foreground="{StaticResource AccentBrush}"
+                         FontWeight="SemiBold"
+                         FontSize="12"/>
+
+              <TextBlock Grid.Column="9"
                          Text="HUBSPOT HEADER"
                          Foreground="{StaticResource AccentBrush}"
                          FontWeight="SemiBold"
                          FontSize="12"/>
 
-              <TextBlock Grid.Column="8"
+              <TextBlock Grid.Column="10"
                          Text="ACTION"
                          Foreground="{StaticResource AccentBrush}"
                          FontWeight="SemiBold"
@@ -441,6 +449,8 @@
                         <ColumnDefinition Width="*"/>
                         <ColumnDefinition Width="20"/>
                         <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="20"/>
+                        <ColumnDefinition Width="*"/>
                         <ColumnDefinition Width="60"/>
                       </Grid.ColumnDefinitions>
 
@@ -550,9 +560,64 @@
                         </StackPanel>
                       </Border>
 
+                      <!-- Property Group -->
+                      <ComboBox x:Name="PropertyGroupCombo"
+                                Grid.Column="5"
+                                ItemsSource="{Binding DataContext.PropertyGroups, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                SelectedItem="{Binding PropertyGroup}"
+                                behaviors:ComboBoxDragFillBehavior.FillPropertyName="PropertyGroup"
+                                ToolTip="Group related property fields. Leave blank for Profile Default."
+                                VerticalAlignment="Center">
+                        <ComboBox.Style>
+                          <Style TargetType="ComboBox" BasedOn="{StaticResource {x:Type ComboBox}}">
+                            <Style.Triggers>
+                              <DataTrigger Binding="{Binding DataContext.IsBlockSelected, RelativeSource={RelativeSource AncestorType=Border}}" Value="True">
+                                <Setter Property="BorderBrush" Value="#FF4BA3FF"/>
+                                <Setter Property="BorderThickness" Value="2"/>
+                              </DataTrigger>
+                              <Trigger Property="behaviors:ComboBoxDragFillBehavior.IsDragHighlighted" Value="True">
+                                <Setter Property="BorderBrush" Value="{StaticResource AccentBrush}"/>
+                                <Setter Property="BorderThickness" Value="2"/>
+                              </Trigger>
+                            </Style.Triggers>
+                          </Style>
+                        </ComboBox.Style>
+                      </ComboBox>
+
+                      <Border Grid.Column="6"
+                              Width="20"
+                              Background="Transparent"
+                              CornerRadius="2"
+                              Cursor="Hand"
+                              ToolTip="Click and drag to fill PROPERTY GROUP down"
+                              behaviors:ComboBoxDragFillBehavior.HandleFor="{Binding ElementName=PropertyGroupCombo}">
+                        <Border.Style>
+                          <Style TargetType="Border">
+                            <Setter Property="Background" Value="Transparent"/>
+                            <Setter Property="CornerRadius" Value="2"/>
+                            <Style.Triggers>
+                              <DataTrigger Binding="{Binding DataContext.IsBlockSelected, RelativeSource={RelativeSource AncestorType=Border}}" Value="True">
+                                <Setter Property="BorderBrush" Value="#FF4BA3FF"/>
+                                <Setter Property="BorderThickness" Value="2"/>
+                              </DataTrigger>
+                              <Trigger Property="behaviors:ComboBoxDragFillBehavior.IsDragHighlighted" Value="True">
+                                <Setter Property="Background" Value="{StaticResource AccentBrush}"/>
+                              </Trigger>
+                            </Style.Triggers>
+                          </Style>
+                        </Border.Style>
+                        <StackPanel Orientation="Vertical"
+                                    HorizontalAlignment="Center"
+                                    VerticalAlignment="Center">
+                          <Rectangle Width="4" Height="2" Fill="{StaticResource SecondaryTextBrush}" Margin="0,1"/>
+                          <Rectangle Width="4" Height="2" Fill="{StaticResource SecondaryTextBrush}" Margin="0,1"/>
+                          <Rectangle Width="4" Height="2" Fill="{StaticResource SecondaryTextBrush}" Margin="0,1"/>
+                        </StackPanel>
+                      </Border>
+
                       <!-- Object Type -->
                       <ComboBox x:Name="ObjectTypeCombo"
-                                Grid.Column="5"
+                                Grid.Column="7"
                                 ItemsSource="{Binding DataContext.ObjectTypes, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
                                 SelectedItem="{Binding ObjectType}"
                                 behaviors:ComboBoxDragFillBehavior.FillPropertyName="ObjectType"
@@ -573,7 +638,7 @@
                         </ComboBox.Style>
                       </ComboBox>
 
-                      <Border Grid.Column="6"
+                      <Border Grid.Column="8"
                               Width="20"
                               Background="Transparent"
                               CornerRadius="2"
@@ -605,7 +670,7 @@
                       </Border>
 
                       <!-- HubSpot Header -->
-                      <ComboBox Grid.Column="7"
+                      <ComboBox Grid.Column="9"
                                 ItemsSource="{Binding DataContext.HubSpotHeaders, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
                                 SelectedItem="{Binding HubSpotHeader}"
                                 VerticalAlignment="Center">
@@ -622,7 +687,7 @@
                       </ComboBox>
 
                       <!-- Remove Button -->
-                      <Button Grid.Column="8"
+                      <Button Grid.Column="10"
                               Content="Remove"
                               Command="{Binding DataContext.RemoveMappingCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
                               CommandParameter="{Binding}"
