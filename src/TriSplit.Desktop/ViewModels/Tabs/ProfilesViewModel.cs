@@ -115,6 +115,9 @@ public partial class ProfilesViewModel : ViewModelBase
     [ObservableProperty]
     private int _configuredMappingCount;
 
+    [ObservableProperty]
+    private bool _isGroupDefaultsExpanded = true;
+
     partial void OnSelectedProfileChanged(ProfileListItemViewModel? value)
     {
         if (_isLoadingProfile)

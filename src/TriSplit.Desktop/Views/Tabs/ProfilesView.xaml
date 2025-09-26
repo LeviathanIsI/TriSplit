@@ -17,7 +17,7 @@
 
   <Grid Margin="20">
     <Grid.ColumnDefinitions>
-      <ColumnDefinition Width="280"/>
+      <ColumnDefinition Width="340"/>
       <ColumnDefinition Width="20"/>
       <ColumnDefinition Width="*"/>
     </Grid.ColumnDefinitions>
@@ -150,140 +150,148 @@
                 BorderBrush="{StaticResource BorderBrush}"
                 BorderThickness="0,0,0,1"
                 Padding="16">
-          <StackPanel>
-            <Grid>
-              <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="*"/>
-                <ColumnDefinition Width="260"/>
-              </Grid.ColumnDefinitions>
-
-              <TextBlock Grid.Column="0"
-                         Text="Group Defaults"
-                         Foreground="{StaticResource AccentBrush}"
-                         FontWeight="SemiBold"
-                         FontSize="16"/>
-
-              <StackPanel Grid.Column="1">
-                <TextBlock Text="Missing Header Behavior"
-                           Foreground="{StaticResource SecondaryTextBrush}"/>
-                <ComboBox ItemsSource="{Binding MissingHeaderBehaviorOptions}"
-                          SelectedItem="{Binding SelectedMissingHeaderBehavior}"
-                          Margin="0,4,0,0"/>
-              </StackPanel>
-            </Grid>
-
-            <ItemsControl ItemsSource="{Binding GroupCollections}"
-                          Margin="0,12,0,0">
-              <ItemsControl.ItemsPanel>
-                <ItemsPanelTemplate>
-                  <UniformGrid Columns="3"/>
-                </ItemsPanelTemplate>
-              </ItemsControl.ItemsPanel>
-              <ItemsControl.ItemContainerStyle>
-                <Style TargetType="ContentPresenter">
-                  <Setter Property="Margin" Value="0,0,12,12"/>
-                </Style>
-              </ItemsControl.ItemContainerStyle>
-              <ItemsControl.ItemTemplate>
-                <DataTemplate>
-                  <Border Background="{StaticResource SurfaceBrush}"
-                          BorderBrush="{StaticResource BorderBrush}"
-                          BorderThickness="1"
-                          CornerRadius="4"
-                          Padding="12">
-                    <StackPanel>
-                      <Grid>
-                        <Grid.ColumnDefinitions>
-                          <ColumnDefinition Width="*"/>
-                          <ColumnDefinition Width="Auto"/>
-                        </Grid.ColumnDefinitions>
-
-                        <TextBlock Grid.Column="0"
-                                   Text="{Binding Header}"
-                                   Foreground="{StaticResource SecondaryTextBrush}"
-                                   FontWeight="SemiBold"/>
-
-                        <Button Grid.Column="1"
-                                Content="+ Add Group"
-                                Command="{Binding AddGroupCommand}"
-                                Style="{StaticResource SecondaryButton}"
-                                Padding="10,4"/>
-                      </Grid>
-
-                      <ItemsControl ItemsSource="{Binding Groups}"
-                                    Margin="0,8,0,0">
-                        <ItemsControl.ItemTemplate>
-                          <DataTemplate>
-                            <Border Background="{StaticResource BackgroundBrush}"
-                                    BorderBrush="{StaticResource BorderBrush}"
-                                    BorderThickness="1"
-                                    CornerRadius="4"
-                                    Padding="10"
-                                    Margin="0,8,0,0">
-                              <Grid>
-                                <Grid.RowDefinitions>
-                                  <RowDefinition Height="Auto"/>
-                                  <RowDefinition Height="Auto"/>
-                                  <RowDefinition Height="Auto"/>
-                                  <RowDefinition Height="Auto"/>
-                                </Grid.RowDefinitions>
-                                <Grid.ColumnDefinitions>
-                                  <ColumnDefinition Width="*"/>
-                                  <ColumnDefinition Width="Auto"/>
-                                </Grid.ColumnDefinitions>
-
-                                <TextBlock Grid.Row="0"
-                                           Grid.Column="0"
-                                           Text="{Binding Title}"
-                                           Foreground="{StaticResource AccentBrush}"
-                                           FontWeight="SemiBold"/>
-
-                                <Button Grid.Row="0"
-                                        Grid.Column="1"
-                                        Content="Remove"
-                                        Command="{Binding DataContext.RemoveGroupCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
-                                        CommandParameter="{Binding}"
-                                        Style="{StaticResource SecondaryButton}"
-                                        Padding="8,4"
-                                        Margin="8,0,0,0"/>
-
-                                <StackPanel Grid.Row="1"
-                                            Grid.ColumnSpan="2"
-                                            Margin="0,8,0,0">
-                                  <TextBlock Text="Association Label"
-                                             Foreground="{StaticResource SecondaryTextBrush}"/>
-                                  <TextBox Text="{Binding AssociationLabel}"
-                                           Margin="0,4,0,0"/>
-                                </StackPanel>
-
-                                <StackPanel Grid.Row="2"
-                                            Grid.ColumnSpan="2"
-                                            Margin="0,8,0,0">
-                                  <TextBlock Text="Data Source"
-                                             Foreground="{StaticResource SecondaryTextBrush}"/>
-                                  <TextBox Text="{Binding DataSource}"
-                                           Margin="0,4,0,0"/>
-                                </StackPanel>
-
-                                <StackPanel Grid.Row="3"
-                                            Grid.ColumnSpan="2"
-                                            Margin="0,8,0,0">
-                                  <TextBlock Text="Tags (comma separated)"
-                                             Foreground="{StaticResource SecondaryTextBrush}"/>
-                                  <TextBox Text="{Binding Tags}"
-                                           Margin="0,4,0,0"/>
-                                </StackPanel>
-                              </Grid>
-                            </Border>
-                          </DataTemplate>
-                        </ItemsControl.ItemTemplate>
-                      </ItemsControl>
-                    </StackPanel>
-                  </Border>
-                </DataTemplate>
-              </ItemsControl.ItemTemplate>
-            </ItemsControl>
-          </StackPanel>
+          <Expander IsExpanded="{Binding IsGroupDefaultsExpanded, Mode=TwoWay}"
+                    Background="Transparent"
+                    BorderBrush="Transparent"
+                    ExpandDirection="Down"
+                    Padding="0">
+                        <Expander.Header>
+              <TextBlock Text="Group Defaults"
+                         Foreground="{StaticResource AccentBrush}"
+                         FontWeight="SemiBold"
+                         FontSize="16"/>
+            </Expander.Header>
+                        <Expander.Content>
+              <StackPanel>
+                <Grid Margin="0,0,0,12">
+                  <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="260"/>
+                  </Grid.ColumnDefinitions>
+
+                  <StackPanel Grid.Column="1">
+                    <TextBlock Text="Missing Header Behavior"
+                               Foreground="{StaticResource SecondaryTextBrush}"/>
+                    <ComboBox ItemsSource="{Binding MissingHeaderBehaviorOptions}"
+                              SelectedItem="{Binding SelectedMissingHeaderBehavior}"
+                              Margin="0,4,0,0"/>
+                  </StackPanel>
+                </Grid>
+
+                <ItemsControl ItemsSource="{Binding GroupCollections}"
+                              Margin="0,12,0,0">
+                  <ItemsControl.ItemsPanel>
+                    <ItemsPanelTemplate>
+                      <UniformGrid Columns="3"/>
+                    </ItemsPanelTemplate>
+                  </ItemsControl.ItemsPanel>
+                  <ItemsControl.ItemContainerStyle>
+                    <Style TargetType="ContentPresenter">
+                      <Setter Property="Margin" Value="0,0,12,12"/>
+                    </Style>
+                  </ItemsControl.ItemContainerStyle>
+                  <ItemsControl.ItemTemplate>
+                    <DataTemplate>
+                      <Border Background="{StaticResource SurfaceBrush}"
+                              BorderBrush="{StaticResource BorderBrush}"
+                              BorderThickness="1"
+                              CornerRadius="4"
+                              Padding="12">
+                        <StackPanel>
+                          <Grid>
+                            <Grid.ColumnDefinitions>
+                              <ColumnDefinition Width="*"/>
+                              <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+
+                            <TextBlock Grid.Column="0"
+                                       Text="{Binding Header}"
+                                       Foreground="{StaticResource SecondaryTextBrush}"
+                                       FontWeight="SemiBold"/>
+
+                            <Button Grid.Column="1"
+                                    Content="+ Add Group"
+                                    Command="{Binding AddGroupCommand}"
+                                    Style="{StaticResource SecondaryButton}"
+                                    Padding="10,4"/>
+                          </Grid>
+
+                          <ItemsControl ItemsSource="{Binding Groups}"
+                                        Margin="0,8,0,0">
+                            <ItemsControl.ItemTemplate>
+                              <DataTemplate>
+                                <Border Background="{StaticResource BackgroundBrush}"
+                                        BorderBrush="{StaticResource BorderBrush}"
+                                        BorderThickness="1"
+                                        CornerRadius="4"
+                                        Padding="10"
+                                        Margin="0,8,0,0">
+                                  <Grid>
+                                    <Grid.RowDefinitions>
+                                      <RowDefinition Height="Auto"/>
+                                      <RowDefinition Height="Auto"/>
+                                      <RowDefinition Height="Auto"/>
+                                      <RowDefinition Height="Auto"/>
+                                    </Grid.RowDefinitions>
+                                    <Grid.ColumnDefinitions>
+                                      <ColumnDefinition Width="*"/>
+                                      <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+
+                                    <TextBlock Grid.Row="0"
+                                               Grid.Column="0"
+                                               Text="{Binding Title}"
+                                               Foreground="{StaticResource AccentBrush}"
+                                               FontWeight="SemiBold"/>
+
+                                    <Button Grid.Row="0"
+                                            Grid.Column="1"
+                                            Content="Remove"
+                                            Command="{Binding DataContext.RemoveGroupCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                            CommandParameter="{Binding}"
+                                            Style="{StaticResource SecondaryButton}"
+                                            Padding="8,4"
+                                            Margin="8,0,0,0"/>
+
+                                    <StackPanel Grid.Row="1"
+                                                Grid.ColumnSpan="2"
+                                                Margin="0,8,0,0">
+                                      <TextBlock Text="Association Label"
+                                                 Foreground="{StaticResource SecondaryTextBrush}"/>
+                                      <TextBox Text="{Binding AssociationLabel}"
+                                               Margin="0,4,0,0"/>
+                                    </StackPanel>
+
+                                    <StackPanel Grid.Row="2"
+                                                Grid.ColumnSpan="2"
+                                                Margin="0,8,0,0">
+                                      <TextBlock Text="Data Source"
+                                                 Foreground="{StaticResource SecondaryTextBrush}"/>
+                                      <TextBox Text="{Binding DataSource}"
+                                               Margin="0,4,0,0"/>
+                                    </StackPanel>
+
+                                    <StackPanel Grid.Row="3"
+                                                Grid.ColumnSpan="2"
+                                                Margin="0,8,0,0">
+                                      <TextBlock Text="Tags (comma separated)"
+                                                 Foreground="{StaticResource SecondaryTextBrush}"/>
+                                      <TextBox Text="{Binding Tags}"
+                                               Margin="0,4,0,0"/>
+                                    </StackPanel>
+                                  </Grid>
+                                </Border>
+                              </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                          </ItemsControl>
+                        </StackPanel>
+                      </Border>
+                    </DataTemplate>
+                  </ItemsControl.ItemTemplate>
+                </ItemsControl>
+              </StackPanel>
+            </Expander.Content>
+          </Expander>
         </Border>
         <!-- Column Headers -->
         <Border Grid.Row="1"
