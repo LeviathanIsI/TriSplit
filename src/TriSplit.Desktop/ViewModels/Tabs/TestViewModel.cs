@@ -194,8 +194,7 @@ public partial class TestViewModel : ViewModelBase, IDisposable
                 {
                     case NewSourceDecision.UpdateExisting:
                         _appSession.LoadedFilePath = _currentFilePath;
-                        _appSession.RequestNavigation(AppTab.Processing);
-                        TestStatus = "Select an existing data profile in Processing to map this file.";
+                        TestStatus = "File loaded. You can continue testing or switch to Processing tab when ready.";
                         break;
                     case NewSourceDecision.CreateNew:
                         _appSession.NotifyNewSourceRequested(_currentFilePath, headers);

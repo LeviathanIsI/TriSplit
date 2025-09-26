@@ -3,6 +3,7 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:diag="clr-namespace:System.Diagnostics;assembly=WindowsBase"
              AllowDrop="True"
              PreviewDragOver="ProfilesView_OnPreviewDragOver"
              Drop="ProfilesView_OnDrop"
@@ -171,146 +172,149 @@
 
             </Expander.Header>
                         <Expander.Content>
-              <StackPanel>
-                <Grid Margin="0,0,0,12">
-                  <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="*"/>
-                    <ColumnDefinition Width="260"/>
-                  </Grid.ColumnDefinitions>
+              <ScrollViewer MaxHeight="300" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                <StackPanel>
+                  <Grid Margin="0,0,0,12">
+                    <Grid.ColumnDefinitions>
+                      <ColumnDefinition Width="*"/>
+                      <ColumnDefinition Width="260"/>
+                    </Grid.ColumnDefinitions>
 
-                  <StackPanel Grid.Column="1">
-                    <TextBlock Text="Missing Header Behavior"
-                               Foreground="{StaticResource SecondaryTextBrush}"/>
-                    <ComboBox ItemsSource="{Binding MissingHeaderBehaviorOptions}"
-                              SelectedItem="{Binding SelectedMissingHeaderBehavior}"
-                              Margin="0,4,0,0"/>
-                  </StackPanel>
-                </Grid>
+                    <StackPanel Grid.Column="1">
+                      <TextBlock Text="Missing Header Behavior"
+                                 Foreground="{StaticResource SecondaryTextBrush}"/>
+                      <ComboBox ItemsSource="{Binding MissingHeaderBehaviorOptions}"
+                                SelectedItem="{Binding SelectedMissingHeaderBehavior}"
+                                IsEditable="False"
+                                Margin="0,4,0,0"/>
+                    </StackPanel>
+                  </Grid>
 
-                <ItemsControl ItemsSource="{Binding GroupCollections}"
-                              Margin="0,12,0,0">
-                  <ItemsControl.ItemsPanel>
-                    <ItemsPanelTemplate>
-                      <UniformGrid Columns="3"/>
-                    </ItemsPanelTemplate>
-                  </ItemsControl.ItemsPanel>
-                  <ItemsControl.ItemContainerStyle>
-                    <Style TargetType="ContentPresenter">
-                      <Setter Property="Margin" Value="0,0,12,12"/>
-                    </Style>
-                  </ItemsControl.ItemContainerStyle>
-                  <ItemsControl.ItemTemplate>
-                    <DataTemplate>
-                      <Border Background="{StaticResource SurfaceBrush}"
-                              BorderBrush="{StaticResource BorderBrush}"
-                              BorderThickness="1"
-                              CornerRadius="4"
-                              Padding="12">
-                        <StackPanel>
-                          <Grid>
-                            <Grid.ColumnDefinitions>
-                              <ColumnDefinition Width="*"/>
-                              <ColumnDefinition Width="Auto"/>
-                            </Grid.ColumnDefinitions>
+                  <ItemsControl ItemsSource="{Binding GroupCollections}"
+                                Margin="0,12,0,0">
+                    <ItemsControl.ItemsPanel>
+                      <ItemsPanelTemplate>
+                        <UniformGrid Columns="3"/>
+                      </ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
+                    <ItemsControl.ItemContainerStyle>
+                      <Style TargetType="ContentPresenter">
+                        <Setter Property="Margin" Value="0,0,12,12"/>
+                      </Style>
+                    </ItemsControl.ItemContainerStyle>
+                    <ItemsControl.ItemTemplate>
+                      <DataTemplate>
+                        <Border Background="{StaticResource SurfaceBrush}"
+                                BorderBrush="{StaticResource BorderBrush}"
+                                BorderThickness="1"
+                                CornerRadius="4"
+                                Padding="12">
+                          <StackPanel>
+                            <Grid>
+                              <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                              </Grid.ColumnDefinitions>
 
-                            <TextBlock Grid.Column="0"
-                                       Text="{Binding Header}"
-                                       Foreground="{StaticResource SecondaryTextBrush}"
-                                       FontWeight="SemiBold"/>
+                              <TextBlock Grid.Column="0"
+                                         Text="{Binding Header}"
+                                         Foreground="{StaticResource SecondaryTextBrush}"
+                                         FontWeight="SemiBold"/>
 
-                            <Button Grid.Column="1"
-                                    Content="+ Add Group"
-                                    Command="{Binding AddGroupCommand}"
-                                    Style="{StaticResource SecondaryButton}"
-                                    Padding="10,4"/>
-                          </Grid>
+                              <Button Grid.Column="1"
+                                      Content="+ Add Group"
+                                      Command="{Binding AddGroupCommand}"
+                                      Style="{StaticResource SecondaryButton}"
+                                      Padding="10,4"/>
+                            </Grid>
 
-                          <ItemsControl ItemsSource="{Binding Groups}"
-                                        Margin="0,8,0,0">
-                            <ItemsControl.ItemTemplate>
-                              <DataTemplate>
-                                <Border Background="{StaticResource BackgroundBrush}"
-                                        BorderBrush="{StaticResource BorderBrush}"
-                                        BorderThickness="1"
-                                        CornerRadius="4"
-                                        Padding="10"
-                                        Margin="0,8,0,0">
-                                  <Grid>
-                                    <Grid.RowDefinitions>
-                                      <RowDefinition Height="Auto"/>
-                                      <RowDefinition Height="Auto"/>
-                                      <RowDefinition Height="Auto"/>
-                                      <RowDefinition Height="Auto"/>
-                                    </Grid.RowDefinitions>
-                                    <Grid.ColumnDefinitions>
-                                      <ColumnDefinition Width="*"/>
-                                      <ColumnDefinition Width="Auto"/>
-                                      <ColumnDefinition Width="Auto"/>
-                                    </Grid.ColumnDefinitions>
+                            <ItemsControl ItemsSource="{Binding Groups}"
+                                          Margin="0,8,0,0">
+                              <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                  <Border Background="{StaticResource BackgroundBrush}"
+                                          BorderBrush="{StaticResource BorderBrush}"
+                                          BorderThickness="1"
+                                          CornerRadius="4"
+                                          Padding="10"
+                                          Margin="0,8,0,0">
+                                    <Grid>
+                                      <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto"/>
+                                        <RowDefinition Height="Auto"/>
+                                        <RowDefinition Height="Auto"/>
+                                        <RowDefinition Height="Auto"/>
+                                      </Grid.RowDefinitions>
+                                      <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                      </Grid.ColumnDefinitions>
 
-                                    <TextBlock Grid.Row="0"
-                                               Grid.Column="0"
-                                               Text="{Binding Title}"
-                                               Foreground="{StaticResource AccentBrush}"
-                                               FontWeight="SemiBold"/>
+                                      <TextBlock Grid.Row="0"
+                                                 Grid.Column="0"
+                                                 Text="{Binding Title}"
+                                                 Foreground="{StaticResource AccentBrush}"
+                                                 FontWeight="SemiBold"/>
 
-                                    <Button Grid.Row="0"
-                                            Grid.Column="1"
-                                            Content="Clone"
-                                            Command="{Binding DataContext.CloneGroupCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
-                                            CommandParameter="{Binding}"
-                                            Style="{StaticResource SecondaryButton}"
-                                            Padding="8,4"
-                                            Margin="8,0,0,0"/>
+                                      <Button Grid.Row="0"
+                                              Grid.Column="1"
+                                              Content="Clone"
+                                              Command="{Binding DataContext.CloneGroupCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                              CommandParameter="{Binding}"
+                                              Style="{StaticResource SecondaryButton}"
+                                              Padding="8,4"
+                                              Margin="8,0,0,0"/>
 
-                                    <Button Grid.Row="0"
-                                            Grid.Column="2"
-                                            Content="Remove"
-                                            Command="{Binding DataContext.RemoveGroupCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
-                                            CommandParameter="{Binding}"
-                                            Style="{StaticResource SecondaryButton}"
-                                            Padding="8,4"
-                                            Margin="8,0,0,0"/>
+                                      <Button Grid.Row="0"
+                                              Grid.Column="2"
+                                              Content="Remove"
+                                              Command="{Binding DataContext.RemoveGroupCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                              CommandParameter="{Binding}"
+                                              Style="{StaticResource SecondaryButton}"
+                                              Padding="8,4"
+                                              Margin="8,0,0,0"/>
 
-                                    <StackPanel Grid.Row="1"
-                                                Grid.ColumnSpan="3"
-                                                Margin="0,8,0,0">
-                                      <TextBlock Text="Association Label"
-                                                 Foreground="{StaticResource SecondaryTextBrush}"/>
-                                      <ComboBox ItemsSource="{Binding AssociationLabelOptions}"
-                                                SelectedItem="{Binding AssociationLabel, Mode=TwoWay}"
-                                                Margin="0,4,0,0"
-                                                IsEditable="False"/>
-                                    </StackPanel>
+                                      <StackPanel Grid.Row="1"
+                                                  Grid.ColumnSpan="3"
+                                                  Margin="0,8,0,0">
+                                        <TextBlock Text="Association Label"
+                                                   Foreground="{StaticResource SecondaryTextBrush}"/>
+                                        <ComboBox ItemsSource="{Binding AssociationLabelOptions}"
+                                                  SelectedItem="{Binding AssociationLabel, Mode=TwoWay}"
+                                                  Margin="0,4,0,0"
+                                                  IsEditable="False"/>
+                                      </StackPanel>
 
-                                    <StackPanel Grid.Row="2"
-                                                Grid.ColumnSpan="3"
-                                                Margin="0,8,0,0">
-                                      <TextBlock Text="Data Source"
-                                                 Foreground="{StaticResource SecondaryTextBrush}"/>
-                                      <TextBox Text="{Binding DataSource}"
-                                               Margin="0,4,0,0"/>
-                                    </StackPanel>
+                                      <StackPanel Grid.Row="2"
+                                                  Grid.ColumnSpan="3"
+                                                  Margin="0,8,0,0">
+                                        <TextBlock Text="Data Source"
+                                                   Foreground="{StaticResource SecondaryTextBrush}"/>
+                                        <TextBox Text="{Binding DataSource}"
+                                                 Margin="0,4,0,0"/>
+                                      </StackPanel>
 
-                                    <StackPanel Grid.Row="3"
-                                                Grid.ColumnSpan="3"
-                                                Margin="0,8,0,0">
-                                      <TextBlock Text="Tags (comma separated)"
-                                                 Foreground="{StaticResource SecondaryTextBrush}"/>
-                                      <TextBox Text="{Binding Tags}"
-                                               Margin="0,4,0,0"/>
-                                    </StackPanel>
-                                  </Grid>
-                                </Border>
-                              </DataTemplate>
-                            </ItemsControl.ItemTemplate>
-                          </ItemsControl>
-                        </StackPanel>
-                      </Border>
-                    </DataTemplate>
-                  </ItemsControl.ItemTemplate>
-                </ItemsControl>
-              </StackPanel>
+                                      <StackPanel Grid.Row="3"
+                                                  Grid.ColumnSpan="3"
+                                                  Margin="0,8,0,0">
+                                        <TextBlock Text="Tags (comma separated)"
+                                                   Foreground="{StaticResource SecondaryTextBrush}"/>
+                                        <TextBox Text="{Binding Tags}"
+                                                 Margin="0,4,0,0"/>
+                                      </StackPanel>
+                                    </Grid>
+                                  </Border>
+                                </DataTemplate>
+                              </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                          </StackPanel>
+                        </Border>
+                      </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                  </ItemsControl>
+                </StackPanel>
+              </ScrollViewer>
             </Expander.Content>
           </Expander>
         </Border>
@@ -375,17 +379,20 @@
                     <StackPanel Grid.Column="1" Orientation="Horizontal" Margin="0,0,12,0">
                       <ComboBox ItemsSource="{Binding DataContext.ObjectTypes, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
                                 SelectedItem="{Binding ObjectType}"
+                                IsEditable="False"
                                 Width="120"/>
                       <ComboBox ItemsSource="{Binding AvailableGroupIndices}"
                                 SelectedItem="{Binding GroupIndex}"
+                                IsEditable="False"
                                 Width="80"
                                 Margin="8,0,0,0"/>
                     </StackPanel>
 
                     <ComboBox Grid.Column="2"
                               ItemsSource="{Binding DataContext.HubSpotHeaders, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
-                              SelectedItem="{Binding HubSpotHeader}"
-                              IsEditable="True"
+                              SelectedItem="{Binding HubSpotHeader, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged, diag:PresentationTraceSources.TraceLevel=High}"
+                              IsEditable="False"
+                              IsTextSearchEnabled="True"
                               Margin="0,0,12,0"/>
 
                     <Button Grid.Column="3"

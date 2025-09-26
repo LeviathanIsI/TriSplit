@@ -10,6 +10,8 @@ using System.ComponentModel;
 using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
+using System.Diagnostics;
+using System.Windows;
 using TriSplit.Core.Interfaces;
 using TriSplit.Core.Models;
 using TriSplit.Desktop.Services;
@@ -23,10 +25,13 @@ public partial class ProfilesViewModel : ViewModelBase
     private readonly IAppSession _appSession;
     private readonly ISampleLoader _sampleLoader;
     private readonly IProfileDetectionService _profileDetectionService;
+    private readonly IProfileMetadataRepository _profileMetadataRepository;
     private readonly Dictionary<(ProfileObjectType Type, int Index), GroupDefaults> _groupDefaults = new();
 
     internal const int MaxGroupsPerType = 10;
     private bool _isLoadingProfile;
+    private bool _isInitializing;
+    private bool _isUpdatingDuplicateFlags;
     private static readonly string[] DefaultHubSpotHeaders = new[]
     {
         "Address",
@@ -86,29 +91,39 @@ public partial class ProfilesViewModel : ViewModelBase
         IDialogService dialogService,
         IAppSession appSession,
         ISampleLoader sampleLoader,
-        IProfileDetectionService profileDetectionService)
+        IProfileDetectionService profileDetectionService,
+        IProfileMetadataRepository profileMetadataRepository)
     {
-        _profileStore = profileStore;
-        _dialogService = dialogService;
-        _appSession = appSession;
-        _sampleLoader = sampleLoader;
-        _profileDetectionService = profileDetectionService;
-
-        FieldMappings.CollectionChanged += OnFieldMappingsChanged;
-
-        PropertyGroups = new GroupDefaultsCollectionViewModel(this, ProfileObjectType.Property);
-        ContactGroups = new GroupDefaultsCollectionViewModel(this, ProfileObjectType.Contact);
-        PhoneGroups = new GroupDefaultsCollectionViewModel(this, ProfileObjectType.Phone);
-        GroupCollections = new[]
+        _isInitializing = true;
+        try
         {
-            PropertyGroups,
-            ContactGroups,
-            PhoneGroups
-        };
+            _profileStore = profileStore;
+            _dialogService = dialogService;
+            _appSession = appSession;
+            _sampleLoader = sampleLoader;
+            _profileDetectionService = profileDetectionService;
+            _profileMetadataRepository = profileMetadataRepository;
 
-        EnsureDefaultGroups();
-        EnsureDefaultHubSpotHeaders();
-        RebuildGroupCollections();
+            FieldMappings.CollectionChanged += OnFieldMappingsChanged;
+
+            PropertyGroups = new GroupDefaultsCollectionViewModel(this, ProfileObjectType.Property);
+            ContactGroups = new GroupDefaultsCollectionViewModel(this, ProfileObjectType.Contact);
+            PhoneGroups = new GroupDefaultsCollectionViewModel(this, ProfileObjectType.Phone);
+            GroupCollections = new[]
+            {
+                PropertyGroups,
+                ContactGroups,
+                PhoneGroups
+            };
+
+            EnsureDefaultGroups();
+            EnsureDefaultHubSpotHeaders();
+            RebuildGroupCollections();
+        }
+        finally
+        {
+            _isInitializing = false;
+        }
 
         _ = LoadProfilesAsync();
     }
@@ -700,7 +715,7 @@ public partial class ProfilesViewModel : ViewModelBase
 
     internal void EnsureDirty()
     {
-        if (_isLoadingProfile)
+        if (_isLoadingProfile || _isInitializing)
         {
             return;
         }
@@ -710,7 +725,7 @@ public partial class ProfilesViewModel : ViewModelBase
 
     internal void NotifyMappingChanged(MappingRowViewModel mapping)
     {
-        if (_isLoadingProfile)
+        if (_isLoadingProfile || _isInitializing || _isUpdatingDuplicateFlags)
         {
             return;
         }
@@ -819,6 +834,11 @@ public partial class ProfilesViewModel : ViewModelBase
 
     internal void NotifyGroupDefinitionsChanged(ProfileObjectType type)
     {
+        if (_isInitializing || _isLoadingProfile)
+        {
+            return;
+        }
+
         foreach (var mapping in FieldMappings.Where(m => m.ObjectType == type))
         {
             mapping.RefreshGroupIndices();
@@ -860,27 +880,47 @@ public partial class ProfilesViewModel : ViewModelBase
 
     private void UpdateDuplicateFlags()
     {
-        foreach (var mapping in FieldMappings)
+        if (_isUpdatingDuplicateFlags)
         {
-            mapping.SetDuplicate(false);
+            return; // Prevent recursive calls
         }
 
-        var duplicateGroups = FieldMappings
-            .Where(m => m.IsConfigured)
-            .GroupBy(m => (m.ObjectType, m.GroupIndex, Header: m.HubSpotHeader.Trim().ToUpperInvariant()))
-            .Where(g => g.Count() > 1)
-            .ToList();
-
-        foreach (var group in duplicateGroups)
+        _isUpdatingDuplicateFlags = true;
+        try
         {
-            foreach (var mapping in group)
+            // Set duplicate flags on all mappings
+            foreach (var mapping in FieldMappings)
             {
-                mapping.SetDuplicate(true);
+                mapping.SetDuplicateInternal(false);
+            }
+
+            var duplicateGroups = FieldMappings
+                .Where(m => m.IsConfigured)
+                .GroupBy(m => (m.ObjectType, m.GroupIndex, Header: m.HubSpotHeader.Trim().ToUpperInvariant()))
+                .Where(g => g.Count() > 1)
+                .ToList();
+
+            foreach (var group in duplicateGroups)
+            {
+                foreach (var mapping in group)
+                {
+                    mapping.SetDuplicateInternal(true);
+                }
+            }
+
+            HasDuplicateMappings = duplicateGroups.Count > 0;
+            DuplicateWarning = HasDuplicateMappings ? "Duplicate HubSpot headers found in the same group." : string.Empty;
+
+            // Notify the UI of duplicate flag changes without triggering the change chain
+            foreach (var mapping in FieldMappings)
+            {
+                mapping.NotifyDuplicateChanged();
             }
         }
-
-        HasDuplicateMappings = duplicateGroups.Count > 0;
-        DuplicateWarning = HasDuplicateMappings ? "Duplicate HubSpot headers found in the same group." : string.Empty;
+        finally
+        {
+            _isUpdatingDuplicateFlags = false;
+        }
     }
 
     private void OnFieldMappingsChanged(object? sender, NotifyCollectionChangedEventArgs e)
@@ -903,7 +943,7 @@ public partial class ProfilesViewModel : ViewModelBase
 
         OnPropertyChanged(nameof(MappingCount));
 
-        if (_isLoadingProfile)
+        if (_isLoadingProfile || _isInitializing)
         {
             return;
         }
@@ -915,6 +955,11 @@ public partial class ProfilesViewModel : ViewModelBase
 
     private void OnMappingPropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
+        if (_isUpdatingDuplicateFlags)
+        {
+            return; // Prevent recursive calls during duplicate flag updates
+        }
+
         if (sender is MappingRowViewModel mapping)
         {
             NotifyMappingChanged(mapping);
@@ -933,26 +978,85 @@ public partial class ProfilesViewModel : ViewModelBase
                 return;
             }
 
-            var existing = new HashSet<string>(FieldMappings.Select(m => m.SourceField), StringComparer.OrdinalIgnoreCase);
-            var added = 0;
-            foreach (var header in headers)
+            // Show header selection dialog
+            var headerSelectionVM = new HeaderSelectionViewModel();
+            headerSelectionVM.SetHeaders(headers);
+            
+            var dialog = new Views.HeaderSelectionDialog(headerSelectionVM)
             {
-                if (existing.Contains(header))
-                {
-                    continue;
-                }
+                Owner = Application.Current.MainWindow
+            };
 
-                AddMapping(header);
-                added++;
+            var dialogResult = dialog.ShowDialog();
+            if (dialogResult != true)
+            {
+                return;
             }
 
+            var selectedHeaders = headerSelectionVM.GetSelectedHeaders();
+            if (selectedHeaders.Count == 0)
+            {
+                ProfileStatus = "No headers selected.";
+                return;
+            }
+
+            // Save metadata for the current profile if we have one
+            if (SelectedProfile?.Profile != null)
+            {
+                await _profileMetadataRepository.SaveMetadataAsync(SelectedProfile.Profile, headers);
+            }
+
+            // Handle the different dialog results
+            if (dialog.Result == Views.HeaderSelectionDialog.HeaderDialogResult.UpdateMetadataOnly)
+            {
+                ProfileStatus = $"Updated metadata with {headers.Count} header(s).";
+                _appSession.LoadedFilePath = filePath;
+                return;
+            }
+
+            // Add selected mappings to the profile
+            var existing = new HashSet<string>(FieldMappings.Select(m => m.SourceField), StringComparer.OrdinalIgnoreCase);
+            var added = 0;
+            
+            // Batch add mappings to prevent cascading property change notifications
+            var isLoadingPreviousValue = _isLoadingProfile;
+            _isLoadingProfile = true;
+            try
+            {
+                foreach (var header in selectedHeaders)
+                {
+                    if (existing.Contains(header))
+                    {
+                        continue;
+                    }
+
+                    var mapping = new MappingRowViewModel(this)
+                    {
+                        SourceField = header,
+                        ObjectType = ProfileObjectType.Property,
+                        GroupIndex = 1
+                    };
+
+                    FieldMappings.Add(mapping);
+                    added++;
+                }
+            }
+            finally
+            {
+                _isLoadingProfile = isLoadingPreviousValue;
+            }
+
+            // Trigger updates once after all mappings are added
             if (added > 0)
             {
-                ProfileStatus = $"Added {added} header suggestion(s).";
+                EnsureDirty();
+                UpdateProfileStatus();
+                UpdateDuplicateFlags();
+                ProfileStatus = $"Added {added} mapping(s) and updated metadata.";
             }
             else
             {
-                ProfileStatus = "All headers already mapped.";
+                ProfileStatus = "All selected headers already mapped. Metadata updated.";
             }
 
             _appSession.LoadedFilePath = filePath;
@@ -1012,6 +1116,7 @@ public partial class MappingRowViewModel : ObservableObject
 
     partial void OnHubSpotHeaderChanged(string value)
     {
+        Debug.WriteLine($"HubSpotHeader changed to '{value}'");
         _owner.SynchronizeHubSpotHeader(value);
         _owner.NotifyMappingChanged(this);
     }
@@ -1055,6 +1160,19 @@ public partial class MappingRowViewModel : ObservableObject
     }
 
     internal void SetDuplicate(bool value) => IsDuplicate = value;
+
+    internal void SetDuplicateInternal(bool value)
+    {
+        // Set the backing field directly to avoid triggering PropertyChanged notifications
+        #pragma warning disable MVVMTK0034 // Intentionally accessing backing field to avoid recursion
+        _isDuplicate = value;
+        #pragma warning restore MVVMTK0034
+    }
+
+    internal void NotifyDuplicateChanged()
+    {
+        OnPropertyChanged(nameof(IsDuplicate));
+    }
 
     public bool TryCreateMapping(out ProfileMapping mapping, out string? error)
     {

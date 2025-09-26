@@ -599,12 +599,22 @@ public partial class ProcessingViewModel : ViewModelBase
         {
             return;
         }
+        
         var formattedDate = TagDataDate.Value.ToString("yy.MM.dd", CultureInfo.InvariantCulture);
         var details = new List<string>();
+        
+        // Add data source from Property or Contact groups
+        var dataSource = GetDataSourceFromProfile(SelectedProfile);
+        if (!string.IsNullOrWhiteSpace(dataSource))
+        {
+            details.Add(dataSource);
+        }
+        
         var suffix = string.Join(" ", details.Where(part => !string.IsNullOrWhiteSpace(part)));
         var tag = string.IsNullOrWhiteSpace(suffix)
             ? formattedDate
             : $"{formattedDate} - {suffix}";
+            
         _isUpdatingTagDraft = true;
         TagDraft = tag.Trim();
         _isUpdatingTagDraft = false;
@@ -613,6 +623,35 @@ public partial class ProcessingViewModel : ViewModelBase
         AcceptTagCommand.NotifyCanExecuteChanged();
     }
     private bool CanGenerateTag() => TagDataDate.HasValue && SelectedProfile != null;
+
+    private string GetDataSourceFromProfile(Profile profile)
+    {
+        // Check Property groups first (usually Group 1)
+        if (profile.Groups.PropertyGroups.Count > 0)
+        {
+            foreach (var propertyGroup in profile.Groups.PropertyGroups.Values)
+            {
+                if (!string.IsNullOrWhiteSpace(propertyGroup.DataSource))
+                {
+                    return propertyGroup.DataSource.Trim();
+                }
+            }
+        }
+        
+        // Check Contact groups as fallback
+        if (profile.Groups.ContactGroups.Count > 0)
+        {
+            foreach (var contactGroup in profile.Groups.ContactGroups.Values)
+            {
+                if (!string.IsNullOrWhiteSpace(contactGroup.DataSource))
+                {
+                    return contactGroup.DataSource.Trim();
+                }
+            }
+        }
+        
+        return string.Empty;
+    }
     [RelayCommand(CanExecute = nameof(CanAcceptTag))]
     private void AcceptTag()
     {
