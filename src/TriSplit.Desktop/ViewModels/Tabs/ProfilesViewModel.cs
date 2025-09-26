@@ -77,6 +77,15 @@ public partial class ProfilesViewModel : ViewModelBase
 
     public IReadOnlyList<MissingHeaderBehavior> MissingHeaderBehaviorOptions { get; } = Enum.GetValues<MissingHeaderBehavior>();
 
+    public IReadOnlyList<string> AssociationLabelOptions { get; } = new[]
+    {
+        "Owner",
+        "Executor",
+        "Mailing Address",
+        "Relative",
+        "Associate"
+    };
+
     public int MappingCount => FieldMappings.Count;
 
     [ObservableProperty]
@@ -380,8 +389,18 @@ public partial class ProfilesViewModel : ViewModelBase
 
         if (string.IsNullOrWhiteSpace(filePath) || !File.Exists(filePath))
         {
-            await _dialogService.ShowMessageAsync("Suggest Headers", "Select a CSV file first.");
-            return;
+            var pickedPath = await _dialogService.ShowOpenFileDialogAsync(
+                "Suggest Headers",
+                "CSV or Excel|*.csv;*.xlsx;*.xls");
+
+            if (string.IsNullOrWhiteSpace(pickedPath))
+            {
+                await _dialogService.ShowMessageAsync("Suggest Headers", "Select a CSV file first.");
+                return;
+            }
+
+            filePath = pickedPath;
+            _appSession.LoadedFilePath = filePath;
         }
 
         await LoadHeaderSuggestionsInternalAsync(filePath);
@@ -714,6 +733,23 @@ public partial class ProfilesViewModel : ViewModelBase
         }
     }
 
+    internal int CloneGroup(ProfileObjectType type, int sourceIndex)
+    {
+        var nextIndex = Enumerable.Range(1, MaxGroupsPerType)
+            .FirstOrDefault(i => !_groupDefaults.ContainsKey((type, i)));
+
+        if (nextIndex == 0)
+        {
+            ProfileStatus = $"Reached {MaxGroupsPerType} {type} groups.";
+            return 0;
+        }
+
+        var sourceDefaults = GetDefaults(type, sourceIndex);
+        _groupDefaults[(type, nextIndex)] = CloneDefaults(sourceDefaults);
+        EnsureDirty();
+        return nextIndex;
+    }
+
     internal void NotifyGroupDefinitionsChanged(ProfileObjectType type)
     {
         foreach (var mapping in FieldMappings.Where(m => m.ObjectType == type))
@@ -1030,6 +1066,7 @@ public class GroupDefaultsCollectionViewModel : ObservableObject
         ObjectType = objectType;
         Groups = new ObservableCollection<GroupDefaultsEditorViewModel>();
         AddGroupCommand = new RelayCommand(AddGroup, CanAddGroup);
+        CloneGroupCommand = new RelayCommand<GroupDefaultsEditorViewModel>(CloneGroup, CanCloneGroup);
         RemoveGroupCommand = new RelayCommand<GroupDefaultsEditorViewModel>(RemoveGroup, CanRemoveGroup);
     }
 
@@ -1040,6 +1077,8 @@ public class GroupDefaultsCollectionViewModel : ObservableObject
     public ObservableCollection<GroupDefaultsEditorViewModel> Groups { get; }
 
     public IRelayCommand AddGroupCommand { get; }
+
+    public IRelayCommand<GroupDefaultsEditorViewModel> CloneGroupCommand { get; }
 
     public IRelayCommand<GroupDefaultsEditorViewModel> RemoveGroupCommand { get; }
 
@@ -1080,7 +1119,26 @@ public class GroupDefaultsCollectionViewModel : ObservableObject
         _owner.EnsureDirty();
     }
 
+    private void CloneGroup(GroupDefaultsEditorViewModel? editor)
+    {
+        if (editor == null)
+        {
+            return;
+        }
+
+        var newIndex = _owner.CloneGroup(ObjectType, editor.GroupIndex);
+        if (newIndex == 0)
+        {
+            UpdateCommands();
+            return;
+        }
+
+        RebuildFromOwner();
+    }
+
     private bool CanAddGroup() => Groups.Count < ProfilesViewModel.MaxGroupsPerType;
+
+    private bool CanCloneGroup(GroupDefaultsEditorViewModel? editor) => editor != null && Groups.Count < ProfilesViewModel.MaxGroupsPerType;
 
     private void RemoveGroup(GroupDefaultsEditorViewModel? editor)
     {
@@ -1100,6 +1158,7 @@ public class GroupDefaultsCollectionViewModel : ObservableObject
     private void UpdateCommands()
     {
         (AddGroupCommand as RelayCommand)?.NotifyCanExecuteChanged();
+        (CloneGroupCommand as RelayCommand<GroupDefaultsEditorViewModel>)?.NotifyCanExecuteChanged();
         (RemoveGroupCommand as RelayCommand<GroupDefaultsEditorViewModel>)?.NotifyCanExecuteChanged();
     }
 }
@@ -1126,6 +1185,20 @@ public partial class GroupDefaultsEditorViewModel : ObservableObject
 
     public string Title => $"Group {GroupIndex}";
 
+    public IReadOnlyList<string> AssociationLabelOptions
+    {
+        get
+        {
+            var options = _owner.AssociationLabelOptions;
+            if (string.IsNullOrWhiteSpace(AssociationLabel) || options.Contains(AssociationLabel))
+            {
+                return options;
+            }
+
+            return options.Concat(new[] { AssociationLabel }).ToList();
+        }
+    }
+
     [ObservableProperty]
     private string _associationLabel = string.Empty;
 
@@ -1135,7 +1208,11 @@ public partial class GroupDefaultsEditorViewModel : ObservableObject
     [ObservableProperty]
     private string _tags = string.Empty;
 
-    partial void OnAssociationLabelChanged(string value) => Persist();
+    partial void OnAssociationLabelChanged(string value)
+    {
+        OnPropertyChanged(nameof(AssociationLabelOptions));
+        Persist();
+    }
 
     partial void OnDataSourceChanged(string value) => Persist();
 
@@ -1150,6 +1227,8 @@ public partial class GroupDefaultsEditorViewModel : ObservableObject
         DataSource = defaults.DataSource;
         Tags = defaults.Tags.Count == 0 ? string.Empty : string.Join(", ", defaults.Tags);
         _suppress = false;
+
+        OnPropertyChanged(nameof(AssociationLabelOptions));
     }
 
     private void Persist()
