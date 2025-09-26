@@ -95,9 +95,9 @@ public class UnifiedProcessor
         var contactRows = BuildContactRows(processedData, _profile.CreateSecondaryContactsFile, acceptedTag);
         var phoneRows = BuildPhoneRows(processedData, acceptedTag);
 
-        var propertyDictionaries = propertyRows.Select(ToDictionary).ToList();
-        var contactDictionaries = contactRows.Select(ToDictionary).ToList();
-        var phoneDictionaries = phoneRows.Select(ToDictionary).ToList();
+        var propertyDictionaries = propertyRows.Select(row => ToPropertyDictionary(row)).ToList();
+        var contactDictionaries = contactRows.Select(row => ToContactDictionary(row, _profile.CreateSecondaryContactsFile)).ToList();
+        var phoneDictionaries = phoneRows.Select(row => ToPhoneDictionary(row)).ToList();
 
         var result = new ProcessingResult
         {
@@ -113,9 +113,9 @@ public class UnifiedProcessor
         if (options.OutputCsv)
         {
             ReportProgress("Writing CSV files...", 90);
-            result.PropertiesFile = await WriteCsvAsync(Path.Combine(outputDirectory, $"properties-{timestamp}.csv"), propertyDictionaries, cancellationToken).ConfigureAwait(false);
-            result.ContactsFile = await WriteCsvAsync(Path.Combine(outputDirectory, $"contacts-{timestamp}.csv"), contactDictionaries, cancellationToken).ConfigureAwait(false);
-            result.PhonesFile = await WriteCsvAsync(Path.Combine(outputDirectory, $"phones-{timestamp}.csv"), phoneDictionaries, cancellationToken).ConfigureAwait(false);
+            result.PropertiesFile = await WriteCsvAsync(Path.Combine(outputDirectory, $"properties-{timestamp}.csv"), propertyDictionaries, ProfileObjectType.Property, cancellationToken).ConfigureAwait(false);
+            result.ContactsFile = await WriteCsvAsync(Path.Combine(outputDirectory, $"contacts-{timestamp}.csv"), contactDictionaries, ProfileObjectType.Contact, cancellationToken).ConfigureAwait(false);
+            result.PhonesFile = await WriteCsvAsync(Path.Combine(outputDirectory, $"phones-{timestamp}.csv"), phoneDictionaries, ProfileObjectType.Phone, cancellationToken).ConfigureAwait(false);
 
             if (!string.IsNullOrEmpty(result.PropertiesFile))
             {
@@ -134,9 +134,9 @@ public class UnifiedProcessor
         if (options.OutputExcel)
         {
             ReportProgress("Writing Excel workbooks...", 92);
-            result.ExcelFiles.Add(await WriteExcelAsync(Path.Combine(outputDirectory, $"properties-{timestamp}.xlsx"), "Properties", propertyDictionaries, cancellationToken).ConfigureAwait(false));
-            result.ExcelFiles.Add(await WriteExcelAsync(Path.Combine(outputDirectory, $"contacts-{timestamp}.xlsx"), "Contacts", contactDictionaries, cancellationToken).ConfigureAwait(false));
-            result.ExcelFiles.Add(await WriteExcelAsync(Path.Combine(outputDirectory, $"phones-{timestamp}.xlsx"), "Phones", phoneDictionaries, cancellationToken).ConfigureAwait(false));
+            result.ExcelFiles.Add(await WriteExcelAsync(Path.Combine(outputDirectory, $"properties-{timestamp}.xlsx"), "Properties", propertyDictionaries, ProfileObjectType.Property, cancellationToken).ConfigureAwait(false));
+            result.ExcelFiles.Add(await WriteExcelAsync(Path.Combine(outputDirectory, $"contacts-{timestamp}.xlsx"), "Contacts", contactDictionaries, ProfileObjectType.Contact, cancellationToken).ConfigureAwait(false));
+            result.ExcelFiles.Add(await WriteExcelAsync(Path.Combine(outputDirectory, $"phones-{timestamp}.xlsx"), "Phones", phoneDictionaries, ProfileObjectType.Phone, cancellationToken).ConfigureAwait(false));
             result.ExcelFiles = result.ExcelFiles.Where(path => !string.IsNullOrEmpty(path)).ToList();
         }
 
@@ -498,14 +498,14 @@ public class UnifiedProcessor
         return counters;
     }
 
-    private async Task<string> WriteCsvAsync(string path, IReadOnlyList<Dictionary<string, string>> rows, CancellationToken cancellationToken)
+    private async Task<string> WriteCsvAsync(string path, IReadOnlyList<Dictionary<string, string>> rows, ProfileObjectType objectType, CancellationToken cancellationToken)
     {
         if (rows.Count == 0)
         {
             return string.Empty;
         }
 
-        var columns = BuildColumnOrder(rows);
+        var columns = BuildColumnOrder(rows, objectType);
 
         try
         {
@@ -542,14 +542,14 @@ public class UnifiedProcessor
         }
     }
 
-    private async Task<string> WriteExcelAsync(string path, string sheetName, IReadOnlyList<Dictionary<string, string>> rows, CancellationToken cancellationToken)
+    private async Task<string> WriteExcelAsync(string path, string sheetName, IReadOnlyList<Dictionary<string, string>> rows, ProfileObjectType objectType, CancellationToken cancellationToken)
     {
         if (rows.Count == 0)
         {
             return string.Empty;
         }
 
-        var columns = BuildColumnOrder(rows);
+        var columns = BuildColumnOrder(rows, objectType);
 
         try
         {
@@ -603,28 +603,58 @@ public class UnifiedProcessor
         return path;
     }
 
-    private static IReadOnlyList<string> BuildColumnOrder(IReadOnlyList<Dictionary<string, string>> rows)
+    private static IReadOnlyList<string> BuildColumnOrder(IReadOnlyList<Dictionary<string, string>> rows, ProfileObjectType objectType)
     {
-        var set = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var columns = new List<string>();
+        
+        // Define main columns based on object type and check if they have data
+        switch (objectType)
+        {
+            case ProfileObjectType.Contact:
+                // MAIN COLUMNS: Import ID, First Name, Last Name, Data Source, Data Type, Tags
+                TryAddColumnWithData(columns, rows, "Import ID");
+                TryAddColumnWithData(columns, rows, "First Name");
+                TryAddColumnWithData(columns, rows, "Last Name");
+                TryAddColumnWithData(columns, rows, "Data Source");
+                TryAddColumnWithData(columns, rows, "Data Type");
+                TryAddColumnWithData(columns, rows, "Tags");
+                TryAddColumnWithData(columns, rows, "Association Label"); // Only if create secondary files is enabled
+                break;
+                
+            case ProfileObjectType.Property:
+                // MAIN COLUMNS: Import ID, Address, City, State, Postal Code, Data Source, Data Type, Tags
+                TryAddColumnWithData(columns, rows, "Import ID");
+                TryAddColumnWithData(columns, rows, "Address");
+                TryAddColumnWithData(columns, rows, "City");
+                TryAddColumnWithData(columns, rows, "State");
+                TryAddColumnWithData(columns, rows, "Postal Code");
+                TryAddColumnWithData(columns, rows, "Data Source");
+                TryAddColumnWithData(columns, rows, "Data Type");
+                TryAddColumnWithData(columns, rows, "Tags");
+                break;
+                
+            case ProfileObjectType.Phone:
+                // MAIN COLUMNS: Import ID, Phone Number, Phone Type, Data Source
+                TryAddColumnWithData(columns, rows, "Import ID");
+                TryAddColumnWithData(columns, rows, "Phone Number");
+                TryAddColumnWithData(columns, rows, "Phone Type");
+                TryAddColumnWithData(columns, rows, "Data Source");
+                break;
+        }
+
+        // Add any remaining columns that have data, alphabetically
+        var allColumns = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         foreach (var row in rows)
         {
             foreach (var key in row.Keys)
             {
-                set.Add(key);
+                allColumns.Add(key);
             }
         }
 
-        var columns = new List<string>
+        foreach (var column in allColumns.OrderBy(c => c, StringComparer.OrdinalIgnoreCase))
         {
-            "Group Index",
-            "Association Label",
-            "Data Source",
-            "Tags"
-        };
-
-        foreach (var column in set.OrderBy(c => c, StringComparer.OrdinalIgnoreCase))
-        {
-            if (!columns.Contains(column, StringComparer.OrdinalIgnoreCase))
+            if (!columns.Contains(column, StringComparer.OrdinalIgnoreCase) && ColumnHasData(rows, column))
             {
                 columns.Add(column);
             }
@@ -633,6 +663,83 @@ public class UnifiedProcessor
         return columns;
     }
 
+    private static void TryAddColumnWithData(List<string> columns, IReadOnlyList<Dictionary<string, string>> rows, string columnName)
+    {
+        if (ColumnHasData(rows, columnName))
+        {
+            columns.Add(columnName);
+        }
+    }
+
+    private static bool ColumnHasData(IReadOnlyList<Dictionary<string, string>> rows, string columnName)
+    {
+        foreach (var row in rows)
+        {
+            if (row.TryGetValue(columnName, out var value) && !string.IsNullOrWhiteSpace(value))
+            {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private Dictionary<string, string> ToContactDictionary(RowOutput row, bool includeAssociationLabel)
+    {
+        var dictionary = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["Data Source"] = row.DataSource ?? string.Empty,
+            ["Data Type"] = "Contact", // Static value for contacts
+            ["Tags"] = row.Tags.Count > 0 ? string.Join(", ", row.Tags) : string.Empty
+        };
+
+        // Only include Association Label if create secondary files is enabled
+        if (includeAssociationLabel)
+        {
+            dictionary["Association Label"] = row.AssociationLabel ?? string.Empty;
+        }
+
+        foreach (var kvp in row.Values)
+        {
+            dictionary[kvp.Key] = kvp.Value ?? string.Empty;
+        }
+
+        return dictionary;
+    }
+
+    private Dictionary<string, string> ToPropertyDictionary(RowOutput row)
+    {
+        var dictionary = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["Data Source"] = row.DataSource ?? string.Empty,
+            ["Data Type"] = "Property", // Static value for properties
+            ["Tags"] = row.Tags.Count > 0 ? string.Join(", ", row.Tags) : string.Empty
+        };
+
+        foreach (var kvp in row.Values)
+        {
+            dictionary[kvp.Key] = kvp.Value ?? string.Empty;
+        }
+
+        return dictionary;
+    }
+
+    private Dictionary<string, string> ToPhoneDictionary(RowOutput row)
+    {
+        var dictionary = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["Data Source"] = row.DataSource ?? string.Empty
+            // Phones never get Data Type or Tags
+        };
+
+        foreach (var kvp in row.Values)
+        {
+            dictionary[kvp.Key] = kvp.Value ?? string.Empty;
+        }
+
+        return dictionary;
+    }
+
+    // Keep the old method for compatibility during transition
     private Dictionary<string, string> ToDictionary(RowOutput row)
     {
         var dictionary = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
