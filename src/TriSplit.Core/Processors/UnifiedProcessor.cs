@@ -90,9 +90,10 @@ public class UnifiedProcessor
         }
 
         // Build final output with proper deduplication and linking
-        var propertyRows = BuildPropertyRows(processedData);
-        var contactRows = BuildContactRows(processedData, _profile.CreateSecondaryContactsFile);
-        var phoneRows = BuildPhoneRows(processedData);
+        var acceptedTag = !string.IsNullOrWhiteSpace(options.Tag) ? options.Tag : null;
+        var propertyRows = BuildPropertyRows(processedData, acceptedTag);
+        var contactRows = BuildContactRows(processedData, _profile.CreateSecondaryContactsFile, acceptedTag);
+        var phoneRows = BuildPhoneRows(processedData, acceptedTag);
 
         var propertyDictionaries = propertyRows.Select(ToDictionary).ToList();
         var contactDictionaries = contactRows.Select(ToDictionary).ToList();
@@ -615,10 +616,10 @@ public class UnifiedProcessor
 
         var columns = new List<string>
         {
-            "_GroupIndex",
-            "_AssociationLabel",
-            "_DataSource",
-            "_Tags"
+            "Group Index",
+            "Association Label",
+            "Data Source",
+            "Tags"
         };
 
         foreach (var column in set.OrderBy(c => c, StringComparer.OrdinalIgnoreCase))
@@ -636,10 +637,10 @@ public class UnifiedProcessor
     {
         var dictionary = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
         {
-            ["_GroupIndex"] = row.GroupIndex.ToString(CultureInfo.InvariantCulture),
-            ["_AssociationLabel"] = row.AssociationLabel ?? string.Empty,
-            ["_DataSource"] = row.DataSource ?? string.Empty,
-            ["_Tags"] = row.Tags.Count > 0 ? string.Join(", ", row.Tags) : string.Empty
+            ["Group Index"] = row.GroupIndex.ToString(CultureInfo.InvariantCulture),
+            ["Association Label"] = row.AssociationLabel ?? string.Empty,
+            ["Data Source"] = row.DataSource ?? string.Empty,
+            ["Tags"] = row.Tags.Count > 0 ? string.Join(", ", row.Tags) : string.Empty
         };
 
         foreach (var kvp in row.Values)
@@ -650,7 +651,7 @@ public class UnifiedProcessor
         return dictionary;
     }
 
-    private List<RowOutput> BuildPropertyRows(List<ProcessedRowData> processedData)
+    private List<RowOutput> BuildPropertyRows(List<ProcessedRowData> processedData, string? acceptedTag)
     {
         // Step 1: Build all property rows without deduplication
         var propertyRows = new List<RowOutput>();
@@ -659,7 +660,8 @@ public class UnifiedProcessor
         {
             foreach (var property in data.Properties.Where(p => p.HasData))
             {
-                var row = new RowOutput(property.ObjectType, property.GroupIndex, property.AssociationLabel, property.DataSource, property.Tags);
+                var tags = acceptedTag != null ? new List<string> { acceptedTag } : property.Tags;
+                var row = new RowOutput(property.ObjectType, property.GroupIndex, property.AssociationLabel, property.DataSource, tags);
                 row.Values["Import ID"] = data.ContactId; // Link to contact
                 
                 foreach (var kvp in property.Values)
@@ -716,7 +718,7 @@ public class UnifiedProcessor
         return deduplicatedRows;
     }
 
-    private List<RowOutput> BuildContactRows(List<ProcessedRowData> processedData, bool includeAssociationLabels)
+    private List<RowOutput> BuildContactRows(List<ProcessedRowData> processedData, bool includeAssociationLabels, string? acceptedTag)
     {
         var contactRows = new List<RowOutput>();
 
@@ -724,9 +726,10 @@ public class UnifiedProcessor
         {
             foreach (var contact in data.Contacts.Where(c => c.HasData))
             {
+                var tags = acceptedTag != null ? new List<string> { acceptedTag } : contact.Tags;
                 var row = new RowOutput(contact.ObjectType, contact.GroupIndex, 
                     includeAssociationLabels ? contact.AssociationLabel : string.Empty, 
-                    contact.DataSource, contact.Tags);
+                    contact.DataSource, tags);
                 
                 row.Values["Import ID"] = data.ContactId; // Unique contact ID
                 
@@ -742,7 +745,7 @@ public class UnifiedProcessor
         return contactRows;
     }
 
-    private List<RowOutput> BuildPhoneRows(List<ProcessedRowData> processedData)
+    private List<RowOutput> BuildPhoneRows(List<ProcessedRowData> processedData, string? acceptedTag)
     {
         var phoneRows = new List<RowOutput>();
 
@@ -750,8 +753,9 @@ public class UnifiedProcessor
         {
             foreach (var phone in data.Phones.Where(p => p.HasData))
             {
+                var tags = acceptedTag != null ? new List<string> { acceptedTag } : phone.Tags;
                 // Phones never get association labels
-                var row = new RowOutput(phone.ObjectType, phone.GroupIndex, string.Empty, phone.DataSource, phone.Tags);
+                var row = new RowOutput(phone.ObjectType, phone.GroupIndex, string.Empty, phone.DataSource, tags);
                 row.Values["Import ID"] = data.ContactId; // Link to contact
                 
                 foreach (var kvp in phone.Values)
