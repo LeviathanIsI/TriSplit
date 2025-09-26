@@ -70,32 +70,32 @@
     <Border Grid.Row="1"
             Background="{StaticResource SurfaceBrush}"
             BorderBrush="{StaticResource BorderBrush}"
-            BorderThickness="0,1,0,0">
-      <Grid Height="60">
+            BorderThickness="0,1,0,0" Padding="12,4">
+      <Grid>
         <Grid.ColumnDefinitions>
           <ColumnDefinition Width="Auto"/>
           <ColumnDefinition Width="*"/>
           <ColumnDefinition Width="Auto"/>
         </Grid.ColumnDefinitions>
 
-        <StackPanel Grid.Column="0" Orientation="Horizontal" Margin="20,0" VerticalAlignment="Center">
+        <StackPanel Grid.Column="0" Orientation="Horizontal" Margin="12,0" VerticalAlignment="Center">
           <TextBlock Text="TriSplit"
-                     FontSize="28"
+                     FontSize="22"
                      FontWeight="Bold"
                      Foreground="{StaticResource AccentBrush}"
                      VerticalAlignment="Center"/>
           <TextBlock Text="Data Mapping &amp; HubSpot Integration"
-                     FontSize="14"
+                     FontSize="12"
                      Foreground="{StaticResource SecondaryTextBrush}"
                      VerticalAlignment="Center"
-                     Margin="20,0,0,0"/>
+                     Margin="12,0,0,0"/>
         </StackPanel>
 
-        <StackPanel Grid.Column="2" Orientation="Horizontal" Margin="20,0" VerticalAlignment="Center">
+        <StackPanel Grid.Column="2" Orientation="Horizontal" Margin="12,0" VerticalAlignment="Center">
           <TextBlock Text="Data Profile:"
                      Foreground="{StaticResource SecondaryTextBrush}"
                      VerticalAlignment="Center"
-                     Margin="0,0,10,0"/>
+                     Margin="0,0,6,0"/>
           <TextBlock Text="{Binding ActiveProfileName}"
                      Foreground="{StaticResource AccentBrush}"
                      FontWeight="Medium"

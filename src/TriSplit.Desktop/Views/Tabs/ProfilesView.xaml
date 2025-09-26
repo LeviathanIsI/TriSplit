@@ -25,7 +25,6 @@
     <Grid.RowDefinitions>
       <RowDefinition Height="Auto"/>
       <RowDefinition Height="*"/>
-      <RowDefinition Height="Auto"/>
     </Grid.RowDefinitions>
 
     <!-- Header -->
@@ -48,57 +47,64 @@
                                 </Grid.ColumnDefinitions>
 
         <StackPanel Grid.Column="0">
-          <TextBlock Text="Data Profile Configuration"
-                     Style="{StaticResource HeaderTextBlock}"
-                     Foreground="{StaticResource AccentBrush}"/>
-          <TextBlock Text="Map source data fields to HubSpot properties"
-                     Foreground="{StaticResource SecondaryTextBrush}"/>
+          <!-- App title moved to footer -->
         </StackPanel>
 
         <StackPanel Grid.Column="1"
-                    Orientation="Vertical"
+                    Orientation="Horizontal"
                     HorizontalAlignment="Right"
-                    MinWidth="340">
+                    VerticalAlignment="Center">
           <TextBlock Text="Profile Name"
-                     Foreground="{StaticResource SecondaryTextBrush}"/>
+                     Foreground="{StaticResource SecondaryTextBrush}"
+                     Margin="0,0,8,0"/>
           <TextBox Text="{Binding ProfileName}"
-                   Margin="0,4,0,8"
-                   VerticalAlignment="Center"/>
-
+                   Width="260"
+                   VerticalAlignment="Center"
+                   Margin="0,0,16,0"/>
+          <Button Content="Save"
+                  Command="{Binding SaveProfileCommand}"
+                  Style="{StaticResource PrimaryButton}"
+                  Padding="14,6"
+                  Margin="0,0,12,0"/>
+          <Button Content="Save As"
+                  Command="{Binding SaveProfileAsCommand}"
+                  Style="{StaticResource SecondaryButton}"
+                  Padding="14,6"
+                  Margin="0,0,12,0"/>
+          <Button Content="Load"
+                  Command="{Binding LoadProfileCommand}"
+                  Style="{StaticResource SecondaryButton}"
+                  Padding="14,6"
+                  Margin="0,0,16,0"/>
           <CheckBox Content="Create Secondary Contacts File"
                     IsChecked="{Binding CreateSecondaryContactsFile}"
-                    Foreground="{StaticResource TextBrush}"
-                    Margin="0,0,0,12"/>
-
-          <StackPanel Orientation="Horizontal">
-            <Button Content="Save"
-                    Command="{Binding SaveProfileCommand}"
-                    Style="{StaticResource PrimaryButton}"
-                    Padding="14,6"
-                    Margin="0,0,8,0"/>
-            <Button Content="Save As"
-                    Command="{Binding SaveProfileAsCommand}"
-                    Style="{StaticResource SecondaryButton}"
-                    Padding="14,6"
-                    Margin="0,0,8,0"/>
-            <Button Content="Load"
-                    Command="{Binding LoadProfileCommand}"
-                    Style="{StaticResource SecondaryButton}"
-                    Padding="14,6"
-                    Margin="0,0,8,0"/>
-            <Button Content="Suggest Headers"
-                    Command="{Binding LoadHeaderSuggestionsCommand}"
-                    Style="{StaticResource SecondaryButton}"
-                    Padding="14,6"/>
-          </StackPanel>
+                    Foreground="{StaticResource TextBrush}"/>
         </StackPanel>
+
+        <!-- Header actions -->
+        <StackPanel Grid.Column="2" Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
+          <Button Content="Suggest Headers"
+                  Command="{Binding LoadHeaderSuggestionsCommand}"
+                  Style="{StaticResource SecondaryButton}"
+                  Padding="14,6"
+                  Margin="0,0,12,0"/>
+          <Button Content="Import CSV Headers"
+                  Command="{Binding ImportHeadersCommand}"
+                  Style="{StaticResource SecondaryButton}"
+                  Padding="14,6"
+                  Margin="0,0,12,0"/>
+          <Button Content="Export Data Profile"
+                  Command="{Binding ExportProfileCommand}"
+                  Style="{StaticResource SecondaryButton}"/>
+        </StackPanel>
+
       </Grid>
     </Border>
 
     <!-- Saved Profiles -->
     <Border Grid.Column="0"
             Grid.Row="1"
-            Grid.RowSpan="2"
+           
             Background="{StaticResource SurfaceBrush}"
             BorderBrush="{StaticResource BorderBrush}"
             BorderThickness="1"
@@ -215,7 +221,7 @@
                     Padding="0">
                         <Expander.Header>
 
-              <TextBlock Text="Group Defaults"
+              <TextBlock Text="Contacts - Properties - Phone"
 
                          Foreground="{StaticResource AccentBrush}"
 
@@ -227,21 +233,7 @@
                         <Expander.Content>
               <ScrollViewer MaxHeight="300" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
                 <StackPanel>
-                  <Grid Margin="0,0,0,12">
-                    <Grid.ColumnDefinitions>
-                      <ColumnDefinition Width="*"/>
-                      <ColumnDefinition Width="260"/>
-                    </Grid.ColumnDefinitions>
-
-                    <StackPanel Grid.Column="1">
-                      <TextBlock Text="Missing Header Behavior"
-                                 Foreground="{StaticResource SecondaryTextBrush}"/>
-                      <ComboBox ItemsSource="{Binding MissingHeaderBehaviorOptions}"
-                                SelectedItem="{Binding SelectedMissingHeaderBehavior}"
-                                IsEditable="False"
-                                Margin="0,4,0,0"/>
-                    </StackPanel>
-                  </Grid>
+                  <!-- Missing Header Behavior moved to footer -->
 
                   <ItemsControl ItemsSource="{Binding GroupCollections}"
                                 Margin="0,12,0,0">
@@ -271,8 +263,9 @@
 
                               <TextBlock Grid.Column="0"
                                          Text="{Binding Header}"
-                                         Foreground="{StaticResource SecondaryTextBrush}"
-                                         FontWeight="SemiBold"/>
+                                         Foreground="{StaticResource AccentBrush}"
+                                         FontWeight="Bold"
+                                         FontSize="15"/>
 
                               <Button Grid.Column="1"
                                       Content="+ Add Group"
@@ -413,7 +406,9 @@
                            FontWeight="SemiBold">
                   <TextBlock.Style>
                     <Style TargetType="TextBlock">
-                      <Setter Property="Text" Value=""/>
+                      <Setter Property="Text" Value="▲"/>
+                      <Setter Property="Opacity" Value="0.4"/>
+                      <Setter Property="Foreground" Value="{StaticResource SecondaryTextBrush}"/>
                       <Style.Triggers>
                         <MultiDataTrigger>
                           <MultiDataTrigger.Conditions>
@@ -421,6 +416,8 @@
                             <Condition Binding="{Binding CurrentSortDirection}" Value="Ascending"/>
                           </MultiDataTrigger.Conditions>
                           <Setter Property="Text" Value="▲"/>
+                          <Setter Property="Opacity" Value="1"/>
+                          <Setter Property="Foreground" Value="{StaticResource AccentBrush}"/>
                         </MultiDataTrigger>
                         <MultiDataTrigger>
                           <MultiDataTrigger.Conditions>
@@ -428,6 +425,8 @@
                             <Condition Binding="{Binding CurrentSortDirection}" Value="Descending"/>
                           </MultiDataTrigger.Conditions>
                           <Setter Property="Text" Value="▼"/>
+                          <Setter Property="Opacity" Value="1"/>
+                          <Setter Property="Foreground" Value="{StaticResource AccentBrush}"/>
                         </MultiDataTrigger>
                       </Style.Triggers>
                     </Style>
@@ -454,7 +453,9 @@
                            FontWeight="SemiBold">
                   <TextBlock.Style>
                     <Style TargetType="TextBlock">
-                      <Setter Property="Text" Value=""/>
+                      <Setter Property="Text" Value="▲"/>
+                      <Setter Property="Opacity" Value="0.4"/>
+                      <Setter Property="Foreground" Value="{StaticResource SecondaryTextBrush}"/>
                       <Style.Triggers>
                         <MultiDataTrigger>
                           <MultiDataTrigger.Conditions>
@@ -462,6 +463,8 @@
                             <Condition Binding="{Binding CurrentSortDirection}" Value="Ascending"/>
                           </MultiDataTrigger.Conditions>
                           <Setter Property="Text" Value="▲"/>
+                          <Setter Property="Opacity" Value="1"/>
+                          <Setter Property="Foreground" Value="{StaticResource AccentBrush}"/>
                         </MultiDataTrigger>
                         <MultiDataTrigger>
                           <MultiDataTrigger.Conditions>
@@ -469,6 +472,8 @@
                             <Condition Binding="{Binding CurrentSortDirection}" Value="Descending"/>
                           </MultiDataTrigger.Conditions>
                           <Setter Property="Text" Value="▼"/>
+                          <Setter Property="Opacity" Value="1"/>
+                          <Setter Property="Foreground" Value="{StaticResource AccentBrush}"/>
                         </MultiDataTrigger>
                       </Style.Triggers>
                     </Style>
@@ -495,7 +500,9 @@
                            FontWeight="SemiBold">
                   <TextBlock.Style>
                     <Style TargetType="TextBlock">
-                      <Setter Property="Text" Value=""/>
+                      <Setter Property="Text" Value="▲"/>
+                      <Setter Property="Opacity" Value="0.4"/>
+                      <Setter Property="Foreground" Value="{StaticResource SecondaryTextBrush}"/>
                       <Style.Triggers>
                         <MultiDataTrigger>
                           <MultiDataTrigger.Conditions>
@@ -503,6 +510,8 @@
                             <Condition Binding="{Binding CurrentSortDirection}" Value="Ascending"/>
                           </MultiDataTrigger.Conditions>
                           <Setter Property="Text" Value="▲"/>
+                          <Setter Property="Opacity" Value="1"/>
+                          <Setter Property="Foreground" Value="{StaticResource AccentBrush}"/>
                         </MultiDataTrigger>
                         <MultiDataTrigger>
                           <MultiDataTrigger.Conditions>
@@ -510,6 +519,8 @@
                             <Condition Binding="{Binding CurrentSortDirection}" Value="Descending"/>
                           </MultiDataTrigger.Conditions>
                           <Setter Property="Text" Value="▼"/>
+                          <Setter Property="Opacity" Value="1"/>
+                          <Setter Property="Foreground" Value="{StaticResource AccentBrush}"/>
                         </MultiDataTrigger>
                       </Style.Triggers>
                     </Style>
@@ -620,41 +631,10 @@
         </Border>
       </Grid>
     </Border>
-
-    <!-- Footer -->
-    <Border Grid.Column="0"
-            Grid.ColumnSpan="3"
-            Grid.Row="2"
-            Background="{StaticResource SurfaceBrush}"
-            BorderBrush="{StaticResource BorderBrush}"
-            BorderThickness="1"
-            CornerRadius="4"
-            Padding="16"
-            Margin="0,16,0,0">
-      <Grid>
-        <Grid.ColumnDefinitions>
-          <ColumnDefinition Width="*"/>
-          <ColumnDefinition Width="Auto"/>
-        </Grid.ColumnDefinitions>
-
-        <StackPanel Orientation="Horizontal">
-          <TextBlock Text="Data Profile Status:"
-                     Foreground="{StaticResource SecondaryTextBrush}"
-                     Margin="0,0,8,0"/>
-          <TextBlock Text="{Binding ProfileStatus}"
-                     Foreground="{StaticResource AccentBrush}"/>
-        </StackPanel>
-
-        <StackPanel Grid.Column="1" Orientation="Horizontal">
-          <Button Content="Import CSV Headers"
-                  Command="{Binding ImportHeadersCommand}"
-                  Style="{StaticResource SecondaryButton}"
-                  Margin="0,0,8,0"/>
-          <Button Content="Export Data Profile"
-                  Command="{Binding ExportProfileCommand}"
-                  Style="{StaticResource SecondaryButton}"/>
-        </StackPanel>
-      </Grid>
-    </Border>
   </Grid>
 </UserControl>
+
+
+
+
+
