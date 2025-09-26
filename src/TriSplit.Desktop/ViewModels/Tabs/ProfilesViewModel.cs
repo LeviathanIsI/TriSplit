@@ -27,6 +27,59 @@ public partial class ProfilesViewModel : ViewModelBase
 
     internal const int MaxGroupsPerType = 10;
     private bool _isLoadingProfile;
+    private static readonly string[] DefaultHubSpotHeaders = new[]
+    {
+        "Address",
+        "APN",
+        "Attorney Address",
+        "Attorney City",
+        "Attorney Company",
+        "Attorney First Name",
+        "Attorney Last Name",
+        "Attorney Phone",
+        "Attorney Postal Code",
+        "Attorney State",
+        "Bankruptcy Filing Date",
+        "Bathrooms",
+        "Bedrooms",
+        "City",
+        "County",
+        "Date of Death",
+        "Deceased First Name",
+        "Deceased Last Name",
+        "Email",
+        "Estimated Equity",
+        "Estimated Loan to Value",
+        "Estimated Remaining Balance of Open Loans",
+        "Estimated Value",
+        "First Name",
+        "Foreclosure Factor",
+        "Last Name",
+        "Last Sale Date",
+        "Last Sale Price",
+        "Lien Amount",
+        "Lot Size",
+        "MLS Amount",
+        "MLS Date",
+        "MLS Status",
+        "Open Mortgages",
+        "Owner Deceased",
+        "Owner Occupied",
+        "Parcel Number",
+        "Phone Number",
+        "Phone Type",
+        "Postal Code",
+        "Probate Date",
+        "Property Condition",
+        "Property Type",
+        "Square Footage",
+        "State",
+        "Taxes Actionable",
+        "Taxes Delinquent Amount",
+        "Taxes Delinquent Date",
+        "Year Built"
+    };
+
 
     public ProfilesViewModel(
         IProfileStore profileStore,
@@ -54,6 +107,7 @@ public partial class ProfilesViewModel : ViewModelBase
         };
 
         EnsureDefaultGroups();
+        EnsureDefaultHubSpotHeaders();
         RebuildGroupCollections();
 
         _ = LoadProfilesAsync();
@@ -221,6 +275,7 @@ public partial class ProfilesViewModel : ViewModelBase
             SelectedMissingHeaderBehavior = MissingHeaderBehavior.Error;
             FieldMappings.Clear();
             HubSpotHeaders.Clear();
+            EnsureDefaultHubSpotHeaders();
             _groupDefaults.Clear();
             EnsureDefaultGroups();
             RebuildGroupCollections();
@@ -499,6 +554,7 @@ public partial class ProfilesViewModel : ViewModelBase
 
             FieldMappings.Clear();
             HubSpotHeaders.Clear();
+            EnsureDefaultHubSpotHeaders();
 
             foreach (var mapping in profile.Mappings)
             {
@@ -674,6 +730,17 @@ public partial class ProfilesViewModel : ViewModelBase
         if (!HubSpotHeaders.Contains(header))
         {
             HubSpotHeaders.Add(header);
+        }
+    }
+
+    private void EnsureDefaultHubSpotHeaders()
+    {
+        foreach (var header in DefaultHubSpotHeaders)
+        {
+            if (!HubSpotHeaders.Contains(header))
+            {
+                HubSpotHeaders.Add(header);
+            }
         }
     }
 
