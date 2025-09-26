@@ -12,51 +12,12 @@
 
   <Grid>
     <Grid.RowDefinitions>
-      <RowDefinition Height="Auto"/>
       <RowDefinition Height="*"/>
       <RowDefinition Height="Auto"/>
     </Grid.RowDefinitions>
 
-    <!-- Header -->
-    <Border Grid.Row="0"
-            Background="{StaticResource SurfaceBrush}"
-            BorderBrush="{StaticResource BorderBrush}"
-            BorderThickness="0,0,0,1">
-      <Grid Height="60">
-        <Grid.ColumnDefinitions>
-          <ColumnDefinition Width="Auto"/>
-          <ColumnDefinition Width="*"/>
-          <ColumnDefinition Width="Auto"/>
-        </Grid.ColumnDefinitions>
-
-        <StackPanel Grid.Column="0" Orientation="Horizontal" Margin="20,0">
-          <TextBlock Text="TriSplit"
-                     FontSize="28"
-                     FontWeight="Bold"
-                     Foreground="{StaticResource AccentBrush}"
-                     VerticalAlignment="Center"/>
-          <TextBlock Text="Data Mapping &amp; HubSpot Integration"
-                     FontSize="14"
-                     Foreground="{StaticResource SecondaryTextBrush}"
-                     VerticalAlignment="Center"
-                     Margin="20,0,0,0"/>
-        </StackPanel>
-
-        <StackPanel Grid.Column="2" Orientation="Horizontal" Margin="20,0" VerticalAlignment="Center">
-          <TextBlock Text="Data Profile:"
-                     Foreground="{StaticResource SecondaryTextBrush}"
-                     VerticalAlignment="Center"
-                     Margin="0,0,10,0"/>
-          <TextBlock Text="{Binding ActiveProfileName}"
-                     Foreground="{StaticResource AccentBrush}"
-                     FontWeight="Medium"
-                     VerticalAlignment="Center"/>
-        </StackPanel>
-      </Grid>
-    </Border>
-
     <!-- Main TabControl -->
-    <TabControl Grid.Row="1"
+    <TabControl Grid.Row="0"
                 SelectedIndex="{Binding SelectedTabIndex}"
                 Background="{StaticResource BackgroundBrush}"
                 BorderThickness="0">
@@ -105,44 +66,41 @@
       </TabItem>
     </TabControl>
 
-    <!-- Status Bar -->
-    <Border Grid.Row="2"
+    <!-- Footer -->
+    <Border Grid.Row="1"
             Background="{StaticResource SurfaceBrush}"
             BorderBrush="{StaticResource BorderBrush}"
             BorderThickness="0,1,0,0">
-      <Grid Height="28">
+      <Grid Height="60">
         <Grid.ColumnDefinitions>
           <ColumnDefinition Width="Auto"/>
           <ColumnDefinition Width="*"/>
           <ColumnDefinition Width="Auto"/>
-          <ColumnDefinition Width="Auto"/>
         </Grid.ColumnDefinitions>
 
-        <TextBlock Grid.Column="0"
-                   Text="{Binding StatusMessage}"
-                   Foreground="{StaticResource SecondaryTextBrush}"
-                   VerticalAlignment="Center"
-                   Margin="12,0"/>
-
-        <ProgressBar Grid.Column="1"
-                     Value="{Binding ProgressValue}"
-                     Maximum="100"
-                     Height="4"
-                     Visibility="{Binding IsProgressVisible, Converter={StaticResource BoolToVisibilityConverter}}"
-                     Margin="10,0"
+        <StackPanel Grid.Column="0" Orientation="Horizontal" Margin="20,0" VerticalAlignment="Center">
+          <TextBlock Text="TriSplit"
+                     FontSize="28"
+                     FontWeight="Bold"
+                     Foreground="{StaticResource AccentBrush}"
                      VerticalAlignment="Center"/>
+          <TextBlock Text="Data Mapping &amp; HubSpot Integration"
+                     FontSize="14"
+                     Foreground="{StaticResource SecondaryTextBrush}"
+                     VerticalAlignment="Center"
+                     Margin="20,0,0,0"/>
+        </StackPanel>
 
-        <TextBlock Grid.Column="2"
-                   Text="{Binding ProcessingStatus}"
-                   Foreground="{StaticResource AccentBrush}"
-                   VerticalAlignment="Center"
-                   Margin="12,0"/>
-
-        <TextBlock Grid.Column="3"
-                   Text="v0.2.0-Beta2.0"
-                   Foreground="{StaticResource SecondaryTextBrush}"
-                   VerticalAlignment="Center"
-                   Margin="12,0"/>
+        <StackPanel Grid.Column="2" Orientation="Horizontal" Margin="20,0" VerticalAlignment="Center">
+          <TextBlock Text="Data Profile:"
+                     Foreground="{StaticResource SecondaryTextBrush}"
+                     VerticalAlignment="Center"
+                     Margin="0,0,10,0"/>
+          <TextBlock Text="{Binding ActiveProfileName}"
+                     Foreground="{StaticResource AccentBrush}"
+                     FontWeight="Medium"
+                     VerticalAlignment="Center"/>
+        </StackPanel>
       </Grid>
     </Border>
   </Grid>
