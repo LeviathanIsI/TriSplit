@@ -146,11 +146,33 @@ public partial class ProfilesViewModel : ViewModelBase
         HubSpotHeader
     }
 
-    [ObservableProperty]
     private SortColumn _currentSortColumn = SortColumn.SourceField;
+    public SortColumn CurrentSortColumn 
+    { 
+        get => _currentSortColumn; 
+        set 
+        { 
+            if (_currentSortColumn != value)
+            {
+                _currentSortColumn = value;
+                OnPropertyChanged();
+            }
+        } 
+    }
 
-    [ObservableProperty]
     private ListSortDirection _currentSortDirection = ListSortDirection.Ascending;
+    public ListSortDirection CurrentSortDirection 
+    { 
+        get => _currentSortDirection; 
+        set 
+        { 
+            if (_currentSortDirection != value)
+            {
+                _currentSortDirection = value;
+                OnPropertyChanged();
+            }
+        } 
+    }
 
     public GroupDefaultsCollectionViewModel PropertyGroups { get; }
 
@@ -326,6 +348,8 @@ public partial class ProfilesViewModel : ViewModelBase
 
     private void ApplySort()
     {
+        if (FieldMappingsView == null) return;
+        
         FieldMappingsView.SortDescriptions.Clear();
         
         switch (CurrentSortColumn)
@@ -341,6 +365,8 @@ public partial class ProfilesViewModel : ViewModelBase
                 FieldMappingsView.SortDescriptions.Add(new SortDescription(nameof(MappingRowViewModel.HubSpotHeader), CurrentSortDirection));
                 break;
         }
+        
+        // Property change notifications are now handled automatically by the properties
         
         // Refresh can execute states
         SortBySourceFieldCommand.NotifyCanExecuteChanged();
