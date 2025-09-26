@@ -1,0 +1,7 @@
+Import ID,Association Label,Data Source,Data Type,Tags,Address,City,Postal Code,State
+5bc8878d-fb54-4012-abf6-125598946527,Owner,;Harness,,,1300 West First Street,Easton,18042,Pennsylvania
+5bc8878d-fb54-4012-abf6-125598946527,Mailing Address,;Harness,,,1300 West First Street,Easton,18042,Pennsylvania
+a40367eb-71a4-47f8-a31f-a0e7551e6511,Owner,;Harness,,,200 South Second Ave.,Bethlehem,18015,PA
+a40367eb-71a4-47f8-a31f-a0e7551e6511,Mailing Address,;Harness,,,PO Box 123,Bethlehem,18016,PA
+b3d3c94c-9bce-4173-8138-a2fa8039968d,Owner,;Harness,,,789 north pine rd,Allentown,,pa
+b3d3c94c-9bce-4173-8138-a2fa8039968d,Mailing Address,;Harness,,,789 north pine rd,Allentown,,pa

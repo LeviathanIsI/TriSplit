@@ -116,8 +116,8 @@ public partial class ProfilesViewModel : ViewModelBase
             PhoneGroups = new GroupDefaultsCollectionViewModel(this, ProfileObjectType.Phone);
             GroupCollections = new[]
             {
-                PropertyGroups,
                 ContactGroups,
+                PropertyGroups,
                 PhoneGroups
             };
 
