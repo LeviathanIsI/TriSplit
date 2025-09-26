@@ -70,26 +70,29 @@ public class UnifiedProcessor
 
         ReportProgress("Processing rows...", 15);
 
-        var propertyRows = new List<RowOutput>();
-        var contactRows = new List<RowOutput>();
-        var phoneRows = new List<RowOutput>();
-
+        var processedData = new List<ProcessedRowData>();
         var groupCounters = InitializeGroupCounters(propertyGroups, contactGroups, phoneGroups);
 
         for (var rowIndex = 0; rowIndex < inputData.Rows.Count; rowIndex++)
         {
             cancellationToken.ThrowIfCancellationRequested();
             var row = inputData.Rows[rowIndex];
+            var contactId = Guid.NewGuid().ToString(); // Generate unique contact ID for this row
 
-            ProcessRow(row, propertyGroups, headerLookup, propertyRows, groupCounters);
-            ProcessRow(row, contactGroups, headerLookup, contactRows, groupCounters);
-            ProcessRow(row, phoneGroups, headerLookup, phoneRows, groupCounters);
+            var rowData = ProcessRowData(row, contactId, propertyGroups, contactGroups, phoneGroups, headerLookup, groupCounters);
+            if (rowData != null)
+            {
+                processedData.Add(rowData);
+            }
 
             var percent = 15 + (int)Math.Round(70.0 * (rowIndex + 1) / Math.Max(1, inputData.Rows.Count));
             ReportProgress($"Processed {rowIndex + 1:N0} of {inputData.Rows.Count:N0} rows", percent);
         }
 
-        ApplyOwnerMailingOverrides(contactRows, contactGroups);
+        // Build final output with proper deduplication and linking
+        var propertyRows = BuildPropertyRows(processedData);
+        var contactRows = BuildContactRows(processedData, _profile.CreateSecondaryContactsFile);
+        var phoneRows = BuildPhoneRows(processedData);
 
         var propertyDictionaries = propertyRows.Select(ToDictionary).ToList();
         var contactDictionaries = contactRows.Select(ToDictionary).ToList();
@@ -150,25 +153,69 @@ public class UnifiedProcessor
         return result;
     }
 
-    private void ProcessRow(
+    private ProcessedRowData? ProcessRowData(
+        Dictionary<string, object> row,
+        string contactId,
+        IReadOnlyList<MappingGroup> propertyGroups,
+        IReadOnlyList<MappingGroup> contactGroups,
+        IReadOnlyList<MappingGroup> phoneGroups,
+        IReadOnlyDictionary<string, int> headerLookup,
+        Dictionary<ProfileObjectType, Dictionary<int, int>> counters)
+    {
+        var properties = new List<ProcessedGroup>();
+        var contacts = new List<ProcessedGroup>();
+        var phones = new List<ProcessedGroup>();
+
+        // Process each group type
+        ProcessGroups(row, propertyGroups, headerLookup, properties, counters);
+        ProcessGroups(row, contactGroups, headerLookup, contacts, counters);
+        ProcessGroups(row, phoneGroups, headerLookup, phones, counters);
+
+        // Only create a row if we have actual data
+        if (properties.Any(p => p.HasData) || contacts.Any(c => c.HasData) || phones.Any(p => p.HasData))
+        {
+            return new ProcessedRowData(contactId, properties, contacts, phones);
+        }
+
+        return null;
+    }
+
+    private void ProcessGroups(
         Dictionary<string, object> row,
         IReadOnlyList<MappingGroup> groups,
         IReadOnlyDictionary<string, int> headerLookup,
-        List<RowOutput> output,
+        List<ProcessedGroup> output,
         Dictionary<ProfileObjectType, Dictionary<int, int>> counters)
     {
         foreach (var group in groups)
         {
-            var rowOutput = new RowOutput(group.ObjectType, group.GroupIndex, group.Metadata.AssociationLabel, group.Metadata.DataSource, group.Metadata.Tags);
+            var values = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            var hasData = false;
 
             foreach (var mapping in group.Mappings)
             {
                 var value = ResolveFieldValue(row, headerLookup, mapping);
-                rowOutput.Values[mapping.HubSpotHeader] = value;
+                values[mapping.HubSpotHeader] = value;
+                
+                if (!string.IsNullOrWhiteSpace(value))
+                {
+                    hasData = true;
+                }
             }
 
-            output.Add(rowOutput);
-            counters[group.ObjectType][group.GroupIndex]++;
+            if (hasData)
+            {
+                counters[group.ObjectType][group.GroupIndex]++;
+            }
+
+            output.Add(new ProcessedGroup(
+                group.ObjectType,
+                group.GroupIndex,
+                group.Metadata.AssociationLabel,
+                group.Metadata.DataSource,
+                group.Metadata.Tags,
+                values,
+                hasData));
         }
     }
 
@@ -603,36 +650,153 @@ public class UnifiedProcessor
         return dictionary;
     }
 
-    private void ApplyOwnerMailingOverrides(List<RowOutput> contactRows, IReadOnlyList<MappingGroup> contactGroups)
+    private List<RowOutput> BuildPropertyRows(List<ProcessedRowData> processedData)
     {
-        if (contactRows.Count == 0)
+        // Step 1: Build all property rows without deduplication
+        var propertyRows = new List<RowOutput>();
+
+        foreach (var data in processedData)
         {
-            return;
-        }
-
-        var ownerGroups = contactGroups
-            .Where(g => string.Equals(g.Metadata.AssociationLabel, "Owner", StringComparison.OrdinalIgnoreCase))
-            .OrderBy(g => g.GroupIndex)
-            .ToList();
-
-        var owner1 = ownerGroups.ElementAtOrDefault(0);
-        var owner2 = ownerGroups.ElementAtOrDefault(1);
-
-        if (owner1 != null && _profile.OwnerMailing?.Owner1GetsMailing == true)
-        {
-            foreach (var row in contactRows.Where(r => r.GroupIndex == owner1.GroupIndex))
+            foreach (var property in data.Properties.Where(p => p.HasData))
             {
-                row.AssociationLabel = "Mailing Address";
+                var row = new RowOutput(property.ObjectType, property.GroupIndex, property.AssociationLabel, property.DataSource, property.Tags);
+                row.Values["Import ID"] = data.ContactId; // Link to contact
+                
+                foreach (var kvp in property.Values)
+                {
+                    row.Values[kvp.Key] = kvp.Value;
+                }
+                
+                propertyRows.Add(row);
             }
         }
 
-        if (owner2 != null && _profile.OwnerMailing?.Owner2GetsMailing == true)
+        // Step 2: Perform deduplication as separate operation
+        return DeduplicatePropertyRows(propertyRows);
+    }
+
+    private List<RowOutput> DeduplicatePropertyRows(List<RowOutput> propertyRows)
+    {
+        var deduplicatedRows = new List<RowOutput>();
+        var addressLookup = new Dictionary<string, RowOutput>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var row in propertyRows)
         {
-            foreach (var row in contactRows.Where(r => r.GroupIndex == owner2.GroupIndex))
+            var addressKey = BuildAddressKey(row.Values);
+            
+            if (!string.IsNullOrEmpty(addressKey) && addressLookup.TryGetValue(addressKey, out var existingRow))
             {
-                row.AssociationLabel = "Mailing Address";
+                // Combine association labels
+                var existingLabels = existingRow.AssociationLabel?.Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries) ?? Array.Empty<string>();
+                var newLabels = row.AssociationLabel.Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+                
+                var combinedLabels = existingLabels.Concat(newLabels).Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
+                existingRow.AssociationLabel = string.Join(";", combinedLabels);
+                
+                // Merge any additional data that doesn't exist in the existing row
+                foreach (var kvp in row.Values)
+                {
+                    if (!string.IsNullOrWhiteSpace(kvp.Value) && (!existingRow.Values.ContainsKey(kvp.Key) || string.IsNullOrWhiteSpace(existingRow.Values[kvp.Key])))
+                    {
+                        existingRow.Values[kvp.Key] = kvp.Value;
+                    }
+                }
+            }
+            else
+            {
+                deduplicatedRows.Add(row);
+                
+                if (!string.IsNullOrEmpty(addressKey))
+                {
+                    addressLookup[addressKey] = row;
+                }
             }
         }
+
+        return deduplicatedRows;
+    }
+
+    private List<RowOutput> BuildContactRows(List<ProcessedRowData> processedData, bool includeAssociationLabels)
+    {
+        var contactRows = new List<RowOutput>();
+
+        foreach (var data in processedData)
+        {
+            foreach (var contact in data.Contacts.Where(c => c.HasData))
+            {
+                var row = new RowOutput(contact.ObjectType, contact.GroupIndex, 
+                    includeAssociationLabels ? contact.AssociationLabel : string.Empty, 
+                    contact.DataSource, contact.Tags);
+                
+                row.Values["Import ID"] = data.ContactId; // Unique contact ID
+                
+                foreach (var kvp in contact.Values)
+                {
+                    row.Values[kvp.Key] = kvp.Value;
+                }
+                
+                contactRows.Add(row);
+            }
+        }
+
+        return contactRows;
+    }
+
+    private List<RowOutput> BuildPhoneRows(List<ProcessedRowData> processedData)
+    {
+        var phoneRows = new List<RowOutput>();
+
+        foreach (var data in processedData)
+        {
+            foreach (var phone in data.Phones.Where(p => p.HasData))
+            {
+                // Phones never get association labels
+                var row = new RowOutput(phone.ObjectType, phone.GroupIndex, string.Empty, phone.DataSource, phone.Tags);
+                row.Values["Import ID"] = data.ContactId; // Link to contact
+                
+                foreach (var kvp in phone.Values)
+                {
+                    row.Values[kvp.Key] = kvp.Value;
+                }
+                
+                phoneRows.Add(row);
+            }
+        }
+
+        return phoneRows;
+    }
+
+    private string BuildAddressKey(Dictionary<string, string> values)
+    {
+        // Use address fields to create a key for deduplication
+        var addressFields = new[] { "address", "street", "property address", "mailing address" };
+        var cityFields = new[] { "city", "property city", "mailing city" };
+        var stateFields = new[] { "state", "property state", "mailing state" };
+        var zipFields = new[] { "zip", "postal code", "property zip", "mailing zip" };
+
+        var address = FindFieldValue(values, addressFields);
+        var city = FindFieldValue(values, cityFields);
+        var state = FindFieldValue(values, stateFields);
+        var zip = FindFieldValue(values, zipFields);
+
+        if (string.IsNullOrWhiteSpace(address))
+        {
+            return string.Empty;
+        }
+
+        return $"{address?.Trim()?.ToLowerInvariant()}|{city?.Trim()?.ToLowerInvariant()}|{state?.Trim()?.ToLowerInvariant()}|{zip?.Trim()?.ToLowerInvariant()}";
+    }
+
+    private string? FindFieldValue(Dictionary<string, string> values, string[] fieldNames)
+    {
+        foreach (var fieldName in fieldNames)
+        {
+            if (values.TryGetValue(fieldName, out var value) && !string.IsNullOrWhiteSpace(value))
+            {
+                return value;
+            }
+        }
+        return null;
     }
 
     private void ReportProgress(string message, int percent)
@@ -643,6 +807,44 @@ public class UnifiedProcessor
             PercentComplete = Math.Clamp(percent, 0, 100),
             Timestamp = DateTime.UtcNow
         });
+    }
+
+    private sealed class ProcessedRowData
+    {
+        public ProcessedRowData(string contactId, List<ProcessedGroup> properties, List<ProcessedGroup> contacts, List<ProcessedGroup> phones)
+        {
+            ContactId = contactId;
+            Properties = properties;
+            Contacts = contacts;
+            Phones = phones;
+        }
+
+        public string ContactId { get; }
+        public List<ProcessedGroup> Properties { get; }
+        public List<ProcessedGroup> Contacts { get; }
+        public List<ProcessedGroup> Phones { get; }
+    }
+
+    private sealed class ProcessedGroup
+    {
+        public ProcessedGroup(ProfileObjectType objectType, int groupIndex, string associationLabel, string dataSource, List<string> tags, Dictionary<string, string> values, bool hasData)
+        {
+            ObjectType = objectType;
+            GroupIndex = groupIndex;
+            AssociationLabel = associationLabel;
+            DataSource = dataSource;
+            Tags = tags;
+            Values = values;
+            HasData = hasData;
+        }
+
+        public ProfileObjectType ObjectType { get; }
+        public int GroupIndex { get; }
+        public string AssociationLabel { get; }
+        public string DataSource { get; }
+        public List<string> Tags { get; }
+        public Dictionary<string, string> Values { get; }
+        public bool HasData { get; }
     }
 
     private sealed class MappingGroup
