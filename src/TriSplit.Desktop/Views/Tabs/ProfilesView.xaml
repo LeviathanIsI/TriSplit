@@ -112,24 +112,77 @@
         <ListBox ItemsSource="{Binding SavedProfiles}"
                  SelectedItem="{Binding SelectedProfile}"
                  BorderThickness="0"
-                 Background="Transparent">
-          <ListBox.ItemTemplate>
-            <DataTemplate>
-              <Border Padding="6" Margin="0,0,0,4" Background="{StaticResource BackgroundBrush}" CornerRadius="3">
-                <TextBlock Text="{Binding Name}" Foreground="{StaticResource TextBrush}"/>
-              </Border>
-            </DataTemplate>
-          </ListBox.ItemTemplate>
+                 Background="Transparent"
+                 ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+          <ListBox.ItemContainerStyle>
+            <Style TargetType="ListBoxItem">
+              <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+              <Setter Property="Padding" Value="0"/>
+              <Setter Property="Margin" Value="0,0,0,6"/>
+              <Setter Property="Template">
+                <Setter.Value>
+                  <ControlTemplate TargetType="ListBoxItem">
+                    <Border x:Name="ItemBorder"
+                            Background="{StaticResource BackgroundBrush}"
+                            BorderBrush="{StaticResource BorderBrush}"
+                            BorderThickness="1"
+                            CornerRadius="6"
+                            Padding="12,10">
+                      <Grid>
+                        <Grid.ColumnDefinitions>
+                          <ColumnDefinition Width="*"/>
+                          <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        
+                        <TextBlock Grid.Column="0"
+                                   Text="{Binding Name}"
+                                   Foreground="{StaticResource TextBrush}"
+                                   FontWeight="Medium"
+                                   FontSize="13"
+                                   VerticalAlignment="Center"
+                                   TextTrimming="CharacterEllipsis"/>
+                        
+                        <Border Grid.Column="1"
+                                x:Name="SelectedIndicator"
+                                Background="{StaticResource AccentBrush}"
+                                Width="4"
+                                Height="16"
+                                CornerRadius="2"
+                                Visibility="Collapsed"
+                                Margin="8,0,0,0"/>
+                      </Grid>
+                    </Border>
+                    <ControlTemplate.Triggers>
+                      <Trigger Property="IsMouseOver" Value="True">
+                        <Setter TargetName="ItemBorder" Property="Background" Value="{StaticResource SurfaceBrush}"/>
+                        <Setter TargetName="ItemBorder" Property="BorderBrush" Value="{StaticResource AccentBrush}"/>
+                      </Trigger>
+                      <Trigger Property="IsSelected" Value="True">
+                        <Setter TargetName="ItemBorder" Property="Background" Value="{StaticResource SurfaceBrush}"/>
+                        <Setter TargetName="ItemBorder" Property="BorderBrush" Value="{StaticResource AccentBrush}"/>
+                        <Setter TargetName="ItemBorder" Property="BorderThickness" Value="2"/>
+                        <Setter TargetName="SelectedIndicator" Property="Visibility" Value="Visible"/>
+                      </Trigger>
+                    </ControlTemplate.Triggers>
+                  </ControlTemplate>
+                </Setter.Value>
+              </Setter>
+            </Style>
+          </ListBox.ItemContainerStyle>
         </ListBox>
 
-        <StackPanel Grid.Row="1" Margin="0,12,0,0">
-          <Button Content="New Data Profile"
+        <StackPanel Grid.Row="1" Margin="0,16,0,0">
+          <Button Content="➕ New Data Profile"
                   Command="{Binding NewProfileCommand}"
                   Style="{StaticResource SecondaryButton}"
-                  Margin="0,0,0,6"/>
-          <Button Content="Delete Selected Data Profile"
+                  FontSize="12"
+                  Height="36"
+                  Margin="0,0,0,8"/>
+          <Button Content="🗑 Delete Selected Profile"
                   Command="{Binding DeleteProfileCommand}"
-                  Style="{StaticResource SecondaryButton}"/>
+                  Style="{StaticResource SecondaryButton}"
+                  FontSize="12"
+                  Height="36"/>
         </StackPanel>
       </Grid>
     </Border>
