@@ -686,6 +686,7 @@ public partial class ProfilesViewModel : ViewModelBase
         {
             AssociationLabel = defaults.AssociationLabel,
             DataSource = defaults.DataSource,
+            DataType = defaults.DataType,
             Tags = new List<string>(defaults.Tags)
         };
     }
@@ -701,11 +702,12 @@ public partial class ProfilesViewModel : ViewModelBase
         return defaults;
     }
 
-    internal void UpdateDefaults(ProfileObjectType type, int index, string association, string dataSource, string tags)
+    internal void UpdateDefaults(ProfileObjectType type, int index, string association, string dataSource, string dataType, string tags)
     {
         var defaults = GetDefaults(type, index);
         defaults.AssociationLabel = association?.Trim() ?? string.Empty;
         defaults.DataSource = dataSource?.Trim() ?? string.Empty;
+        defaults.DataType = dataType?.Trim() ?? string.Empty;
         defaults.Tags = string.IsNullOrWhiteSpace(tags)
             ? new List<string>()
             : tags.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).ToList();
@@ -1391,6 +1393,9 @@ public partial class GroupDefaultsEditorViewModel : ObservableObject
     private string _dataSource = string.Empty;
 
     [ObservableProperty]
+    private string _dataType = string.Empty;
+
+    [ObservableProperty]
     private string _tags = string.Empty;
 
     partial void OnAssociationLabelChanged(string value)
@@ -1401,6 +1406,8 @@ public partial class GroupDefaultsEditorViewModel : ObservableObject
 
     partial void OnDataSourceChanged(string value) => Persist();
 
+    partial void OnDataTypeChanged(string value) => Persist();
+
     partial void OnTagsChanged(string value) => Persist();
 
     internal void Reload()
@@ -1410,6 +1417,7 @@ public partial class GroupDefaultsEditorViewModel : ObservableObject
         _suppress = true;
         AssociationLabel = defaults.AssociationLabel;
         DataSource = defaults.DataSource;
+        DataType = defaults.DataType;
         Tags = defaults.Tags.Count == 0 ? string.Empty : string.Join(", ", defaults.Tags);
         _suppress = false;
 
@@ -1423,7 +1431,7 @@ public partial class GroupDefaultsEditorViewModel : ObservableObject
             return;
         }
 
-        _owner.UpdateDefaults(ObjectType, GroupIndex, AssociationLabel, DataSource, Tags);
+        _owner.UpdateDefaults(ObjectType, GroupIndex, AssociationLabel, DataSource, DataType, Tags);
     }
 }
 

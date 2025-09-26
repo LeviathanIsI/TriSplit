@@ -244,6 +244,7 @@
                                         <RowDefinition Height="Auto"/>
                                         <RowDefinition Height="Auto"/>
                                         <RowDefinition Height="Auto"/>
+                                        <RowDefinition Height="Auto"/>
                                       </Grid.RowDefinitions>
                                       <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="*"/>
@@ -296,6 +297,15 @@
                                       </StackPanel>
 
                                       <StackPanel Grid.Row="3"
+                                                  Grid.ColumnSpan="3"
+                                                  Margin="0,8,0,0">
+                                        <TextBlock Text="Data Type"
+                                                   Foreground="{StaticResource SecondaryTextBrush}"/>
+                                        <TextBox Text="{Binding DataType}"
+                                                 Margin="0,4,0,0"/>
+                                      </StackPanel>
+
+                                      <StackPanel Grid.Row="4"
                                                   Grid.ColumnSpan="3"
                                                   Margin="0,8,0,0">
                                         <TextBlock Text="Tags"

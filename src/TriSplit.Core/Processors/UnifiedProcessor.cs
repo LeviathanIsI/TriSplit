@@ -214,6 +214,7 @@ public class UnifiedProcessor
                 group.GroupIndex,
                 group.Metadata.AssociationLabel,
                 group.Metadata.DataSource,
+                group.Metadata.DataType,
                 group.Metadata.Tags,
                 values,
                 hasData));
@@ -380,6 +381,7 @@ public class UnifiedProcessor
     {
         var associationLabel = defaults.AssociationLabel ?? string.Empty;
         var dataSource = defaults.DataSource ?? string.Empty;
+        var dataType = defaults.DataType ?? string.Empty;
         var tags = new List<string>(defaults.Tags ?? new List<string>());
 
         var associationOverrides = mappings
@@ -435,7 +437,7 @@ public class UnifiedProcessor
             tags = tagSet.ToList();
         }
 
-        return new GroupMetadata(associationLabel, dataSource, tags);
+        return new GroupMetadata(associationLabel, dataSource, dataType, tags);
     }
 
     private static void ValidateDuplicateTargets(ProfileObjectType objectType, int groupIndex, List<ProfileMapping> mappings)
@@ -688,7 +690,7 @@ public class UnifiedProcessor
         var dictionary = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
         {
             ["Data Source"] = row.DataSource ?? string.Empty,
-            ["Data Type"] = "Contact", // Static value for contacts
+            ["Data Type"] = row.DataType ?? string.Empty,
             ["Tags"] = row.Tags.Count > 0 ? string.Join(", ", row.Tags) : string.Empty
         };
 
@@ -711,7 +713,7 @@ public class UnifiedProcessor
         var dictionary = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
         {
             ["Data Source"] = row.DataSource ?? string.Empty,
-            ["Data Type"] = "Property", // Static value for properties
+            ["Data Type"] = row.DataType ?? string.Empty,
             ["Tags"] = row.Tags.Count > 0 ? string.Join(", ", row.Tags) : string.Empty
         };
 
@@ -768,7 +770,7 @@ public class UnifiedProcessor
             foreach (var property in data.Properties.Where(p => p.HasData))
             {
                 var tags = acceptedTag != null ? new List<string> { acceptedTag } : property.Tags;
-                var row = new RowOutput(property.ObjectType, property.GroupIndex, property.AssociationLabel, property.DataSource, tags);
+                var row = new RowOutput(property.ObjectType, property.GroupIndex, property.AssociationLabel, property.DataSource, property.DataType, tags);
                 row.Values["Import ID"] = data.ContactId; // Link to contact
                 
                 foreach (var kvp in property.Values)
@@ -836,7 +838,7 @@ public class UnifiedProcessor
                 var tags = acceptedTag != null ? new List<string> { acceptedTag } : contact.Tags;
                 var row = new RowOutput(contact.ObjectType, contact.GroupIndex, 
                     includeAssociationLabels ? contact.AssociationLabel : string.Empty, 
-                    contact.DataSource, tags);
+                    contact.DataSource, contact.DataType, tags);
                 
                 row.Values["Import ID"] = data.ContactId; // Unique contact ID
                 
@@ -862,7 +864,7 @@ public class UnifiedProcessor
             {
                 var tags = acceptedTag != null ? new List<string> { acceptedTag } : phone.Tags;
                 // Phones never get association labels
-                var row = new RowOutput(phone.ObjectType, phone.GroupIndex, string.Empty, phone.DataSource, tags);
+                var row = new RowOutput(phone.ObjectType, phone.GroupIndex, string.Empty, phone.DataSource, phone.DataType, tags);
                 row.Values["Import ID"] = data.ContactId; // Link to contact
                 
                 foreach (var kvp in phone.Values)
@@ -938,12 +940,13 @@ public class UnifiedProcessor
 
     private sealed class ProcessedGroup
     {
-        public ProcessedGroup(ProfileObjectType objectType, int groupIndex, string associationLabel, string dataSource, List<string> tags, Dictionary<string, string> values, bool hasData)
+        public ProcessedGroup(ProfileObjectType objectType, int groupIndex, string associationLabel, string dataSource, string dataType, List<string> tags, Dictionary<string, string> values, bool hasData)
         {
             ObjectType = objectType;
             GroupIndex = groupIndex;
             AssociationLabel = associationLabel;
             DataSource = dataSource;
+            DataType = dataType;
             Tags = tags;
             Values = values;
             HasData = hasData;
@@ -953,6 +956,7 @@ public class UnifiedProcessor
         public int GroupIndex { get; }
         public string AssociationLabel { get; }
         public string DataSource { get; }
+        public string DataType { get; }
         public List<string> Tags { get; }
         public Dictionary<string, string> Values { get; }
         public bool HasData { get; }
@@ -976,26 +980,29 @@ public class UnifiedProcessor
 
     private sealed class GroupMetadata
     {
-        public GroupMetadata(string associationLabel, string dataSource, IReadOnlyList<string> tags)
+        public GroupMetadata(string associationLabel, string dataSource, string dataType, IReadOnlyList<string> tags)
         {
             AssociationLabel = associationLabel ?? string.Empty;
             DataSource = dataSource ?? string.Empty;
+            DataType = dataType ?? string.Empty;
             Tags = tags?.Where(t => !string.IsNullOrWhiteSpace(t)).Select(t => t.Trim()).Distinct(StringComparer.OrdinalIgnoreCase).ToList() ?? new List<string>();
         }
 
         public string AssociationLabel { get; }
         public string DataSource { get; }
+        public string DataType { get; }
         public List<string> Tags { get; }
     }
 
     private sealed class RowOutput
     {
-        public RowOutput(ProfileObjectType objectType, int groupIndex, string associationLabel, string dataSource, IReadOnlyList<string> tags)
+        public RowOutput(ProfileObjectType objectType, int groupIndex, string associationLabel, string dataSource, string dataType, IReadOnlyList<string> tags)
         {
             ObjectType = objectType;
             GroupIndex = groupIndex;
             AssociationLabel = associationLabel;
             DataSource = dataSource;
+            DataType = dataType;
             Tags = tags?.ToList() ?? new List<string>();
             Values = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         }
@@ -1004,6 +1011,7 @@ public class UnifiedProcessor
         public int GroupIndex { get; }
         public string AssociationLabel { get; set; }
         public string DataSource { get; set; }
+        public string DataType { get; set; }
         public List<string> Tags { get; }
         public Dictionary<string, string> Values { get; }
     }
