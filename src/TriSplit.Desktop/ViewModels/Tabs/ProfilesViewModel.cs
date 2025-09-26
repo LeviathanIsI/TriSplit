@@ -12,6 +12,7 @@ using System.Linq;
 using System.Threading.Tasks;
 using System.Diagnostics;
 using System.Windows;
+using System.Windows.Data;
 using TriSplit.Core.Interfaces;
 using TriSplit.Core.Models;
 using TriSplit.Desktop.Services;
@@ -105,6 +106,10 @@ public partial class ProfilesViewModel : ViewModelBase
             _profileMetadataRepository = profileMetadataRepository;
 
             FieldMappings.CollectionChanged += OnFieldMappingsChanged;
+            
+            // Initialize the sorted view
+            FieldMappingsView = CollectionViewSource.GetDefaultView(FieldMappings);
+            ApplySort();
 
             PropertyGroups = new GroupDefaultsCollectionViewModel(this, ProfileObjectType.Property);
             ContactGroups = new GroupDefaultsCollectionViewModel(this, ProfileObjectType.Contact);
@@ -131,6 +136,21 @@ public partial class ProfilesViewModel : ViewModelBase
     public ObservableCollection<ProfileListItemViewModel> SavedProfiles { get; } = new();
 
     public ObservableCollection<MappingRowViewModel> FieldMappings { get; } = new();
+
+    public ICollectionView FieldMappingsView { get; private set; }
+
+    public enum SortColumn
+    {
+        SourceField,
+        Group,
+        HubSpotHeader
+    }
+
+    [ObservableProperty]
+    private SortColumn _currentSortColumn = SortColumn.SourceField;
+
+    [ObservableProperty]
+    private ListSortDirection _currentSortDirection = ListSortDirection.Ascending;
 
     public GroupDefaultsCollectionViewModel PropertyGroups { get; }
 
@@ -247,6 +267,85 @@ public partial class ProfilesViewModel : ViewModelBase
         EnsureDirty();
         UpdateProfileStatus();
         UpdateDuplicateFlags();
+    }
+
+    [RelayCommand(CanExecute = nameof(CanSortBySourceField))]
+    private void SortBySourceField()
+    {
+        if (CurrentSortColumn == SortColumn.SourceField)
+        {
+            // Toggle direction if already sorted by this column
+            CurrentSortDirection = CurrentSortDirection == ListSortDirection.Ascending 
+                ? ListSortDirection.Descending 
+                : ListSortDirection.Ascending;
+        }
+        else
+        {
+            CurrentSortColumn = SortColumn.SourceField;
+            CurrentSortDirection = ListSortDirection.Ascending;
+        }
+        ApplySort();
+    }
+    private bool CanSortBySourceField() => FieldMappings.Count > 0;
+
+    [RelayCommand(CanExecute = nameof(CanSortByGroup))]
+    private void SortByGroup()
+    {
+        if (CurrentSortColumn == SortColumn.Group)
+        {
+            CurrentSortDirection = CurrentSortDirection == ListSortDirection.Ascending 
+                ? ListSortDirection.Descending 
+                : ListSortDirection.Ascending;
+        }
+        else
+        {
+            CurrentSortColumn = SortColumn.Group;
+            CurrentSortDirection = ListSortDirection.Ascending;
+        }
+        ApplySort();
+    }
+    private bool CanSortByGroup() => FieldMappings.Count > 0;
+
+    [RelayCommand(CanExecute = nameof(CanSortByHubSpotHeader))]
+    private void SortByHubSpotHeader()
+    {
+        if (CurrentSortColumn == SortColumn.HubSpotHeader)
+        {
+            CurrentSortDirection = CurrentSortDirection == ListSortDirection.Ascending 
+                ? ListSortDirection.Descending 
+                : ListSortDirection.Ascending;
+        }
+        else
+        {
+            CurrentSortColumn = SortColumn.HubSpotHeader;
+            CurrentSortDirection = ListSortDirection.Ascending;
+        }
+        ApplySort();
+    }
+    private bool CanSortByHubSpotHeader() => FieldMappings.Count > 0;
+
+    private void ApplySort()
+    {
+        FieldMappingsView.SortDescriptions.Clear();
+        
+        switch (CurrentSortColumn)
+        {
+            case SortColumn.SourceField:
+                FieldMappingsView.SortDescriptions.Add(new SortDescription(nameof(MappingRowViewModel.SourceField), CurrentSortDirection));
+                break;
+            case SortColumn.Group:
+                FieldMappingsView.SortDescriptions.Add(new SortDescription(nameof(MappingRowViewModel.ObjectType), CurrentSortDirection));
+                FieldMappingsView.SortDescriptions.Add(new SortDescription(nameof(MappingRowViewModel.GroupIndex), CurrentSortDirection));
+                break;
+            case SortColumn.HubSpotHeader:
+                FieldMappingsView.SortDescriptions.Add(new SortDescription(nameof(MappingRowViewModel.HubSpotHeader), CurrentSortDirection));
+                break;
+        }
+        
+        // Refresh can execute states
+        SortBySourceFieldCommand.NotifyCanExecuteChanged();
+        SortByGroupCommand.NotifyCanExecuteChanged();
+        SortByHubSpotHeaderCommand.NotifyCanExecuteChanged();
     }
 
     [RelayCommand]
