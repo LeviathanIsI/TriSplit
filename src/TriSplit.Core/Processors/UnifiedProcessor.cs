@@ -624,12 +624,13 @@ public class UnifiedProcessor
                 break;
                 
             case ProfileObjectType.Property:
-                // MAIN COLUMNS: Import ID, Address, City, State, Postal Code, Data Source, Data Type, Tags
+                // MAIN COLUMNS: Import ID, Address, City, State, Postal Code, Association Label, Data Source, Data Type, Tags
                 TryAddColumnWithData(columns, rows, "Import ID");
                 TryAddColumnWithData(columns, rows, "Address");
                 TryAddColumnWithData(columns, rows, "City");
                 TryAddColumnWithData(columns, rows, "State");
                 TryAddColumnWithData(columns, rows, "Postal Code");
+                TryAddColumnWithData(columns, rows, "Association Label");
                 TryAddColumnWithData(columns, rows, "Data Source");
                 TryAddColumnWithData(columns, rows, "Data Type");
                 TryAddColumnWithData(columns, rows, "Tags");
@@ -712,6 +713,7 @@ public class UnifiedProcessor
     {
         var dictionary = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
         {
+            ["Association Label"] = row.AssociationLabel ?? string.Empty,
             ["Data Source"] = row.DataSource ?? string.Empty,
             ["Data Type"] = row.DataType ?? string.Empty,
             ["Tags"] = row.Tags.Count > 0 ? string.Join(", ", row.Tags) : string.Empty
