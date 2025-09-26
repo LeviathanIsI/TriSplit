@@ -32,8 +32,7 @@ class Program
         }
 
         IInputReader reader = new CsvInputReader();
-        var excelExporter = new ExcelExporter();
-        var processor = new UnifiedProcessor(profile, reader, excelExporter, new Progress<ProcessingProgress>(p =>
+        var processor = new UnifiedProcessor(profile, reader, new Progress<ProcessingProgress>(p =>
         {
             Console.WriteLine($"[{p.PercentComplete}%] {p.Severity}: {p.Message}");
         }));

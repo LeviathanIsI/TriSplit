@@ -1,59 +1,101 @@
 {
   "Id": "test-phone-profile",
   "Name": "Test Phone Profile",
-  "ContactMappings": [
+  "MissingHeaderBehavior": "Error",
+  "CreateSecondaryContactsFile": false,
+  "OwnerMailing": {
+    "Owner1GetsMailing": true,
+    "Owner2GetsMailing": false
+  },
+  "Groups": {
+    "ContactGroups": {
+      "1": {
+        "AssociationLabel": "Owner",
+        "DataSource": "Harness",
+        "Tags": []
+      }
+    },
+    "PropertyGroups": {
+      "1": {
+        "AssociationLabel": "Mailing Address",
+        "DataSource": "Harness",
+        "Tags": []
+      }
+    },
+    "PhoneGroups": {
+      "1": {
+        "AssociationLabel": "Owner",
+        "DataSource": "Harness",
+        "Tags": []
+      },
+      "2": {
+        "AssociationLabel": "Owner",
+        "DataSource": "Harness",
+        "Tags": []
+      }
+    }
+  },
+  "Mappings": [
     {
-      "SourceColumn": "First Name",
-      "HubSpotProperty": "First Name",
-      "AssociationType": "Owner"
+      "SourceField": "First Name",
+      "HubSpotHeader": "firstname",
+      "ObjectType": "Contact",
+      "GroupIndex": 1
     },
     {
-      "SourceColumn": "Last Name",
-      "HubSpotProperty": "Last Name",
-      "AssociationType": "Owner"
+      "SourceField": "Last Name",
+      "HubSpotHeader": "lastname",
+      "ObjectType": "Contact",
+      "GroupIndex": 1
     },
     {
-      "SourceColumn": "TloPhone1",
-      "HubSpotProperty": "Phone Number",
-      "AssociationType": "Owner"
+      "SourceField": "TloPhone1",
+      "HubSpotHeader": "phone_number_1",
+      "ObjectType": "Phone",
+      "GroupIndex": 1
     },
     {
-      "SourceColumn": "TloPhone1Type",
-      "HubSpotProperty": "Phone Type",
-      "AssociationType": "Owner"
+      "SourceField": "TloPhone1Type",
+      "HubSpotHeader": "phone_type_1",
+      "ObjectType": "Phone",
+      "GroupIndex": 1
     },
     {
-      "SourceColumn": "TloPhone2",
-      "HubSpotProperty": "Phone Number",
-      "AssociationType": "Owner"
+      "SourceField": "TloPhone2",
+      "HubSpotHeader": "phone_number_2",
+      "ObjectType": "Phone",
+      "GroupIndex": 2
     },
     {
-      "SourceColumn": "TloPhone2Type",
-      "HubSpotProperty": "Phone Type",
-      "AssociationType": "Owner"
+      "SourceField": "TloPhone2Type",
+      "HubSpotHeader": "phone_type_2",
+      "ObjectType": "Phone",
+      "GroupIndex": 2
+    },
+    {
+      "SourceField": "Property Address",
+      "HubSpotHeader": "address",
+      "ObjectType": "Property",
+      "GroupIndex": 1
+    },
+    {
+      "SourceField": "Property City",
+      "HubSpotHeader": "city",
+      "ObjectType": "Property",
+      "GroupIndex": 1
+    },
+    {
+      "SourceField": "Property State",
+      "HubSpotHeader": "state",
+      "ObjectType": "Property",
+      "GroupIndex": 1
+    },
+    {
+      "SourceField": "Property Zip",
+      "HubSpotHeader": "zip",
+      "ObjectType": "Property",
+      "GroupIndex": 1
     }
   ],
-  "PropertyMappings": [
-    {
-      "SourceColumn": "Property Address",
-      "HubSpotProperty": "Address",
-      "AssociationType": "Mailing Address"
-    },
-    {
-      "SourceColumn": "Property City",
-      "HubSpotProperty": "City",
-      "AssociationType": "Mailing Address"
-    },
-    {
-      "SourceColumn": "Property State",
-      "HubSpotProperty": "State",
-      "AssociationType": "Mailing Address"
-    },
-    {
-      "SourceColumn": "Property Zip",
-      "HubSpotProperty": "Zip",
-      "AssociationType": "Mailing Address"
-    }
-  ],
-  "PhoneMappings": []
+  "Metadata": {}
 }

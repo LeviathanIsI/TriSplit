@@ -261,13 +261,10 @@
                        FontSize="12">
               <Run Text="Source:"/>
               <Run Text=" "/>
-              <Run Text="{Binding ProfileTagDataSource}"/>
               <Run Text="  |  Type:"/>
               <Run Text=" "/>
-              <Run Text="{Binding ProfileTagDataType}"/>
               <Run Text="  |  Note:"/>
               <Run Text=" "/>
-              <Run Text="{Binding ProfileTagNote}"/>
             </TextBlock>
           </StackPanel>
         </Grid>

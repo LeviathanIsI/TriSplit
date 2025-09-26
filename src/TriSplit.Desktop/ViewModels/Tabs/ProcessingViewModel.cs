@@ -1,23 +1,24 @@
-using CommunityToolkit.Mvvm.ComponentModel;
-using CommunityToolkit.Mvvm.Input;
+using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Diagnostics;
 using System.Globalization;
 using System.IO;
 using System.IO.Compression;
-using System.Windows;
 using System.Linq;
 using System.Text;
+using System.Threading;
+using System.Threading.Tasks;
+using System.Windows;
 using System.Windows.Media;
+using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.Input;
 using TriSplit.Core.Interfaces;
 using TriSplit.Core.Models;
 using TriSplit.Core.Processors;
 using TriSplit.Core.Services;
 using TriSplit.Desktop.Services;
-
 namespace TriSplit.Desktop.ViewModels.Tabs;
-
 public partial class ProcessingViewModel : ViewModelBase
 {
     private readonly IDialogService _dialogService;
@@ -27,144 +28,96 @@ public partial class ProcessingViewModel : ViewModelBase
     private readonly IAppSession _appSession;
     private readonly IProfileStore _profileStore;
     private readonly IProfileDetectionService _profileDetectionService;
-    private readonly IExcelExporter _excelExporter;
 
     private CancellationTokenSource? _cancellationTokenSource;
     private bool _updatingFromSession = false;
     private string? _currentRunLogPath;
     private StreamWriter? _runLogWriter;
-
     [ObservableProperty]
     private string _inputFilePath = "No file selected";
-
     [ObservableProperty]
     private ObservableCollection<Profile> _availableProfiles = new();
-
     [ObservableProperty]
     private Profile? _selectedProfile;
-
     [ObservableProperty]
     private string _detectedSourceDisplay = "Upload a file to detect the data source";
-
     [ObservableProperty]
     private bool _showSourceActions;
-
     [ObservableProperty]
     private bool _isSourceConfirmed;
-
     [ObservableProperty]
     private bool _isOverrideMode;
-
     [ObservableProperty]
     private Profile? _overrideProfile;
-
     [ObservableProperty]
     private bool _requiresProfileSetup;
-
     [ObservableProperty]
     private bool _outputCsv = true;
-
     [ObservableProperty]
     private bool _outputExcel;
-
     [ObservableProperty]
     private bool _outputJson;
-
     [ObservableProperty]
     private DateTime? _tagDataDate = DateTime.Today;
-
     [ObservableProperty]
     private string _tagDraft = string.Empty;
-
     [ObservableProperty]
     private string _acceptedTag = string.Empty;
-
     [ObservableProperty]
     private bool _tagAccepted;
-
     [ObservableProperty]
     private string _tagStatus = "No tag generated";
-
-    [ObservableProperty]
-    private string _profileTagDataSource = string.Empty;
-
-    [ObservableProperty]
-    private string _profileTagDataType = string.Empty;
-
-    [ObservableProperty]
-    private string _profileTagNote = string.Empty;
-
     [ObservableProperty]
     private bool _removeDuplicates = true;
-
     [ObservableProperty]
     private bool _validateEmails = true;
-
     [ObservableProperty]
     private bool _normalizePhones = true;
-
     [ObservableProperty]
     private bool _splitBatches = true;
-
     [ObservableProperty]
     private ObservableCollection<LogEntry> _logEntries = new();
-
     [ObservableProperty]
     private bool _isProcessing;
-
     [ObservableProperty]
     private double _processingProgress;
-
     [ObservableProperty]
     private string _progressText = string.Empty;
-
     [ObservableProperty]
     private string _processingStatus = "Ready";
-
     [ObservableProperty]
     private Brush _statusColor = Brushes.LightGray;
-
     [ObservableProperty]
     private bool _canStartProcessing;
-
     [ObservableProperty]
     private bool _hasOutput;
-
     [ObservableProperty]
     private string? _lastRunLogPath;
-
     [ObservableProperty]
     private bool _hasRunLog;
-
     [ObservableProperty]
     private string? _lastSummaryReportPath;
-
     private string? _outputDirectory;
     private string? _lastProfilePath;
     private bool _isUpdatingTagDraft;
-
     private static readonly int[] _progressMilestones = new[] { 25, 50, 75 };
     private int _nextProgressMilestoneIndex;
-
     public ProcessingViewModel(
         IDialogService dialogService,
         ISampleLoader sampleLoader,
         IAppSession appSession,
         IProfileStore profileStore,
-        IProfileDetectionService profileDetectionService,
-        IExcelExporter excelExporter)
+        IProfileDetectionService profileDetectionService)
     {
         _dialogService = dialogService;
         _sampleLoader = sampleLoader;
         _appSession = appSession;
         _profileStore = profileStore;
         _profileDetectionService = profileDetectionService;
-        _excelExporter = excelExporter;
+
         _csvReader = new CsvInputReader();
         _excelReader = new ExcelInputReader();
-
         _ = LoadProfilesAsync();
-
         // Subscribe to session changes
         _appSession.PropertyChanged += async (s, e) =>
         {
@@ -190,11 +143,9 @@ public partial class ProcessingViewModel : ViewModelBase
                 }
             }
         };
-
         OutputCsv = _appSession.OutputCsv;
         OutputExcel = _appSession.OutputExcel;
         OutputJson = _appSession.OutputJson;
-
         if (!string.IsNullOrWhiteSpace(_appSession.LoadedFilePath))
         {
             InputFilePath = _appSession.LoadedFilePath;
@@ -203,14 +154,12 @@ public partial class ProcessingViewModel : ViewModelBase
         CancelOverrideCommand.NotifyCanExecuteChanged();
         }
     }
-
     private async Task LoadProfilesAsync()
     {
         try
         {
             var profiles = await _profileStore.GetAllProfilesAsync();
             AvailableProfiles = new ObservableCollection<Profile>(profiles);
-
             if (_appSession.SelectedProfile != null)
             {
                 // Find the profile in the list that matches the session's selected profile
@@ -240,15 +189,12 @@ public partial class ProcessingViewModel : ViewModelBase
             AddLogEntry($"Error loading data profiles: {ex.Message}", LogLevel.Error);
         }
     }
-
     private async Task<bool> DetectProfileForFileAsync(string filePath)
     {
         DetectedSourceDisplay = "Identifying Data Source";
         IsOverrideMode = false;
         IsSourceConfirmed = false;
         ShowSourceActions = false;
-
-
         var headers = (await _sampleLoader.GetColumnHeadersAsync(filePath)).ToList();
         if (headers.Count == 0)
         {
@@ -257,7 +203,6 @@ public partial class ProcessingViewModel : ViewModelBase
             await _dialogService.ShowMessageAsync("No Headers Found", $"No headers were detected in {Path.GetFileName(filePath)}.");
             return false;
         }
-
         var detectionResult = await _profileDetectionService.DetectProfileAsync(headers, filePath);
         switch (detectionResult.Outcome)
         {
@@ -285,12 +230,10 @@ public partial class ProcessingViewModel : ViewModelBase
                 AddLogEntry(detectionResult.StatusMessage, LogLevel.Warning);
                 ProcessingStatus = "New source detected. Choose how to proceed.";
                 StatusColor = Brushes.Orange;
-
                 if (!_appSession.TryEnterNewSourcePrompt(filePath))
                 {
                     return false;
                 }
-
                 try
                 {
                     var decision = await _dialogService.ShowNewSourceDecisionAsync(Path.GetFileName(filePath));
@@ -317,7 +260,6 @@ public partial class ProcessingViewModel : ViewModelBase
                             }
                             RefreshSourceActionState();
                             return false;
-
                         case NewSourceDecision.CreateNew:
                             RequiresProfileSetup = true;
                             _appSession.NotifyNewSourceRequested(filePath, headers);
@@ -328,7 +270,6 @@ public partial class ProcessingViewModel : ViewModelBase
                             AddLogEntry("Navigated to Profiles tab to capture a new data source.", LogLevel.Info);
                             RefreshSourceActionState();
                             return false;
-
                         default:
                             ProcessingStatus = "Profile detection cancelled.";
                             StatusColor = Brushes.Orange;
@@ -354,7 +295,6 @@ public partial class ProcessingViewModel : ViewModelBase
                 return false;
         }
     }
-
     [RelayCommand(CanExecute = nameof(CanAcceptDetectedSource))]
     private void AcceptDetectedSource()
     {
@@ -362,7 +302,6 @@ public partial class ProcessingViewModel : ViewModelBase
         {
             return;
         }
-
         IsSourceConfirmed = true;
         IsOverrideMode = false;
         RequiresProfileSetup = false;
@@ -370,9 +309,7 @@ public partial class ProcessingViewModel : ViewModelBase
         StatusColor = Brushes.LightGray;
         AddLogEntry($"Accepted data source: {SelectedProfile.Name}", LogLevel.Success);
     }
-
     private bool CanAcceptDetectedSource() => SelectedProfile != null && !IsSourceConfirmed && !IsOverrideMode;
-
     [RelayCommand(CanExecute = nameof(CanBeginOverride))]
     private void BeginOverride()
     {
@@ -380,16 +317,13 @@ public partial class ProcessingViewModel : ViewModelBase
         {
             return;
         }
-
         IsOverrideMode = true;
         IsSourceConfirmed = false;
         OverrideProfile = SelectedProfile ?? AvailableProfiles.FirstOrDefault();
         ProcessingStatus = "Override data source and apply to continue.";
         StatusColor = Brushes.Orange;
     }
-
     private bool CanBeginOverride() => AvailableProfiles.Count > 0;
-
     [RelayCommand(CanExecute = nameof(CanApplyOverride))]
     private void ApplyOverride()
     {
@@ -398,7 +332,6 @@ public partial class ProcessingViewModel : ViewModelBase
         {
             return;
         }
-
         SelectedProfile = profile;
         DetectedSourceDisplay = profile.Name;
         IsSourceConfirmed = true;
@@ -408,9 +341,7 @@ public partial class ProcessingViewModel : ViewModelBase
         AddLogEntry($"Data source overridden to {profile.Name}", LogLevel.Info);
         IsOverrideMode = false;
     }
-
     private bool CanApplyOverride() => OverrideProfile != null;
-
     [RelayCommand(CanExecute = nameof(CanCancelOverride))]
     private void CancelOverride()
     {
@@ -419,16 +350,13 @@ public partial class ProcessingViewModel : ViewModelBase
         OverrideProfile = null;
         StatusColor = Brushes.LightGray;
     }
-
     private bool CanCancelOverride() => IsOverrideMode;
-
     [RelayCommand]
     private async Task SelectFileAsync()
     {
         var filePath = await _dialogService.ShowOpenFileDialogAsync(
             "Select Input File",
             "CSV Files|*.csv|Excel Files|*.xlsx;*.xls|All Files|*.*");
-
         if (!string.IsNullOrEmpty(filePath))
         {
             if (!await DetectProfileForFileAsync(filePath))
@@ -437,14 +365,12 @@ public partial class ProcessingViewModel : ViewModelBase
                 UpdateCanStartProcessing();
                 return;
             }
-
             InputFilePath = filePath;
             _appSession.LoadedFilePath = filePath;
             UpdateCanStartProcessing();
             AddLogEntry($"Selected file: {Path.GetFileName(filePath)}", LogLevel.Info);
         }
     }
-
     [RelayCommand]
     private async Task StartProcessingAsync()
     {
@@ -453,95 +379,35 @@ public partial class ProcessingViewModel : ViewModelBase
             await _dialogService.ShowMessageAsync("Error", "Please select a file and data profile first");
             return;
         }
-
         if (SelectedProfile is { } profile)
         {
-            var missingFields = new List<string>();
-
-            if (string.IsNullOrWhiteSpace(profile.ContactPropertyDataSource))
-            {
-                missingFields.Add("Contact/Property Data Source");
-            }
-
-            var hasPhoneMappings = (profile.PhoneMappings?.Count > 0) ||
-                                   (profile.ContactMappings?.Any(m => string.Equals(m.ObjectType, MappingObjectTypes.PhoneNumber, StringComparison.OrdinalIgnoreCase)) ?? false) ||
-                                   (profile.PropertyMappings?.Any(m => string.Equals(m.ObjectType, MappingObjectTypes.PhoneNumber, StringComparison.OrdinalIgnoreCase)) ?? false);
-
-            if (hasPhoneMappings && string.IsNullOrWhiteSpace(profile.PhoneDataSource))
-            {
-                missingFields.Add("Phone Number Data Source");
-            }
-
-            if (string.IsNullOrWhiteSpace(profile.DataType))
-            {
-                missingFields.Add("Data Type");
-            }
-
-            var allMappings = (profile.ContactMappings ?? Enumerable.Empty<FieldMapping>())
-                .Concat(profile.PropertyMappings ?? Enumerable.Empty<FieldMapping>())
-                .Concat(profile.PhoneMappings ?? Enumerable.Empty<FieldMapping>());
-
-            var missingObjectMappings = allMappings
-                .Where(m => string.IsNullOrWhiteSpace(m.ObjectType))
+            var incompleteMappings = (profile.Mappings ?? Enumerable.Empty<ProfileMapping>())
+                .Where(m => string.IsNullOrWhiteSpace(m.SourceField) || string.IsNullOrWhiteSpace(m.HubSpotHeader))
                 .ToList();
-
-            if (missingFields.Count > 0 || missingObjectMappings.Count > 0)
+            if (incompleteMappings.Count > 0)
             {
-                var builder = new StringBuilder();
-                builder.AppendLine("Finish setting your data profile before processing:");
-
-                foreach (var item in missingFields)
-                {
-                    builder.AppendLine($"- {item}");
-                }
-
-                if (missingObjectMappings.Count > 0)
-                {
-                    var exampleFields = missingObjectMappings
-                        .Select(m => string.IsNullOrWhiteSpace(m.SourceColumn) ? "(source column not set)" : m.SourceColumn.Trim())
-                        .Distinct(StringComparer.OrdinalIgnoreCase)
-                        .Take(5)
-                        .ToList();
-
-                    if (exampleFields.Count > 0)
-                    {
-                        var preview = string.Join(", ", exampleFields);
-                        if (missingObjectMappings.Count > exampleFields.Count)
-                        {
-                            builder.AppendLine($"- Object Type for {missingObjectMappings.Count} mapping(s) (e.g. {preview})");
-                        }
-                        else
-                        {
-                            builder.AppendLine($"- Object Type for: {preview}");
-                        }
-                    }
-                    else
-                    {
-                        builder.AppendLine($"- Object Type for {missingObjectMappings.Count} mapping(s)");
-                    }
-                }
-
-                builder.AppendLine();
-                builder.AppendLine("Choose Ignore to run anyway.");
-
-                var ignoreWarning = await _dialogService.ShowConfirmationDialogAsync("Profile setup incomplete", builder.ToString(), "Ignore", "Go Back");
-                if (!ignoreWarning)
-                {
-                    return;
-                }
+                var preview = string.Join(", ", incompleteMappings
+                    .Select(m => string.IsNullOrWhiteSpace(m.SourceField) ? "(source column not set)" : m.SourceField.Trim())
+                    .Distinct(StringComparer.OrdinalIgnoreCase)
+                    .Take(5));
+                var message = new StringBuilder()
+                    .AppendLine("Finish setting your data profile before processing:")
+                    .AppendLine(string.IsNullOrWhiteSpace(preview)
+                        ? "- Specify both Source Field and HubSpot Header for each mapping"
+                        : $"- Specify HubSpot Header for {incompleteMappings.Count} mapping(s) (e.g. {preview})")
+                    .ToString();
+                await _dialogService.ShowMessageAsync("Profile Incomplete", message);
+                return;
             }
         }
-
         if (!OutputCsv && !OutputExcel && !OutputJson)
         {
             await _dialogService.ShowMessageAsync("Export Required", "Select at least one output format before processing.");
             return;
         }
-
         LastSummaryReportPath = null;
         _lastProfilePath = SelectedProfile?.FilePath;
         CopyDiagnosticsCommand.NotifyCanExecuteChanged();
-
         try
         {
             IsProcessing = true;
@@ -549,18 +415,15 @@ public partial class ProcessingViewModel : ViewModelBase
             _nextProgressMilestoneIndex = 0;
             _cancellationTokenSource = new CancellationTokenSource();
             var token = _cancellationTokenSource.Token;
-
             BeginRunLog();
             WriteRunLog($"Input file: {InputFilePath}");
             if (SelectedProfile != null)
             {
                 WriteRunLog($"Profile: {SelectedProfile.Name}");
             }
-
             AddLogEntry("Starting processing...", LogLevel.Info);
             ProcessingStatus = "Processing...";
             StatusColor = Brushes.Orange;
-
             // Create output directory in the Exports folder
             var timestamp = DateTime.Now.ToString("yyyyMMdd_HHmmss");
             var fileName = Path.GetFileNameWithoutExtension(InputFilePath);
@@ -572,28 +435,23 @@ public partial class ProcessingViewModel : ViewModelBase
                 fileName
             );
             Directory.CreateDirectory(_outputDirectory);
-
             AddLogEntry($"Output directory: {_outputDirectory}", LogLevel.Info);
-
             // Create processor with progress reporting
             var progress = new Progress<ProcessingProgress>(p =>
             {
                 ProgressText = p.Message;
                 ProcessingProgress = p.PercentComplete;
-
                 var entryLevel = p.Severity switch
                 {
                     ProcessingProgressSeverity.Warning => LogLevel.Warning,
                     ProcessingProgressSeverity.Error => LogLevel.Error,
                     _ => LogLevel.Info
                 };
-
                 if (entryLevel != LogLevel.Info)
                 {
                     AddLogEntry(p.Message, entryLevel);
                     return;
                 }
-
                 while (_nextProgressMilestoneIndex < _progressMilestones.Length &&
                        p.PercentComplete >= _progressMilestones[_nextProgressMilestoneIndex])
                 {
@@ -602,7 +460,6 @@ public partial class ProcessingViewModel : ViewModelBase
                     _nextProgressMilestoneIndex++;
                 }
             });
-
             // Determine input reader type based on file extension
             IInputReader inputReader;
             var extension = Path.GetExtension(InputFilePath).ToLower();
@@ -618,15 +475,12 @@ public partial class ProcessingViewModel : ViewModelBase
             {
                 throw new NotSupportedException($"File type {extension} is not supported");
             }
-
             if (SelectedProfile is null)
             {
                 throw new InvalidOperationException("A data profile must be selected before processing.");
             }
-
             // Create processor driven entirely by the selected data profile
-            var processor = new UnifiedProcessor(SelectedProfile, inputReader, _excelExporter, progress);
-
+            var processor = new UnifiedProcessor(SelectedProfile, inputReader, progress);
             var options = new ProcessingOptions
             {
                 OutputCsv = OutputCsv,
@@ -634,7 +488,6 @@ public partial class ProcessingViewModel : ViewModelBase
                 OutputJson = OutputJson,
                 Tag = string.IsNullOrWhiteSpace(AcceptedTag) ? null : AcceptedTag
             };
-
             var selectedOutputs = new List<string>();
             if (options.OutputCsv) selectedOutputs.Add("CSV");
             if (options.OutputExcel) selectedOutputs.Add("Excel");
@@ -642,12 +495,9 @@ public partial class ProcessingViewModel : ViewModelBase
             WriteRunLog($"Outputs: {string.Join(", ", selectedOutputs)}");
             WriteRunLog($"Tag: {options.Tag ?? "(none)"}");
             AddLogEntry($"Tag applied: {options.Tag ?? "(none)"}", LogLevel.Info);
-
             // Process the file and generate export files based on selected formats
             var result = await processor.ProcessAsync(InputFilePath, _outputDirectory ?? string.Empty, options, token);
-
             if (token.IsCancellationRequested) return;
-
             // Show processing results
             if (result.Success)
             {
@@ -658,14 +508,12 @@ public partial class ProcessingViewModel : ViewModelBase
                 HasOutput = result.CsvFiles.Count > 0 || result.ExcelFiles.Count > 0 || result.JsonFiles.Count > 0;
                 LastSummaryReportPath = result.SummaryReportPath;
                 CopyDiagnosticsCommand.NotifyCanExecuteChanged();
-
                 AddLogEntry($"Processing complete!", LogLevel.Success);
                 AddLogEntry($"  Total records processed: {result.TotalRecordsProcessed}", LogLevel.Success);
                 AddLogEntry($"  Contacts created: {result.ContactsCreated}", LogLevel.Success);
                 AddLogEntry($"  Properties created: {result.PropertiesCreated}", LogLevel.Success);
                 AddLogEntry($"  Phone numbers created: {result.PhonesCreated}", LogLevel.Success);
                 AddLogEntry($"", LogLevel.Info);
-
                 if (result.CsvFiles.Count > 0)
                 {
                     AddLogEntry("CSV exports:", LogLevel.Info);
@@ -674,7 +522,6 @@ public partial class ProcessingViewModel : ViewModelBase
                         AddLogEntry($"  - {Path.GetFileName(file)}", LogLevel.Info);
                     }
                 }
-
                 if (result.ExcelFiles.Count > 0)
                 {
                     AddLogEntry("Excel exports:", LogLevel.Info);
@@ -683,7 +530,6 @@ public partial class ProcessingViewModel : ViewModelBase
                         AddLogEntry($"  - {Path.GetFileName(file)}", LogLevel.Info);
                     }
                 }
-
                 if (result.JsonFiles.Count > 0)
                 {
                     AddLogEntry("JSON exports:", LogLevel.Info);
@@ -692,12 +538,10 @@ public partial class ProcessingViewModel : ViewModelBase
                         AddLogEntry($"  - {Path.GetFileName(file)}", LogLevel.Info);
                     }
                 }
-
                 if (!string.IsNullOrWhiteSpace(result.SummaryReportPath))
                 {
                     AddLogEntry($"Summary: {Path.GetFileName(result.SummaryReportPath)}", LogLevel.Info);
                 }
-
                 if (!string.IsNullOrWhiteSpace(_currentRunLogPath))
                 {
                     AddLogEntry($"Run log saved to {Path.GetFileName(_currentRunLogPath)}", LogLevel.Info);
@@ -712,14 +556,12 @@ public partial class ProcessingViewModel : ViewModelBase
                 HasOutput = false;
                 LastSummaryReportPath = null;
                 CopyDiagnosticsCommand.NotifyCanExecuteChanged();
-
                 AddLogEntry($"Processing failed: {result.ErrorMessage}", LogLevel.Error);
                 if (!string.IsNullOrWhiteSpace(_currentRunLogPath))
                 {
                     AddLogEntry($"Run log saved to {Path.GetFileName(_currentRunLogPath)}", LogLevel.Info);
                 }
             }
-
             if (result.Success)
             {
                 AddLogEntry($"Processing completed successfully in {_outputDirectory}", LogLevel.Success);
@@ -750,7 +592,6 @@ public partial class ProcessingViewModel : ViewModelBase
             _cancellationTokenSource = null;
         }
     }
-
     [RelayCommand(CanExecute = nameof(CanGenerateTag))]
     private void GenerateTag()
     {
@@ -758,70 +599,50 @@ public partial class ProcessingViewModel : ViewModelBase
         {
             return;
         }
-
         var formattedDate = TagDataDate.Value.ToString("yy.MM.dd", CultureInfo.InvariantCulture);
         var details = new List<string>();
-
-        if (!string.IsNullOrWhiteSpace(ProfileTagDataSource))
-            details.Add(ProfileTagDataSource.Trim());
-        if (!string.IsNullOrWhiteSpace(ProfileTagDataType))
-            details.Add(ProfileTagDataType.Trim());
-        if (!string.IsNullOrWhiteSpace(ProfileTagNote))
-            details.Add(ProfileTagNote.Trim());
-
         var suffix = string.Join(" ", details.Where(part => !string.IsNullOrWhiteSpace(part)));
         var tag = string.IsNullOrWhiteSpace(suffix)
             ? formattedDate
             : $"{formattedDate} - {suffix}";
-
         _isUpdatingTagDraft = true;
         TagDraft = tag.Trim();
         _isUpdatingTagDraft = false;
-
         TagAccepted = false;
         TagStatus = "Tag generated. Click Accept to apply.";
         AcceptTagCommand.NotifyCanExecuteChanged();
     }
-
     private bool CanGenerateTag() => TagDataDate.HasValue && SelectedProfile != null;
-
     [RelayCommand(CanExecute = nameof(CanAcceptTag))]
     private void AcceptTag()
     {
         var normalized = NormalizeTagText(TagDraft);
-
         _isUpdatingTagDraft = true;
         TagDraft = normalized;
         _isUpdatingTagDraft = false;
-
         AcceptedTag = normalized;
         TagAccepted = !string.IsNullOrWhiteSpace(normalized);
         TagStatus = TagAccepted
             ? $"Tag accepted: {AcceptedTag}"
             : "Tag cleared.";
-
         var logMessage = TagAccepted
             ? $"Tag accepted: {AcceptedTag}"
             : "Tag cleared.";
         AddLogEntry(logMessage, TagAccepted ? LogLevel.Info : LogLevel.Warning);
         AcceptTagCommand.NotifyCanExecuteChanged();
     }
-
     private bool CanAcceptTag() => !string.IsNullOrWhiteSpace(TagDraft);
-
     [RelayCommand]
     private void CancelProcessing()
     {
         _cancellationTokenSource?.Cancel();
         AddLogEntry("Cancelling processing...", LogLevel.Warning);
     }
-
     [RelayCommand]
     private void ClearLog()
     {
         LogEntries.Clear();
     }
-
     [RelayCommand]
     private async Task OpenOutputFolderAsync()
     {
@@ -841,7 +662,6 @@ public partial class ProcessingViewModel : ViewModelBase
             }
         }
     }
-
     [RelayCommand(CanExecute = nameof(CanOpenRunLog))]
     private void OpenRunLog()
     {
@@ -849,7 +669,6 @@ public partial class ProcessingViewModel : ViewModelBase
         {
             return;
         }
-
         try
         {
             Process.Start(new ProcessStartInfo
@@ -863,12 +682,10 @@ public partial class ProcessingViewModel : ViewModelBase
             _ = _dialogService.ShowMessageAsync("Error", $"Could not open run log: {ex.Message}");
         }
     }
-
     private bool CanOpenRunLog()
     {
         return !IsProcessing && HasRunLog && !string.IsNullOrWhiteSpace(LastRunLogPath) && File.Exists(LastRunLogPath);
     }
-
     [RelayCommand(CanExecute = nameof(CanCopyDiagnostics))]
     private async Task CopyDiagnosticsAsync()
     {
@@ -876,31 +693,25 @@ public partial class ProcessingViewModel : ViewModelBase
         {
             (LastRunLogPath ?? string.Empty, "run-log")
         };
-
         if (!string.IsNullOrWhiteSpace(_lastProfilePath))
         {
             artifacts.Add((_lastProfilePath!, "profile"));
         }
-
         if (!string.IsNullOrWhiteSpace(LastSummaryReportPath))
         {
             artifacts.Add((LastSummaryReportPath!, "summary"));
         }
-
         var existingArtifacts = artifacts
             .Where(a => !string.IsNullOrWhiteSpace(a.Path) && File.Exists(a.Path))
             .ToList();
-
         if (existingArtifacts.Count == 0)
         {
             await _dialogService.ShowMessageAsync("Diagnostics", "No diagnostic artifacts are available yet. Run processing first.");
             return;
         }
-
         var diagnosticsDirectory = ApplicationPaths.TempPath;
         Directory.CreateDirectory(diagnosticsDirectory);
         var zipPath = Path.Combine(diagnosticsDirectory, $"TriSplit_Diagnostics_{DateTime.Now:yyyyMMdd_HHmmss}.zip");
-
         try
         {
             using (var archive = ZipFile.Open(zipPath, ZipArchiveMode.Create))
@@ -911,7 +722,6 @@ public partial class ProcessingViewModel : ViewModelBase
                     archive.CreateEntryFromFile(path, entryName, CompressionLevel.Optimal);
                 }
             }
-
             try
             {
                 Clipboard.SetText(zipPath);
@@ -920,7 +730,6 @@ public partial class ProcessingViewModel : ViewModelBase
             {
                 // Ignore clipboard errors
             }
-
             AddLogEntry($"Diagnostics bundle created at {zipPath}", LogLevel.Info);
             await _dialogService.ShowMessageAsync("Diagnostics Ready", $"Saved to:\n{zipPath}\n\nPath copied to clipboard.");
         }
@@ -930,12 +739,10 @@ public partial class ProcessingViewModel : ViewModelBase
             await _dialogService.ShowMessageAsync("Diagnostics Failed", $"Could not create diagnostics bundle: {ex.Message}");
         }
     }
-
     private bool CanCopyDiagnostics()
     {
         return !IsProcessing && HasRunLog && !string.IsNullOrWhiteSpace(LastRunLogPath) && File.Exists(LastRunLogPath);
     }
-
     private void BeginRunLog()
     {
         EndRunLog();
@@ -948,7 +755,6 @@ public partial class ProcessingViewModel : ViewModelBase
         };
         WriteRunLog("=== Processing run started ===");
     }
-
     private void EndRunLog()
     {
         if (_runLogWriter != null)
@@ -957,26 +763,21 @@ public partial class ProcessingViewModel : ViewModelBase
             _runLogWriter.Dispose();
             _runLogWriter = null;
         }
-
         if (!string.IsNullOrWhiteSpace(_currentRunLogPath))
         {
             LastRunLogPath = _currentRunLogPath;
         }
-
         _currentRunLogPath = null;
     }
-
     private static string NormalizeTagText(string? value)
     {
         if (string.IsNullOrWhiteSpace(value))
         {
             return string.Empty;
         }
-
         var parts = value.Split(' ', StringSplitOptions.RemoveEmptyEntries);
         return string.Join(" ", parts).Trim();
     }
-
     private void ResetTagState()
     {
         _isUpdatingTagDraft = true;
@@ -987,14 +788,12 @@ public partial class ProcessingViewModel : ViewModelBase
         TagStatus = "No tag generated";
         AcceptTagCommand.NotifyCanExecuteChanged();
     }
-
     private void WriteRunLog(string message)
     {
         if (_runLogWriter == null)
         {
             return;
         }
-
         var line = $"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] {message}";
         try
         {
@@ -1005,7 +804,6 @@ public partial class ProcessingViewModel : ViewModelBase
             // Ignore logging errors
         }
     }
-
     private void UpdateCanStartProcessing()
     {
         CanStartProcessing = !IsProcessing &&
@@ -1017,46 +815,35 @@ public partial class ProcessingViewModel : ViewModelBase
                             TagAccepted &&
                             (OutputCsv || OutputExcel || OutputJson);
     }
-
     partial void OnOutputCsvChanged(bool value)
     {
         _appSession.OutputCsv = value;
         UpdateCanStartProcessing();
     }
-
     partial void OnOutputExcelChanged(bool value)
     {
         _appSession.OutputExcel = value;
         UpdateCanStartProcessing();
     }
-
     partial void OnOutputJsonChanged(bool value)
     {
         _appSession.OutputJson = value;
         UpdateCanStartProcessing();
     }
-
     partial void OnLastSummaryReportPathChanged(string? value)
     {
         CopyDiagnosticsCommand.NotifyCanExecuteChanged();
     }
-
     partial void OnLastRunLogPathChanged(string? value)
     {
         HasRunLog = !string.IsNullOrWhiteSpace(value) && File.Exists(value);
         OpenRunLogCommand.NotifyCanExecuteChanged();
         CopyDiagnosticsCommand.NotifyCanExecuteChanged();
     }
-
-
     partial void OnSelectedProfileChanged(Profile? value)
     {
-        ProfileTagDataSource = value?.ContactPropertyDataSource ?? string.Empty;
-        ProfileTagDataType = value?.DataType ?? string.Empty;
-        ProfileTagNote = value?.TagNote ?? string.Empty;
         ResetTagState();
         GenerateTagCommand.NotifyCanExecuteChanged();
-
         if (value != null && InputFilePath != "No file selected")
         {
             DetectedSourceDisplay = value.Name;
@@ -1066,34 +853,27 @@ public partial class ProcessingViewModel : ViewModelBase
         {
             DetectedSourceDisplay = "Upload a file to detect the data source";
         }
-
         if (value == null)
         {
             IsSourceConfirmed = false;
             IsOverrideMode = false;
         }
-
         RefreshSourceActionState();
         CancelOverrideCommand.NotifyCanExecuteChanged();
-
         if (!_updatingFromSession && value != null)
         {
             _appSession.SelectedProfile = value;
             AddLogEntry($"Selected data profile: {value.Name}", LogLevel.Info);
         }
-
         UpdateCanStartProcessing();
         AcceptTagCommand.NotifyCanExecuteChanged();
     }
-
     partial void OnIsProcessingChanged(bool value)
     {
         UpdateCanStartProcessing();
         OpenRunLogCommand.NotifyCanExecuteChanged();
         CopyDiagnosticsCommand.NotifyCanExecuteChanged();
     }
-
-
     partial void OnInputFilePathChanged(string value)
     {
         if (string.IsNullOrWhiteSpace(value) || value == "No file selected")
@@ -1102,11 +882,9 @@ public partial class ProcessingViewModel : ViewModelBase
             IsOverrideMode = false;
             RequiresProfileSetup = false;
         }
-
         RefreshSourceActionState();
         CancelOverrideCommand.NotifyCanExecuteChanged();
     }
-
     partial void OnTagDataDateChanged(DateTime? value)
     {
         TagAccepted = false;
@@ -1116,7 +894,6 @@ public partial class ProcessingViewModel : ViewModelBase
             TagStatus = "Tag date changed. Generate tags to update.";
         }
     }
-
     partial void OnTagDraftChanged(string value)
     {
         AcceptTagCommand.NotifyCanExecuteChanged();
@@ -1124,65 +901,53 @@ public partial class ProcessingViewModel : ViewModelBase
         {
             return;
         }
-
         TagAccepted = false;
         TagStatus = string.IsNullOrWhiteSpace(value)
             ? "No tag generated"
             : "Tag edited. Click Accept to apply.";
     }
-
     partial void OnOverrideProfileChanged(Profile? value)
     {
         ApplyOverrideCommand.NotifyCanExecuteChanged();
     }
-
     partial void OnRequiresProfileSetupChanged(bool value)
     {
         UpdateCanStartProcessing();
     }
-
     partial void OnTagAcceptedChanged(bool value)
     {
         UpdateCanStartProcessing();
     }
-
     partial void OnIsSourceConfirmedChanged(bool value)
     {
         UpdateCanStartProcessing();
         AcceptDetectedSourceCommand.NotifyCanExecuteChanged();
     }
-
     partial void OnIsOverrideModeChanged(bool value)
     {
         if (!value)
         {
             OverrideProfile = null;
         }
-
         RefreshSourceActionState();
         CancelOverrideCommand.NotifyCanExecuteChanged();
     }
-
     partial void OnShowSourceActionsChanged(bool value)
     {
         BeginOverrideCommand.NotifyCanExecuteChanged();
     }
-
     private void RefreshSourceActionState()
     {
         var hasFile = !string.IsNullOrWhiteSpace(InputFilePath) && InputFilePath != "No file selected";
         ShowSourceActions = hasFile && !RequiresProfileSetup && (SelectedProfile != null || AvailableProfiles.Count > 0);
-
         AcceptDetectedSourceCommand.NotifyCanExecuteChanged();
         BeginOverrideCommand.NotifyCanExecuteChanged();
         ApplyOverrideCommand.NotifyCanExecuteChanged();
         CancelOverrideCommand.NotifyCanExecuteChanged();
     }
-
     private void AddLogEntry(string message, LogLevel level)
     {
         WriteRunLog($"[{level}] {message}");
-
         var color = level switch
         {
             LogLevel.Success => Brushes.LimeGreen,
@@ -1190,7 +955,6 @@ public partial class ProcessingViewModel : ViewModelBase
             LogLevel.Error => Brushes.Red,
             _ => Brushes.LightGray
         };
-
         LogEntries.Add(new LogEntry
         {
             Timestamp = DateTime.Now,
@@ -1199,19 +963,15 @@ public partial class ProcessingViewModel : ViewModelBase
         });
     }
 }
-
 public partial class LogEntry : ObservableObject
 {
     [ObservableProperty]
     private DateTime _timestamp;
-
     [ObservableProperty]
     private string _message = string.Empty;
-
     [ObservableProperty]
     private Brush _messageColor = Brushes.LightGray;
 }
-
 public enum LogLevel
 {
     Info,

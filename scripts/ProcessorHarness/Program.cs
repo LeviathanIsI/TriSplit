@@ -24,105 +24,127 @@ static IInputReader CreateReader(string inputPath)
 
 static Profile CreateFallbackProfile()
 {
-    return new Profile
+    var profile = new Profile
     {
         Id = Guid.NewGuid(),
         Name = "Harness Default",
-        DefaultAssociationLabel = "Owner",
-        ContactMappings = new List<FieldMapping>
+        OwnerMailing = new OwnerMailingConfiguration
         {
-            new()
-            {
-                SourceColumn = "owner1_first_name",
-                HubSpotProperty = "First Name",
-                AssociationType = "Owner",
-                ObjectType = MappingObjectTypes.Contact
-            },
-            new()
-            {
-                SourceColumn = "owner1_last_name",
-                HubSpotProperty = "Last Name",
-                AssociationType = "Owner",
-                ObjectType = MappingObjectTypes.Contact
-            }
-        },
-        PropertyMappings = new List<FieldMapping>
-        {
-            new()
-            {
-                SourceColumn = "property_address",
-                HubSpotProperty = "Address",
-                AssociationType = "Owner",
-                ObjectType = MappingObjectTypes.Property
-            },
-            new()
-            {
-                SourceColumn = "city",
-                HubSpotProperty = "City",
-                AssociationType = "Owner",
-                ObjectType = MappingObjectTypes.Property
-            },
-            new()
-            {
-                SourceColumn = "state",
-                HubSpotProperty = "State",
-                AssociationType = "Owner",
-                ObjectType = MappingObjectTypes.Property
-            },
-            new()
-            {
-                SourceColumn = "zip",
-                HubSpotProperty = "Zip",
-                AssociationType = "Owner",
-                ObjectType = MappingObjectTypes.Property
-            },
-            new()
-            {
-                SourceColumn = "owner_mailing_address",
-                HubSpotProperty = "Address",
-                AssociationType = "Mailing Address",
-                ObjectType = MappingObjectTypes.Property
-            },
-            new()
-            {
-                SourceColumn = "owner_mailing_city",
-                HubSpotProperty = "City",
-                AssociationType = "Mailing Address",
-                ObjectType = MappingObjectTypes.Property
-            },
-            new()
-            {
-                SourceColumn = "owner_mailing_state",
-                HubSpotProperty = "State",
-                AssociationType = "Mailing Address",
-                ObjectType = MappingObjectTypes.Property
-            },
-            new()
-            {
-                SourceColumn = "owner_mailing_zip",
-                HubSpotProperty = "Zip",
-                AssociationType = "Mailing Address",
-                ObjectType = MappingObjectTypes.Property
-            }
-        },
-        PhoneMappings = new List<FieldMapping>
-        {
-            new()
-            {
-                SourceColumn = "TloPhone1",
-                HubSpotProperty = "Phone Number",
-                AssociationType = "Owner",
-                ObjectType = MappingObjectTypes.PhoneNumber
-            },
-            new()
-            {
-                SourceColumn = "TloPhone1PhoneType",
-                HubSpotProperty = "Phone Type",
-                AssociationType = "Owner",
-                ObjectType = MappingObjectTypes.PhoneNumber
-            }
+            Owner1GetsMailing = true,
+            Owner2GetsMailing = false
         }
     };
+
+    profile.Groups.PropertyGroups[1] = new GroupDefaults
+    {
+        AssociationLabel = "Owner",
+        DataSource = "Harness"
+    };
+    profile.Groups.PropertyGroups[2] = new GroupDefaults
+    {
+        AssociationLabel = "Mailing Address",
+        DataSource = "Harness"
+    };
+    profile.Groups.ContactGroups[1] = new GroupDefaults
+    {
+        AssociationLabel = "Owner",
+        DataSource = "Harness"
+    };
+    profile.Groups.PhoneGroups[1] = new GroupDefaults
+    {
+        AssociationLabel = "Owner",
+        DataSource = "Harness"
+    };
+
+    profile.Mappings = new List<ProfileMapping>
+    {
+        new()
+        {
+            SourceField = "owner1_first_name",
+            HubSpotHeader = "First Name",
+            ObjectType = ProfileObjectType.Contact,
+            GroupIndex = 1
+        },
+        new()
+        {
+            SourceField = "owner1_last_name",
+            HubSpotHeader = "Last Name",
+            ObjectType = ProfileObjectType.Contact,
+            GroupIndex = 1
+        },
+        new()
+        {
+            SourceField = "property_address",
+            HubSpotHeader = "Address",
+            ObjectType = ProfileObjectType.Property,
+            GroupIndex = 1
+        },
+        new()
+        {
+            SourceField = "city",
+            HubSpotHeader = "City",
+            ObjectType = ProfileObjectType.Property,
+            GroupIndex = 1
+        },
+        new()
+        {
+            SourceField = "state",
+            HubSpotHeader = "State",
+            ObjectType = ProfileObjectType.Property,
+            GroupIndex = 1
+        },
+        new()
+        {
+            SourceField = "zip",
+            HubSpotHeader = "Postal Code",
+            ObjectType = ProfileObjectType.Property,
+            GroupIndex = 1
+        },
+        new()
+        {
+            SourceField = "owner_mailing_address",
+            HubSpotHeader = "Address",
+            ObjectType = ProfileObjectType.Property,
+            GroupIndex = 2
+        },
+        new()
+        {
+            SourceField = "owner_mailing_city",
+            HubSpotHeader = "City",
+            ObjectType = ProfileObjectType.Property,
+            GroupIndex = 2
+        },
+        new()
+        {
+            SourceField = "owner_mailing_state",
+            HubSpotHeader = "State",
+            ObjectType = ProfileObjectType.Property,
+            GroupIndex = 2
+        },
+        new()
+        {
+            SourceField = "owner_mailing_zip",
+            HubSpotHeader = "Postal Code",
+            ObjectType = ProfileObjectType.Property,
+            GroupIndex = 2
+        },
+        new()
+        {
+            SourceField = "TloPhone1",
+            HubSpotHeader = "Phone Number",
+            ObjectType = ProfileObjectType.Phone,
+            GroupIndex = 1
+        },
+        new()
+        {
+            SourceField = "TloPhone1PhoneType",
+            HubSpotHeader = "Phone Type",
+            ObjectType = ProfileObjectType.Phone,
+            GroupIndex = 1
+        }
+    };
+
+    return profile;
 }
 
 static async Task<Profile> LoadProfileAsync(string profilePath)
@@ -140,6 +162,12 @@ static async Task<Profile> LoadProfileAsync(string profilePath)
         if (profile is null)
         {
             Console.WriteLine("Failed to deserialize profile; using fallback profile.");
+            return CreateFallbackProfile();
+        }
+
+        if (profile.Mappings == null || profile.Mappings.Count == 0)
+        {
+            Console.WriteLine("Profile contains no mappings; using fallback profile.");
             return CreateFallbackProfile();
         }
 
@@ -176,9 +204,8 @@ Directory.CreateDirectory(outputDir);
 var profile = await LoadProfileAsync(profilePath);
 
 IInputReader inputReader = CreateReader(inputPath);
-IExcelExporter excelExporter = new ExcelExporter();
 
-var processor = new UnifiedProcessor(profile, inputReader, excelExporter, new Progress<ProcessingProgress>(p =>
+var processor = new UnifiedProcessor(profile, inputReader, new Progress<ProcessingProgress>(p =>
 {
     Console.WriteLine($"[{p.Timestamp:HH:mm:ss}] {p.PercentComplete}% {p.Message} ({p.Severity})");
 }));

@@ -3,37 +3,101 @@
   "Name": "Test Profile",
   "CreatedAt": "2024-01-01T00:00:00Z",
   "UpdatedAt": "2024-01-01T00:00:00Z",
-  "ContactMappings": [
+  "MissingHeaderBehavior": "Error",
+  "CreateSecondaryContactsFile": false,
+  "OwnerMailing": {
+    "Owner1GetsMailing": true,
+    "Owner2GetsMailing": false
+  },
+  "Groups": {
+    "PropertyGroups": {
+      "1": {
+        "AssociationLabel": "Owner",
+        "DataSource": "Demo",
+        "Tags": [ "Primary" ]
+      },
+      "2": {
+        "AssociationLabel": "Mailing Address",
+        "DataSource": "Demo",
+        "Tags": []
+      }
+    },
+    "ContactGroups": {
+      "1": {
+        "AssociationLabel": "Owner",
+        "DataSource": "Demo",
+        "Tags": []
+      }
+    },
+    "PhoneGroups": {
+      "1": {
+        "AssociationLabel": "Owner",
+        "DataSource": "Demo",
+        "Tags": []
+      }
+    }
+  },
+  "Mappings": [
     {
-      "SourceColumn": "First Name",
-      "HubSpotProperty": "firstname",
-      "AssociationType": "Owner",
-      "IsRequired": false,
-      "Transforms": []
+      "SourceField": "First Name",
+      "HubSpotHeader": "firstname",
+      "ObjectType": "Contact",
+      "GroupIndex": 1
     },
     {
-      "SourceColumn": "Last Name",
-      "HubSpotProperty": "lastname",
-      "AssociationType": "Owner",
-      "IsRequired": false,
-      "Transforms": []
-    }
-  ],
-  "PropertyMappings": [
+      "SourceField": "Last Name",
+      "HubSpotHeader": "lastname",
+      "ObjectType": "Contact",
+      "GroupIndex": 1
+    },
     {
-      "SourceColumn": "Street Address",
-      "HubSpotProperty": "address",
-      "AssociationType": "Mailing Address",
-      "IsRequired": false,
-      "Transforms": []
+      "SourceField": "Street Address",
+      "HubSpotHeader": "address",
+      "ObjectType": "Property",
+      "GroupIndex": 1
+    },
+    {
+      "SourceField": "City",
+      "HubSpotHeader": "city",
+      "ObjectType": "Property",
+      "GroupIndex": 1
+    },
+    {
+      "SourceField": "State",
+      "HubSpotHeader": "state",
+      "ObjectType": "Property",
+      "GroupIndex": 1
+    },
+    {
+      "SourceField": "Zip",
+      "HubSpotHeader": "postal_code",
+      "ObjectType": "Property",
+      "GroupIndex": 1
+    },
+    {
+      "SourceField": "Mailing Address",
+      "HubSpotHeader": "mailing_address",
+      "ObjectType": "Property",
+      "GroupIndex": 2
+    },
+    {
+      "SourceField": "Mailing City",
+      "HubSpotHeader": "mailing_city",
+      "ObjectType": "Property",
+      "GroupIndex": 2
+    },
+    {
+      "SourceField": "Mailing State",
+      "HubSpotHeader": "mailing_state",
+      "ObjectType": "Property",
+      "GroupIndex": 2
+    },
+    {
+      "SourceField": "Mailing Zip",
+      "HubSpotHeader": "mailing_zip",
+      "ObjectType": "Property",
+      "GroupIndex": 2
     }
   ],
-  "PhoneMappings": [],
-  "DedupeSettings": {
-    "DedupeKeys": [],
-    "UsePhoneNormalization": true,
-    "UseAddressNormalization": true,
-    "MergeStrategy": 0
-  },
-  "Transforms": []
+  "Metadata": {}
 }

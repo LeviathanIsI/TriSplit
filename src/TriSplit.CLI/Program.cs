@@ -1,6 +1,8 @@
 using Microsoft.Extensions.DependencyInjection;
+using System.Linq;
 using TriSplit.Core.Extensions;
 using TriSplit.Core.Interfaces;
+using TriSplit.Core.Models;
 
 namespace TriSplit.CLI;
 
@@ -125,8 +127,10 @@ class Program
             {
                 Console.WriteLine($"- {profile.Name} (ID: {profile.Id})");
                 Console.WriteLine($"  Created: {profile.CreatedAt:yyyy-MM-dd HH:mm}");
-                Console.WriteLine($"  Mappings: {profile.ContactMappings.Count} contacts, " +
-                                $"{profile.PropertyMappings.Count} properties");
+                var contactCount = profile.Mappings.Count(m => m.ObjectType == ProfileObjectType.Contact);
+                var propertyCount = profile.Mappings.Count(m => m.ObjectType == ProfileObjectType.Property);
+                var phoneCount = profile.Mappings.Count(m => m.ObjectType == ProfileObjectType.Phone);
+                Console.WriteLine($"  Mappings: {contactCount} contacts, {propertyCount} properties, {phoneCount} phones");
                 Console.WriteLine();
             }
         }
@@ -136,3 +140,5 @@ class Program
         }
     }
 }
+
+

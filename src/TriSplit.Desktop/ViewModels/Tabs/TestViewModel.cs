@@ -1,7 +1,8 @@
-using System.ComponentModel;
 using System.Collections.ObjectModel;
+using System.ComponentModel;
 using System.Data;
 using System.IO;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
@@ -9,7 +10,6 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using TriSplit.Core.Interfaces;
 using TriSplit.Core.Models;
-using TriSplit.Desktop.Models;
 using TriSplit.Desktop.Services;
 
 namespace TriSplit.Desktop.ViewModels.Tabs;
@@ -405,19 +405,17 @@ public partial class TestViewModel : ViewModelBase, IDisposable
                     var dt = new DataTable();
 
                     // Map columns based on profile
-                    var allMappings = profile.ContactMappings
-                        .Concat(profile.PropertyMappings)
-                        .Concat(profile.PhoneMappings)
-                        .Where(m => !string.IsNullOrWhiteSpace(m.HubSpotProperty))
+                    var allMappings = profile.Mappings
+                        .Where(m => !string.IsNullOrWhiteSpace(m.HubSpotHeader))
                         .Take(PREVIEW_COL_LIMIT)
                         .ToList();
 
                     var addedColumns = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
                     foreach (var mapping in allMappings)
                     {
-                        if (addedColumns.Add(mapping.HubSpotProperty))
+                        if (addedColumns.Add(mapping.HubSpotHeader))
                         {
-                            dt.Columns.Add(mapping.HubSpotProperty);
+                            dt.Columns.Add(mapping.HubSpotHeader);
                         }
                     }
 
@@ -432,17 +430,21 @@ public partial class TestViewModel : ViewModelBase, IDisposable
                         string? associationLabel = null;
                         foreach (var mapping in allMappings)
                         {
-                            if (!original.Columns.Contains(mapping.SourceColumn) ||
-                                !dt.Columns.Contains(mapping.HubSpotProperty))
+                            if (!original.Columns.Contains(mapping.SourceField) ||
+                                !dt.Columns.Contains(mapping.HubSpotHeader))
                             {
                                 continue;
                             }
 
-                            transformedRow[mapping.HubSpotProperty] = originalRow[mapping.SourceColumn];
+                            transformedRow[mapping.HubSpotHeader] = originalRow[mapping.SourceField];
 
-                            if (string.IsNullOrWhiteSpace(associationLabel) && !string.IsNullOrWhiteSpace(mapping.AssociationType))
+                            if (string.IsNullOrWhiteSpace(associationLabel))
                             {
-                                associationLabel = mapping.AssociationType;
+                                var candidate = ResolveAssociationLabel(profile, mapping);
+                                if (!string.IsNullOrWhiteSpace(candidate))
+                                {
+                                    associationLabel = candidate;
+                                }
                             }
                         }
 
@@ -460,7 +462,7 @@ public partial class TestViewModel : ViewModelBase, IDisposable
                     await Application.Current.Dispatcher.InvokeAsync(() =>
                     {
                         _transformedData = transformed;
-                        TestStatus = $"Transformation complete - {profile.ContactMappings.Count + profile.PropertyMappings.Count + profile.PhoneMappings.Count} mappings applied";
+                        TestStatus = $"Transformation complete - {profile.Mappings.Count} mappings applied";
 
                         if (ShowTransformedData)
                         {
@@ -595,12 +597,10 @@ public partial class TestViewModel : ViewModelBase, IDisposable
 
         ColumnMappings.Clear();
         var profile = _appSession.SelectedProfile;
-        var allMappings = profile.ContactMappings
-            .Concat(profile.PropertyMappings)
-            .Concat(profile.PhoneMappings)
+        var allMappings = profile.Mappings
             .ToList();
 
-        var mappedColumns = new HashSet<string>(allMappings.Select(m => m.SourceColumn));
+        var mappedColumns = new HashSet<string>(allMappings.Select(m => m.SourceField));
         var criticalColumns = new HashSet<string> { "First Name", "Last Name", "Email", "Address", "Phone 1 Number" };
 
         foreach (DataColumn column in _originalData.Columns)
@@ -614,9 +614,9 @@ public partial class TestViewModel : ViewModelBase, IDisposable
 
             if (status.IsMapped)
             {
-                var mapping = allMappings.First(m => m.SourceColumn == column.ColumnName);
-                status.MappedTo = mapping.HubSpotProperty;
-                status.AssociationType = mapping.AssociationType;
+                var mapping = allMappings.First(m => m.SourceField == column.ColumnName);
+                status.MappedTo = mapping.HubSpotHeader;
+                status.AssociationType = ResolveAssociationLabel(profile, mapping);
             }
 
             ColumnMappings.Add(status);
@@ -639,25 +639,54 @@ public partial class TestViewModel : ViewModelBase, IDisposable
 
         var profile = _appSession.SelectedProfile;
 
-        // Estimate contacts (unique by association type)
-        EstimatedContacts = RowCount * profile.ContactMappings.Select(m => m.AssociationType).Distinct().Count();
+        var contactGroups = profile.Mappings
+            .Where(m => m.ObjectType == ProfileObjectType.Contact)
+            .Select(m => m.GroupIndex)
+            .Distinct()
+            .Count();
 
-        // Estimate properties
-        EstimatedProperties = RowCount * profile.PropertyMappings.Count;
+        var propertyGroups = profile.Mappings
+            .Where(m => m.ObjectType == ProfileObjectType.Property)
+            .Select(m => m.GroupIndex)
+            .Distinct()
+            .Count();
 
-        // Estimate phone numbers
-        EstimatedPhoneNumbers = RowCount * profile.PhoneMappings.Count;
+        var phoneGroups = profile.Mappings
+            .Where(m => m.ObjectType == ProfileObjectType.Phone)
+            .Select(m => m.GroupIndex)
+            .Distinct()
+            .Count();
 
-        // Estimate processing time (rough: 100 rows/second)
+        EstimatedContacts = RowCount * contactGroups;
+        EstimatedProperties = RowCount * propertyGroups;
+        EstimatedPhoneNumbers = RowCount * phoneGroups;
+
         var totalOperations = EstimatedContacts + EstimatedProperties + EstimatedPhoneNumbers;
         var estimatedSeconds = totalOperations / 100.0;
 
         if (estimatedSeconds < 60)
+        {
             ProcessingTimeEstimate = $"{estimatedSeconds:F0} seconds";
+        }
         else if (estimatedSeconds < 3600)
+        {
             ProcessingTimeEstimate = $"{estimatedSeconds / 60:F1} minutes";
+        }
         else
+        {
             ProcessingTimeEstimate = $"{estimatedSeconds / 3600:F1} hours";
+        }
+    }
+
+    private static string ResolveAssociationLabel(Profile profile, ProfileMapping mapping)
+    {
+        if (!string.IsNullOrWhiteSpace(mapping.AssociationLabelOverride))
+        {
+            return mapping.AssociationLabelOverride.Trim();
+        }
+
+        var defaults = profile.Groups.GetOrAdd(mapping.ObjectType, mapping.GroupIndex);
+        return defaults.AssociationLabel;
     }
 
     public void Dispose()
@@ -675,7 +704,6 @@ public partial class TestViewModel : ViewModelBase, IDisposable
 
         _appSession.PropertyChanged -= OnSessionPropertyChanged;
     }
-
 }
 
 public partial class ColumnMappingStatus : ObservableObject
@@ -695,4 +723,3 @@ public partial class ColumnMappingStatus : ObservableObject
     [ObservableProperty]
     private string? _associationType;
 }
-
