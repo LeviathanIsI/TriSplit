@@ -88,11 +88,6 @@
                   Style="{StaticResource SecondaryButton}"
                   Padding="14,6"
                   Margin="0,0,12,0"/>
-          <Button Content="Import CSV Headers"
-                  Command="{Binding ImportHeadersCommand}"
-                  Style="{StaticResource SecondaryButton}"
-                  Padding="14,6"
-                  Margin="0,0,12,0"/>
           <Button Content="Export Data Profile"
                   Command="{Binding ExportProfileCommand}"
                   Style="{StaticResource SecondaryButton}"/>
@@ -667,6 +662,7 @@
     </Border>
   </Grid>
 </UserControl>
+
 
 
 

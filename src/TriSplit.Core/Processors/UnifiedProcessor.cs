@@ -235,11 +235,12 @@ public class UnifiedProcessor
 
         // Build final output (no deduplication; HubSpot will dedupe)
 
-        var propertyRows = BuildPropertyRows(processedData);
+        var hasContactMappings = contactGroups.Count > 0;
+        var propertyRows = BuildPropertyRows(processedData, hasContactMappings);
 
         var contactRows = BuildContactRows(processedData, _profile.CreateSecondaryContactsFile);
 
-        var phoneRows = BuildPhoneRows(processedData);
+        var phoneRows = BuildPhoneRows(processedData, hasContactMappings);
 
         var associationRows = BuildAssociationRows(processedData);
 
@@ -429,7 +430,9 @@ public class UnifiedProcessor
 
         var anyPropOrPhone = properties.Any(p => p.HasData) || phones.Any(p => p.HasData);
 
-        if (anyPropOrPhone && !anyContact)
+        var contactMappingsConfigured = contactGroups.Count > 0;
+
+        if (contactMappingsConfigured && anyPropOrPhone && !anyContact)
 
             throw new InvalidOperationException("Row has property/phone data but no contact data per profile mapping.");
 
@@ -1915,138 +1918,101 @@ public class UnifiedProcessor
 
 
 
-    private static IReadOnlyList<string> BuildColumnOrder(IReadOnlyList<Dictionary<string, string>> rows, ProfileObjectType objectType, IReadOnlyList<MappingGroup> groups)
-
-    {
-
-        var columns = new HashSet<string>(StringComparer.Ordinal);
-
-
-
-        // Import ID plus the exact HubSpot headers mapped for that object type
-
-        columns.Add("Import ID");
-
-
-
-        // Add all mapped HubSpot headers for this object type
-
-        foreach (var group in groups)
-
-        {
-
-            foreach (var mapping in group.Mappings)
-
-            {
-
-                columns.Add(mapping.HubSpotHeader);
-
-            }
-
-        }
-
-
-
-        // Add metadata columns that are explicitly wanted
-
-        switch (objectType)
-
-        {
-
-            case ProfileObjectType.Contact:
-
-                columns.Add("Data Source");
-
-                columns.Add("Data Type");
-
-                columns.Add("Tags");
-
-                columns.Add("Association Label"); // Only if create secondary files is enabled
-
-                break;
-
-
-
-            case ProfileObjectType.Property:
-
-                columns.Add("Association Label");
-
-                columns.Add("Data Source");
-
-                columns.Add("Data Type");
-
-                columns.Add("Tags");
-
-                break;
-
-
-
-            case ProfileObjectType.Phone:
-
-                columns.Add("Data Source");
-
-                // Phones don't get Association Label, Data Type, or Tags
-
-                break;
-
-        }
-
-
-
-        // Return in a consistent order: Import ID first, then metadata columns, then mapped columns alphabetically
-
-        var orderedColumns = new List<string> { "Import ID" };
-
-
-
-        // Add metadata columns in specific order
-
-        if (objectType == ProfileObjectType.Contact || objectType == ProfileObjectType.Property)
-
-        {
-
-            if (columns.Contains("Association Label")) orderedColumns.Add("Association Label");
-
-            if (columns.Contains("Data Source")) orderedColumns.Add("Data Source");
-
-            if (columns.Contains("Data Type")) orderedColumns.Add("Data Type");
-
-            if (columns.Contains("Tags")) orderedColumns.Add("Tags");
-
-        }
-
-        else if (objectType == ProfileObjectType.Phone)
-
-        {
-
-            if (columns.Contains("Data Source")) orderedColumns.Add("Data Source");
-
-        }
-
-
-
-        // Add remaining mapped columns alphabetically
-
-        var mappedColumns = columns
-
-            .Where(c => !orderedColumns.Contains(c))
-
-            .OrderBy(c => c, StringComparer.Ordinal);
-
-
-
-        orderedColumns.AddRange(mappedColumns);
-
-
-
-        return orderedColumns;
-
-    }
-
-
-
-
-
+    private static IReadOnlyList<string> BuildColumnOrder(IReadOnlyList<Dictionary<string, string>> rows, ProfileObjectType objectType, IReadOnlyList<MappingGroup> groups)
+
+    {
+
+        var columns = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var row in rows)
+        {
+            foreach (var key in row.Keys)
+            {
+                if (!string.IsNullOrEmpty(key))
+                {
+                    columns.Add(key);
+                }
+            }
+        }
+
+        foreach (var group in groups)
+        {
+            foreach (var mapping in group.Mappings)
+            {
+                columns.Add(mapping.HubSpotHeader);
+            }
+        }
+
+        var includeImportId = rows.Any(row => row.TryGetValue("Import ID", out var value) && !string.IsNullOrWhiteSpace(value));
+        if (includeImportId)
+        {
+            columns.Add("Import ID");
+        }
+        else
+        {
+            columns.Remove("Import ID");
+        }
+
+        var includeAssociationLabel = rows.Any(row => row.TryGetValue("Association Label", out var value) && !string.IsNullOrWhiteSpace(value));
+        if (includeAssociationLabel)
+        {
+            columns.Add("Association Label");
+        }
+        else
+        {
+            columns.Remove("Association Label");
+        }
+
+        if (rows.Any(row => row.ContainsKey("Data Source")))
+        {
+            columns.Add("Data Source");
+        }
+
+        if (rows.Any(row => row.ContainsKey("Data Type")))
+        {
+            columns.Add("Data Type");
+        }
+
+        if (rows.Any(row => row.ContainsKey("Tags")))
+        {
+            columns.Add("Tags");
+        }
+
+        var orderedColumns = new List<string>();
+
+        if (columns.Remove("Import ID"))
+        {
+            orderedColumns.Add("Import ID");
+        }
+
+        if (columns.Remove("Association Label"))
+        {
+            orderedColumns.Add("Association Label");
+        }
+
+        if (columns.Remove("Data Source"))
+        {
+            orderedColumns.Add("Data Source");
+        }
+
+        if (columns.Remove("Data Type"))
+        {
+            orderedColumns.Add("Data Type");
+        }
+
+        if (columns.Remove("Tags"))
+        {
+            orderedColumns.Add("Tags");
+        }
+
+        orderedColumns.AddRange(columns.OrderBy(c => c, StringComparer.Ordinal));
+
+        return orderedColumns;
+
+    }
+
+
+
     private static string FormatMultiSelectSingle(string? value)
 
     {
@@ -2141,29 +2107,47 @@ public class UnifiedProcessor
 
     private Dictionary<string, string> ToPropertyDictionary(RowOutput row)
 
+
+
     {
 
-        var dictionary = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+
+
+        var dictionary = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+
+
+
+        var associationLabel = FormatMultiSelectList(row.AssociationLabels);
+
+        if (!string.IsNullOrEmpty(associationLabel))
 
         {
 
-            ["Association Label"] = FormatMultiSelectList(row.AssociationLabels),
+            dictionary["Association Label"] = associationLabel;
 
-            ["Data Source"] = FormatMultiSelectSingle(row.DataSource),
+        }
 
-            ["Data Type"] = FormatMultiSelectSingle(row.DataType),
 
-            ["Tags"] = FormatMultiSelectList(row.Tags)
 
-        };
+        dictionary["Data Source"] = FormatMultiSelectSingle(row.DataSource);
+
+        dictionary["Data Type"] = FormatMultiSelectSingle(row.DataType);
+
+        dictionary["Tags"] = FormatMultiSelectList(row.Tags);
 
 
 
         foreach (var kvp in row.Values)
 
+
+
         {
 
+
+
             dictionary[kvp.Key] = kvp.Value ?? string.Empty;
+
+
 
         }
 
@@ -2171,7 +2155,13 @@ public class UnifiedProcessor
 
         return dictionary;
 
+
+
     }
+
+
+
+
 
 
 
@@ -2245,7 +2235,7 @@ public class UnifiedProcessor
 
 
 
-    private List<RowOutput> BuildPropertyRows(List<ProcessedRowData> processedData)
+    private List<RowOutput> BuildPropertyRows(List<ProcessedRowData> processedData, bool linkToContacts)
 
     {
 
@@ -2263,7 +2253,10 @@ public class UnifiedProcessor
 
                 var row = new RowOutput(property.ObjectType, property.GroupIndex, property.AssociationLabels, property.DataSource, property.DataType, property.Tags);
 
-                row.Values["Import ID"] = data.ContactId; // Link to contact
+                if (linkToContacts)
+                {
+                    row.Values["Import ID"] = data.ContactId; // Link to contact
+                }
 
 
 
@@ -2439,7 +2432,7 @@ public class UnifiedProcessor
 
 
 
-    private List<RowOutput> BuildPhoneRows(List<ProcessedRowData> processedData)
+    private List<RowOutput> BuildPhoneRows(List<ProcessedRowData> processedData, bool linkToContacts)
 
     {
 
@@ -2459,7 +2452,10 @@ public class UnifiedProcessor
 
                 var row = new RowOutput(phone.ObjectType, phone.GroupIndex, Array.Empty<string>(), phone.DataSource, phone.DataType, phone.Tags);
 
-                row.Values["Import ID"] = data.ContactId; // Link to contact
+                if (linkToContacts)
+                {
+                    row.Values["Import ID"] = data.ContactId; // Link to contact
+                }
 
                 
 

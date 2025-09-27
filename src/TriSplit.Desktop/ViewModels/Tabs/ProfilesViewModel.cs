@@ -84,6 +84,7 @@ public partial class ProfilesViewModel : ViewModelBase
         "Taxes Actionable",
         "Taxes Delinquent Amount",
         "Taxes Delinquent Date",
+        "Vacant",
         "Year Built"
     };
 
@@ -122,7 +123,7 @@ public partial class ProfilesViewModel : ViewModelBase
                 PhoneGroups
             };
 
-            EnsureDefaultGroups();
+            EnsureDefaultGroupsForNewProfile();
             EnsureDefaultHubSpotHeaders();
             RebuildGroupCollections();
         }
@@ -273,11 +274,15 @@ public partial class ProfilesViewModel : ViewModelBase
     [RelayCommand]
     private void AddMapping(string? sourceHeader = null)
     {
+        var defaultType = ProfileObjectType.Property;
+        var availableGroups = GetAvailableGroupIndices(defaultType);
+        var initialGroupIndex = availableGroups.Count > 0 ? availableGroups[0] : 0;
+
         var mapping = new MappingRowViewModel(this)
         {
             SourceField = sourceHeader ?? string.Empty,
-            ObjectType = ProfileObjectType.Property,
-            GroupIndex = 1
+            ObjectType = defaultType,
+            GroupIndex = initialGroupIndex
         };
 
         FieldMappings.Add(mapping);
@@ -426,7 +431,7 @@ public partial class ProfilesViewModel : ViewModelBase
             HubSpotHeaders.Clear();
             EnsureDefaultHubSpotHeaders();
             _groupDefaults.Clear();
-            EnsureDefaultGroups();
+            EnsureDefaultGroupsForNewProfile();
             RebuildGroupCollections();
             SelectedProfile = null;
             _appSession.SelectedProfile = null;
@@ -547,35 +552,28 @@ public partial class ProfilesViewModel : ViewModelBase
     [RelayCommand]
     private async Task LoadProfileAsync()
     {
-        var path = await _dialogService.ShowOpenFileDialogAsync(
-            "Load Data Profile",
-            "JSON Files|*.json");
-
-        if (string.IsNullOrWhiteSpace(path))
+        if (SelectedProfile == null)
         {
+            await _dialogService.ShowMessageAsync("Load Profile", "Select a profile from the list first.");
             return;
         }
 
         try
         {
-            var json = await File.ReadAllTextAsync(path);
-            var profile = JsonConvert.DeserializeObject<Profile>(json);
-            if (profile == null)
+            var selected = SelectedProfile;
+            Profile? profile = null;
+
+            if (selected.Profile.Id != Guid.Empty)
             {
-                await _dialogService.ShowMessageAsync("Load Profile", "Failed to parse the selected profile file.");
-                return;
+                profile = await _profileStore.GetProfileAsync(selected.Profile.Id);
             }
 
+            profile ??= await _profileStore.GetProfileByNameAsync(selected.Profile.Name);
+            profile ??= selected.Profile;
+
             await LoadProfileAsync(profile);
-            var existing = SavedProfiles.FirstOrDefault(p => p.Profile.Id == profile.Id);
-            if (existing == null)
-            {
-                SavedProfiles.Add(new ProfileListItemViewModel(profile));
-            }
-            else
-            {
-                existing.Update(profile);
-            }
+            selected.Update(profile);
+            _appSession.SelectedProfile = profile;
         }
         catch (Exception ex)
         {
@@ -586,43 +584,40 @@ public partial class ProfilesViewModel : ViewModelBase
     [RelayCommand]
     private async Task LoadHeaderSuggestionsAsync(string? filePath)
     {
-        if (string.IsNullOrWhiteSpace(filePath))
+        if (!string.IsNullOrWhiteSpace(filePath) && File.Exists(filePath))
         {
-            filePath = _appSession.LoadedFilePath;
-        }
-
-        if (string.IsNullOrWhiteSpace(filePath) || !File.Exists(filePath))
-        {
-            var pickedPath = await _dialogService.ShowOpenFileDialogAsync(
-                "Suggest Headers",
-                "CSV or Excel|*.csv;*.xlsx;*.xls");
-
-            if (string.IsNullOrWhiteSpace(pickedPath))
-            {
-                await _dialogService.ShowMessageAsync("Suggest Headers", "Select a CSV file first.");
-                return;
-            }
-
-            filePath = pickedPath;
-            _appSession.LoadedFilePath = filePath;
-        }
-
-        await LoadHeaderSuggestionsInternalAsync(filePath);
-    }
-
-    [RelayCommand]
-    private async Task ImportHeadersAsync()
-    {
-        var path = await _dialogService.ShowOpenFileDialogAsync(
-            "Import Headers",
-            "CSV or Excel|*.csv;*.xlsx;*.xls");
-
-        if (string.IsNullOrWhiteSpace(path))
-        {
+            await LoadHeaderSuggestionsInternalAsync(filePath);
             return;
         }
 
-        await LoadHeaderSuggestionsInternalAsync(path);
+        var existingPath = _appSession.LoadedFilePath;
+
+        if (!string.IsNullOrWhiteSpace(existingPath) && File.Exists(existingPath))
+        {
+            var reuseExisting = await _dialogService.ShowConfirmationDialogAsync(
+                "Suggest Headers",
+                $"Use headers from {Path.GetFileName(existingPath)}?",
+                "Use existing file",
+                "Choose different file");
+
+            if (reuseExisting)
+            {
+                await LoadHeaderSuggestionsInternalAsync(existingPath);
+                return;
+            }
+        }
+
+        var pickedPath = await _dialogService.ShowOpenFileDialogAsync(
+            "Suggest Headers",
+            "CSV or Excel|*.csv;*.xlsx;*.xls");
+
+        if (string.IsNullOrWhiteSpace(pickedPath))
+        {
+            await _dialogService.ShowMessageAsync("Suggest Headers", "Select a CSV file first.");
+            return;
+        }
+
+        await LoadHeaderSuggestionsInternalAsync(pickedPath);
     }
 
     private async Task LoadProfilesAsync()
@@ -698,14 +693,25 @@ public partial class ProfilesViewModel : ViewModelBase
 
             _groupDefaults.Clear();
             LoadGroupDefaults(profile.Groups);
-            EnsureDefaultGroups();
+
+            var mappingGroups = (profile.Mappings ?? Enumerable.Empty<ProfileMapping>())
+                .Where(m => m.GroupIndex > 0)
+                .Select(m => (m.ObjectType, m.GroupIndex))
+                .Distinct()
+                .ToList();
+
+            foreach (var (objectType, groupIndex) in mappingGroups)
+            {
+                EnsureGroupDefaults(objectType, groupIndex);
+            }
+
             RebuildGroupCollections();
 
             FieldMappings.Clear();
             HubSpotHeaders.Clear();
             EnsureDefaultHubSpotHeaders();
 
-            foreach (var mapping in profile.Mappings)
+            foreach (var mapping in profile.Mappings ?? Enumerable.Empty<ProfileMapping>())
             {
                 if (!HubSpotHeaders.Contains(mapping.HubSpotHeader))
                 {
@@ -870,11 +876,7 @@ public partial class ProfilesViewModel : ViewModelBase
                 break;
         }
 
-        var targetIndex = indices.Contains(sourceIndex) ? sourceIndex : (indices.Count > 0 ? indices[0] : 1);
-        if (targetIndex <= 0)
-        {
-            targetIndex = 1;
-        }
+        var targetIndex = indices.Contains(sourceIndex) ? sourceIndex : (indices.Count > 0 ? indices[0] : 0);
 
         return (targetType, targetIndex);
     }
@@ -968,11 +970,11 @@ public partial class ProfilesViewModel : ViewModelBase
         }
     }
 
-    private void EnsureDefaultGroups()
+    private void EnsureDefaultGroupsForNewProfile()
     {
         foreach (var type in ObjectTypes)
         {
-            GetDefaults(type, 1);
+            EnsureGroupDefaults(type, 1);
         }
     }
 
@@ -1011,11 +1013,6 @@ public partial class ProfilesViewModel : ViewModelBase
             .OrderBy(i => i)
             .ToList();
 
-        if (indices.Count == 0)
-        {
-            indices.Add(1);
-        }
-
         return indices;
     }
 
@@ -1023,41 +1020,50 @@ public partial class ProfilesViewModel : ViewModelBase
 
     internal void RemoveGroupDefaults(ProfileObjectType type, int index)
     {
-        if (_groupDefaults.Remove((type, index)))
+        var removed = _groupDefaults.Remove((type, index));
+        if (removed)
         {
             EnsureDirty();
         }
 
-        foreach (var kvp in _groupDefaults)
+        foreach (var entry in _groupDefaults)
         {
-            var associations = kvp.Value.Associations;
+            var associations = entry.Value.Associations;
             if (associations == null || associations.Count == 0)
             {
                 continue;
             }
 
-            var removed = associations.RemoveAll(a => a.TargetType == type && a.TargetIndex == index);
-            if (removed > 0)
+            var removedAssociations = associations.RemoveAll(a => a.TargetType == type && a.TargetIndex == index);
+            if (removedAssociations > 0)
             {
-                NormalizeGroupDefaults(kvp.Value, kvp.Value.Type, kvp.Value.Index);
+                NormalizeGroupDefaults(entry.Value, entry.Key.Type, entry.Key.Index);
                 EnsureDirty();
             }
         }
 
         var remaining = GetAvailableGroupIndices(type);
-        var fallback = remaining.FirstOrDefault();
-        if (fallback <= 0)
+        var affectedMappings = FieldMappings
+            .Where(m => m.ObjectType == type && m.GroupIndex == index)
+            .ToList();
+
+        if (remaining.Count == 0)
         {
-            fallback = 1;
+            foreach (var mapping in affectedMappings)
+            {
+                mapping.GroupIndex = 0;
+            }
         }
-
-        EnsureGroupDefaults(type, fallback);
-
-        foreach (var mapping in FieldMappings.Where(m => m.ObjectType == type && m.GroupIndex == index))
+        else
         {
-            mapping.GroupIndex = fallback;
+            var fallback = remaining[0];
+            foreach (var mapping in affectedMappings)
+            {
+                mapping.GroupIndex = fallback;
+            }
         }
     }
+
 
     internal int CloneGroup(ProfileObjectType type, int sourceIndex)
     {
@@ -1286,11 +1292,15 @@ public partial class ProfilesViewModel : ViewModelBase
                         continue;
                     }
 
+                    var targetType = ProfileObjectType.Property;
+                    var availableGroups = GetAvailableGroupIndices(targetType);
+                    var groupIndex = availableGroups.Count > 0 ? availableGroups[0] : 0;
+
                     var mapping = new MappingRowViewModel(this)
                     {
                         SourceField = header,
-                        ObjectType = ProfileObjectType.Property,
-                        GroupIndex = 1
+                        ObjectType = targetType,
+                        GroupIndex = groupIndex
                     };
 
                     FieldMappings.Add(mapping);
@@ -1349,7 +1359,7 @@ public partial class MappingRowViewModel : ObservableObject
     private ProfileObjectType _objectType = ProfileObjectType.Property;
 
     [ObservableProperty]
-    private int _groupIndex = 1;
+    private int _groupIndex = 0;
 
     public IReadOnlyList<int> AvailableGroupIndices => _owner.GetAvailableGroupIndices(ObjectType);
 
@@ -1380,9 +1390,13 @@ public partial class MappingRowViewModel : ObservableObject
     partial void OnObjectTypeChanged(ProfileObjectType value)
     {
         var available = _owner.GetAvailableGroupIndices(value);
-        if (!available.Contains(GroupIndex))
+        if (available.Count == 0)
         {
-            GroupIndex = available.First();
+            GroupIndex = 0;
+        }
+        else if (!available.Contains(GroupIndex))
+        {
+            GroupIndex = available[0];
         }
 
         OnPropertyChanged(nameof(AvailableGroupIndices));
@@ -1407,9 +1421,13 @@ public partial class MappingRowViewModel : ObservableObject
     internal void RefreshGroupIndices()
     {
         var available = _owner.GetAvailableGroupIndices(ObjectType);
-        if (!available.Contains(GroupIndex))
+        if (available.Count == 0)
         {
-            GroupIndex = available.First();
+            GroupIndex = 0;
+        }
+        else if (!available.Contains(GroupIndex))
+        {
+            GroupIndex = available[0];
         }
 
         OnPropertyChanged(nameof(AvailableGroupIndices));
@@ -1541,10 +1559,6 @@ public class GroupDefaultsCollectionViewModel : ObservableObject
             Groups.Add(new GroupDefaultsEditorViewModel(_owner, ObjectType, index));
         }
 
-        if (Groups.Count == 0)
-        {
-            Groups.Add(new GroupDefaultsEditorViewModel(_owner, ObjectType, 1));
-        }
 
         RefreshAssociationTargets();
         UpdateCommands();
@@ -1593,7 +1607,7 @@ public class GroupDefaultsCollectionViewModel : ObservableObject
 
     private void RemoveGroup(GroupDefaultsEditorViewModel? editor)
     {
-        if (editor == null || Groups.Count <= 1 || !Groups.Contains(editor))
+        if (editor == null || !Groups.Contains(editor))
         {
             return;
         }
@@ -1605,7 +1619,7 @@ public class GroupDefaultsCollectionViewModel : ObservableObject
         _owner.NotifyGroupDefinitionsChanged(ObjectType);
     }
 
-    private bool CanRemoveGroup(GroupDefaultsEditorViewModel? editor) => editor != null && Groups.Count > 1;
+    private bool CanRemoveGroup(GroupDefaultsEditorViewModel? editor) => editor != null;
 
     private void UpdateCommands()
     {
@@ -1840,7 +1854,7 @@ public partial class GroupAssociationEditorViewModel : ObservableObject
         return new GroupAssociation
         {
             TargetType = target?.Type ?? ProfileObjectType.Contact,
-            TargetIndex = target?.Index ?? 1,
+            TargetIndex = target?.Index ?? 0,
             Labels = LabelOptions.Where(option => option.IsSelected).Select(option => option.Label).ToList()
         };
     }
