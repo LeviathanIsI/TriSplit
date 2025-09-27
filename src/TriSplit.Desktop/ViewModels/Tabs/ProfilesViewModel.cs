@@ -30,6 +30,7 @@ public partial class ProfilesViewModel : ViewModelBase
     private readonly Dictionary<(ProfileObjectType Type, int Index), GroupDefaults> _groupDefaults = new();
 
     internal const int MaxGroupsPerType = 10;
+    internal const int MaxAssociationsPerGroup = 10;
     private bool _isLoadingProfile;
     private bool _isInitializing;
     private bool _isUpdatingDuplicateFlags;
@@ -238,6 +239,9 @@ public partial class ProfilesViewModel : ViewModelBase
     [ObservableProperty]
     private bool _isGroupDefaultsExpanded = true;
 
+    [ObservableProperty]
+    private GridLength _groupPanelRowHeight = new GridLength(1, GridUnitType.Star);
+
     partial void OnSelectedProfileChanged(ProfileListItemViewModel? value)
     {
         if (_isLoadingProfile)
@@ -260,6 +264,11 @@ public partial class ProfilesViewModel : ViewModelBase
     partial void OnOwner2GetsMailingChanged(bool value) => EnsureDirty();
 
     partial void OnSelectedMissingHeaderBehaviorChanged(MissingHeaderBehavior value) => EnsureDirty();
+
+    partial void OnIsGroupDefaultsExpandedChanged(bool value)
+    {
+        GroupPanelRowHeight = value ? new GridLength(1, GridUnitType.Star) : GridLength.Auto;
+    }
 
     [RelayCommand]
     private void AddMapping(string? sourceHeader = null)
@@ -807,13 +816,67 @@ public partial class ProfilesViewModel : ViewModelBase
 
     private static GroupDefaults CloneDefaults(GroupDefaults defaults)
     {
-        return new GroupDefaults
+        return defaults.Clone();
+    }
+
+    private void NormalizeGroupDefaults(GroupDefaults defaults, ProfileObjectType type, int index)
+    {
+        defaults.Type = type;
+        defaults.Index = index;
+        defaults.Tags ??= new List<string>();
+        defaults.Associations ??= new List<GroupAssociation>();
+
+        foreach (var association in defaults.Associations)
         {
-            AssociationLabel = defaults.AssociationLabel,
-            DataSource = defaults.DataSource,
-            DataType = defaults.DataType,
-            Tags = new List<string>(defaults.Tags)
+            association.Labels ??= new List<string>();
+        }
+    }
+
+    internal GroupAssociation CreateDefaultAssociation(ProfileObjectType sourceType, int sourceIndex, string? preferredLabel = null)
+    {
+        var (targetType, targetIndex) = GetDefaultAssociationTarget(sourceType, sourceIndex);
+        var labels = new List<string>();
+        if (!string.IsNullOrWhiteSpace(preferredLabel))
+        {
+            labels.Add(preferredLabel.Trim());
+        }
+
+        return new GroupAssociation
+        {
+            TargetType = targetType,
+            TargetIndex = targetIndex,
+            Labels = labels
         };
+    }
+
+    private (ProfileObjectType TargetType, int TargetIndex) GetDefaultAssociationTarget(ProfileObjectType sourceType, int sourceIndex)
+    {
+        ProfileObjectType targetType;
+        IReadOnlyList<int> indices;
+
+        switch (sourceType)
+        {
+            case ProfileObjectType.Contact:
+                targetType = ProfileObjectType.Property;
+                indices = GetAvailableGroupIndices(ProfileObjectType.Property);
+                break;
+            case ProfileObjectType.Phone:
+                targetType = ProfileObjectType.Contact;
+                indices = GetAvailableGroupIndices(ProfileObjectType.Contact);
+                break;
+            default:
+                targetType = ProfileObjectType.Contact;
+                indices = GetAvailableGroupIndices(ProfileObjectType.Contact);
+                break;
+        }
+
+        var targetIndex = indices.Contains(sourceIndex) ? sourceIndex : (indices.Count > 0 ? indices[0] : 1);
+        if (targetIndex <= 0)
+        {
+            targetIndex = 1;
+        }
+
+        return (targetType, targetIndex);
     }
 
     internal GroupDefaults GetDefaults(ProfileObjectType type, int index)
@@ -824,19 +887,38 @@ public partial class ProfilesViewModel : ViewModelBase
             _groupDefaults[(type, index)] = defaults;
         }
 
+        NormalizeGroupDefaults(defaults, type, index);
         return defaults;
     }
 
-    internal void UpdateDefaults(ProfileObjectType type, int index, string association, string dataSource, string dataType, string tags)
+    internal void UpdateGroupMetadata(ProfileObjectType type, int index, string dataSource, string dataType, string tags)
     {
         var defaults = GetDefaults(type, index);
-        defaults.AssociationLabel = association?.Trim() ?? string.Empty;
         defaults.DataSource = dataSource?.Trim() ?? string.Empty;
         defaults.DataType = dataType?.Trim() ?? string.Empty;
         defaults.Tags = string.IsNullOrWhiteSpace(tags)
             ? new List<string>()
             : tags.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).ToList();
 
+        EnsureDirty();
+    }
+
+    internal void UpdateGroupAssociations(ProfileObjectType type, int index, IReadOnlyList<GroupAssociation> associations)
+    {
+        var defaults = GetDefaults(type, index);
+        defaults.Associations = associations
+            .Select(a => new GroupAssociation
+            {
+                TargetType = a.TargetType,
+                TargetIndex = a.TargetIndex,
+                Labels = a.Labels?.Where(l => !string.IsNullOrWhiteSpace(l))
+                                      .Select(l => l.Trim())
+                                      .Distinct(StringComparer.OrdinalIgnoreCase)
+                                      .ToList() ?? new List<string>()
+            })
+            .ToList();
+
+        NormalizeGroupDefaults(defaults, type, index);
         EnsureDirty();
     }
 
@@ -901,6 +983,25 @@ public partial class ProfilesViewModel : ViewModelBase
         PhoneGroups.RebuildFromOwner();
     }
 
+    internal IReadOnlyList<AssociationTargetOption> GetAssociationTargetOptions(ProfileObjectType sourceType)
+    {
+        var options = new List<AssociationTargetOption>();
+
+        void AddOptions(ProfileObjectType targetType)
+        {
+            foreach (var index in GetAvailableGroupIndices(targetType))
+            {
+                options.Add(new AssociationTargetOption(targetType, index));
+            }
+        }
+
+        AddOptions(ProfileObjectType.Contact);
+        AddOptions(ProfileObjectType.Property);
+        AddOptions(ProfileObjectType.Phone);
+
+        return options;
+    }
+
     internal IReadOnlyList<int> GetAvailableGroupIndices(ProfileObjectType type)
     {
         var indices = _groupDefaults.Keys
@@ -925,6 +1026,22 @@ public partial class ProfilesViewModel : ViewModelBase
         if (_groupDefaults.Remove((type, index)))
         {
             EnsureDirty();
+        }
+
+        foreach (var kvp in _groupDefaults)
+        {
+            var associations = kvp.Value.Associations;
+            if (associations == null || associations.Count == 0)
+            {
+                continue;
+            }
+
+            var removed = associations.RemoveAll(a => a.TargetType == type && a.TargetIndex == index);
+            if (removed > 0)
+            {
+                NormalizeGroupDefaults(kvp.Value, kvp.Value.Type, kvp.Value.Index);
+                EnsureDirty();
+            }
         }
 
         var remaining = GetAvailableGroupIndices(type);
@@ -954,7 +1071,9 @@ public partial class ProfilesViewModel : ViewModelBase
         }
 
         var sourceDefaults = GetDefaults(type, sourceIndex);
-        _groupDefaults[(type, nextIndex)] = CloneDefaults(sourceDefaults);
+        var clone = CloneDefaults(sourceDefaults);
+        _groupDefaults[(type, nextIndex)] = clone;
+        NormalizeGroupDefaults(clone, type, nextIndex);
         EnsureDirty();
         return nextIndex;
     }
@@ -970,6 +1089,10 @@ public partial class ProfilesViewModel : ViewModelBase
         {
             mapping.RefreshGroupIndices();
         }
+
+        PropertyGroups.RefreshAssociationTargets();
+        ContactGroups.RefreshAssociationTargets();
+        PhoneGroups.RefreshAssociationTargets();
     }
 
     private void LoadGroupDefaults(ProfileGroupConfiguration? configuration)
@@ -981,17 +1104,23 @@ public partial class ProfilesViewModel : ViewModelBase
 
         foreach (var kvp in configuration.PropertyGroups)
         {
-            _groupDefaults[(ProfileObjectType.Property, kvp.Key)] = CloneDefaults(kvp.Value);
+            var propertyClone = CloneDefaults(kvp.Value);
+            NormalizeGroupDefaults(propertyClone, ProfileObjectType.Property, kvp.Key);
+            _groupDefaults[(ProfileObjectType.Property, kvp.Key)] = propertyClone;
         }
 
         foreach (var kvp in configuration.ContactGroups)
         {
-            _groupDefaults[(ProfileObjectType.Contact, kvp.Key)] = CloneDefaults(kvp.Value);
+            var contactClone = CloneDefaults(kvp.Value);
+            NormalizeGroupDefaults(contactClone, ProfileObjectType.Contact, kvp.Key);
+            _groupDefaults[(ProfileObjectType.Contact, kvp.Key)] = contactClone;
         }
 
         foreach (var kvp in configuration.PhoneGroups)
         {
-            _groupDefaults[(ProfileObjectType.Phone, kvp.Key)] = CloneDefaults(kvp.Value);
+            var phoneClone = CloneDefaults(kvp.Value);
+            NormalizeGroupDefaults(phoneClone, ProfileObjectType.Phone, kvp.Key);
+            _groupDefaults[(ProfileObjectType.Phone, kvp.Key)] = phoneClone;
         }
     }
 
@@ -1384,7 +1513,7 @@ public class GroupDefaultsCollectionViewModel : ObservableObject
 
     public ProfileObjectType ObjectType { get; }
 
-    public string Header => $"{ObjectType} Groups";
+    public string Header => $"{ObjectType.ToString().ToUpperInvariant()} GROUPS";
 
     public ObservableCollection<GroupDefaultsEditorViewModel> Groups { get; }
 
@@ -1393,6 +1522,14 @@ public class GroupDefaultsCollectionViewModel : ObservableObject
     public IRelayCommand<GroupDefaultsEditorViewModel> CloneGroupCommand { get; }
 
     public IRelayCommand<GroupDefaultsEditorViewModel> RemoveGroupCommand { get; }
+
+    internal void RefreshAssociationTargets()
+    {
+        foreach (var group in Groups)
+        {
+            group.RefreshAssociationTargets();
+        }
+    }
 
     internal void RebuildFromOwner()
     {
@@ -1409,6 +1546,7 @@ public class GroupDefaultsCollectionViewModel : ObservableObject
             Groups.Add(new GroupDefaultsEditorViewModel(_owner, ObjectType, 1));
         }
 
+        RefreshAssociationTargets();
         UpdateCommands();
         _owner.NotifyGroupDefinitionsChanged(ObjectType);
     }
@@ -1426,6 +1564,7 @@ public class GroupDefaultsCollectionViewModel : ObservableObject
 
         _owner.EnsureGroupDefaults(ObjectType, nextIndex);
         Groups.Add(new GroupDefaultsEditorViewModel(_owner, ObjectType, nextIndex));
+        RefreshAssociationTargets();
         UpdateCommands();
         _owner.NotifyGroupDefinitionsChanged(ObjectType);
         _owner.EnsureDirty();
@@ -1461,6 +1600,7 @@ public class GroupDefaultsCollectionViewModel : ObservableObject
 
         Groups.Remove(editor);
         _owner.RemoveGroupDefaults(ObjectType, editor.GroupIndex);
+        RefreshAssociationTargets();
         UpdateCommands();
         _owner.NotifyGroupDefinitionsChanged(ObjectType);
     }
@@ -1475,6 +1615,7 @@ public class GroupDefaultsCollectionViewModel : ObservableObject
     }
 }
 
+
 public partial class GroupDefaultsEditorViewModel : ObservableObject
 {
     private readonly ProfilesViewModel _owner;
@@ -1485,6 +1626,12 @@ public partial class GroupDefaultsEditorViewModel : ObservableObject
         _owner = owner;
         ObjectType = objectType;
         GroupIndex = groupIndex;
+
+        Associations = new ObservableCollection<GroupAssociationEditorViewModel>();
+        Associations.CollectionChanged += OnAssociationsCollectionChanged;
+
+        AddAssociationCommand = new RelayCommand(AddAssociation, CanAddAssociation);
+        RemoveAssociationCommand = new RelayCommand<GroupAssociationEditorViewModel>(RemoveAssociation, CanRemoveAssociation);
 
         _suppress = true;
         Reload();
@@ -1497,22 +1644,11 @@ public partial class GroupDefaultsEditorViewModel : ObservableObject
 
     public string Title => $"Group {GroupIndex}";
 
-    public IReadOnlyList<string> AssociationLabelOptions
-    {
-        get
-        {
-            var options = _owner.AssociationLabelOptions;
-            if (string.IsNullOrWhiteSpace(AssociationLabel) || options.Contains(AssociationLabel))
-            {
-                return options;
-            }
+    public ObservableCollection<GroupAssociationEditorViewModel> Associations { get; }
 
-            return options.Concat(new[] { AssociationLabel }).ToList();
-        }
-    }
+    public IRelayCommand AddAssociationCommand { get; }
 
-    [ObservableProperty]
-    private string _associationLabel = string.Empty;
+    public IRelayCommand<GroupAssociationEditorViewModel> RemoveAssociationCommand { get; }
 
     [ObservableProperty]
     private string _dataSource = string.Empty;
@@ -1523,41 +1659,310 @@ public partial class GroupDefaultsEditorViewModel : ObservableObject
     [ObservableProperty]
     private string _tags = string.Empty;
 
-    partial void OnAssociationLabelChanged(string value)
-    {
-        OnPropertyChanged(nameof(AssociationLabelOptions));
-        Persist();
-    }
+    partial void OnDataSourceChanged(string value) => PersistMetadata();
 
-    partial void OnDataSourceChanged(string value) => Persist();
+    partial void OnDataTypeChanged(string value) => PersistMetadata();
 
-    partial void OnDataTypeChanged(string value) => Persist();
-
-    partial void OnTagsChanged(string value) => Persist();
+    partial void OnTagsChanged(string value) => PersistMetadata();
 
     internal void Reload()
     {
         var defaults = _owner.EnsureGroupDefaults(ObjectType, GroupIndex);
 
+        foreach (var association in Associations)
+        {
+            association.Changed -= OnAssociationChanged;
+        }
+
         _suppress = true;
-        AssociationLabel = defaults.AssociationLabel;
+
+        Associations.Clear();
         DataSource = defaults.DataSource;
         DataType = defaults.DataType;
         Tags = defaults.Tags.Count == 0 ? string.Empty : string.Join(", ", defaults.Tags);
+
+        foreach (var model in defaults.Associations)
+        {
+            Associations.Add(CreateAssociationEditor(model));
+        }
+
         _suppress = false;
 
-        OnPropertyChanged(nameof(AssociationLabelOptions));
+        PersistAssociations();
+        UpdateAssociationCommands();
     }
 
-    private void Persist()
+    internal void RefreshAssociationTargets()
+    {
+        foreach (var association in Associations)
+        {
+            association.RefreshTargetOptions();
+        }
+    }
+
+    private GroupAssociationEditorViewModel CreateAssociationEditor(GroupAssociation model)
+    {
+        var vm = new GroupAssociationEditorViewModel(_owner, this, model);
+        vm.Changed += OnAssociationChanged;
+        return vm;
+    }
+
+    private void PersistMetadata()
     {
         if (_suppress)
         {
             return;
         }
 
-        _owner.UpdateDefaults(ObjectType, GroupIndex, AssociationLabel, DataSource, DataType, Tags);
+        _owner.UpdateGroupMetadata(ObjectType, GroupIndex, DataSource, DataType, Tags);
+        _owner.EnsureDirty();
     }
+
+    internal void PersistAssociations()
+    {
+        if (_suppress)
+        {
+            return;
+        }
+
+        var models = Associations.Select(a => a.ToModel()).ToList();
+        _owner.UpdateGroupAssociations(ObjectType, GroupIndex, models);
+        _owner.EnsureDirty();
+    }
+
+    private void OnAssociationChanged(object? sender, EventArgs e)
+    {
+        if (_suppress)
+        {
+            return;
+        }
+
+        PersistAssociations();
+    }
+
+    private void OnAssociationsCollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)
+    {
+        if (e.NewItems != null)
+        {
+            foreach (GroupAssociationEditorViewModel vm in e.NewItems)
+            {
+                vm.Changed += OnAssociationChanged;
+            }
+        }
+
+        if (e.OldItems != null)
+        {
+            foreach (GroupAssociationEditorViewModel vm in e.OldItems)
+            {
+                vm.Changed -= OnAssociationChanged;
+            }
+        }
+
+        if (_suppress)
+        {
+            return;
+        }
+
+        if (Associations.Count == 0)
+        {
+            PersistAssociations();
+            UpdateAssociationCommands();
+            return;
+        }
+
+        PersistAssociations();
+        UpdateAssociationCommands();
+    }
+
+    private void AddAssociation()
+    {
+        Associations.Add(CreateAssociationEditor(_owner.CreateDefaultAssociation(ObjectType, GroupIndex)));
+        PersistAssociations();
+        UpdateAssociationCommands();
+    }
+
+    private bool CanAddAssociation() => Associations.Count < ProfilesViewModel.MaxAssociationsPerGroup;
+
+    private void RemoveAssociation(GroupAssociationEditorViewModel? association)
+    {
+        if (association == null)
+        {
+            return;
+        }
+
+        association.Changed -= OnAssociationChanged;
+        Associations.Remove(association);
+        PersistAssociations();
+        UpdateAssociationCommands();
+    }
+
+    private bool CanRemoveAssociation(GroupAssociationEditorViewModel? association) => association != null;
+
+    private void UpdateAssociationCommands()
+    {
+        (AddAssociationCommand as RelayCommand)?.NotifyCanExecuteChanged();
+        (RemoveAssociationCommand as RelayCommand<GroupAssociationEditorViewModel>)?.NotifyCanExecuteChanged();
+    }
+}
+
+public partial class GroupAssociationEditorViewModel : ObservableObject
+{
+    private readonly ProfilesViewModel _owner;
+    private readonly GroupDefaultsEditorViewModel _parent;
+    private bool _suppress;
+
+    public GroupAssociationEditorViewModel(ProfilesViewModel owner, GroupDefaultsEditorViewModel parent, GroupAssociation model)
+    {
+        _owner = owner;
+        _parent = parent;
+
+        TargetOptions = new ObservableCollection<AssociationTargetOption>();
+        LabelOptions = new ObservableCollection<SelectableLabelViewModel>();
+
+        _suppress = true;
+        RefreshTargetOptions();
+        LoadFromModel(model);
+        _suppress = false;
+    }
+
+    public event EventHandler? Changed;
+
+    public ObservableCollection<AssociationTargetOption> TargetOptions { get; }
+
+    [ObservableProperty]
+    private AssociationTargetOption? _selectedTarget;
+
+    public ObservableCollection<SelectableLabelViewModel> LabelOptions { get; }
+
+    public GroupAssociation ToModel()
+    {
+        var target = SelectedTarget ?? TargetOptions.FirstOrDefault();
+        return new GroupAssociation
+        {
+            TargetType = target?.Type ?? ProfileObjectType.Contact,
+            TargetIndex = target?.Index ?? 1,
+            Labels = LabelOptions.Where(option => option.IsSelected).Select(option => option.Label).ToList()
+        };
+    }
+
+    internal void RefreshTargetOptions()
+    {
+        var current = SelectedTarget;
+        var previousSuppress = _suppress;
+        _suppress = true;
+
+        TargetOptions.Clear();
+        foreach (var option in _owner.GetAssociationTargetOptions(_parent.ObjectType))
+        {
+            TargetOptions.Add(option);
+        }
+
+        SelectedTarget = current != null
+            ? TargetOptions.FirstOrDefault(o => o.Type == current.Type && o.Index == current.Index) ?? TargetOptions.FirstOrDefault()
+            : TargetOptions.FirstOrDefault();
+
+        _suppress = previousSuppress;
+    }
+
+    private void LoadFromModel(GroupAssociation model)
+    {
+        var previousSuppress = _suppress;
+        _suppress = true;
+
+        if (model != null)
+        {
+            SelectedTarget = TargetOptions.FirstOrDefault(o => o.Type == model.TargetType && o.Index == model.TargetIndex)
+                ?? TargetOptions.FirstOrDefault();
+        }
+
+        foreach (var option in LabelOptions)
+        {
+            option.PropertyChanged -= OnLabelOptionChanged;
+        }
+
+        LabelOptions.Clear();
+        var configured = model?.Labels ?? new List<string>();
+        var options = _owner.AssociationLabelOptions
+            .Concat(configured)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        foreach (var label in options)
+        {
+            var isSelected = configured.Any(l => string.Equals(l, label, StringComparison.OrdinalIgnoreCase));
+            var option = new SelectableLabelViewModel(label, isSelected);
+            option.PropertyChanged += OnLabelOptionChanged;
+            LabelOptions.Add(option);
+        }
+
+        if (LabelOptions.Count == 0)
+        {
+            var defaultLabel = _owner.AssociationLabelOptions.FirstOrDefault();
+            if (!string.IsNullOrWhiteSpace(defaultLabel))
+            {
+                var option = new SelectableLabelViewModel(defaultLabel, true);
+                option.PropertyChanged += OnLabelOptionChanged;
+                LabelOptions.Add(option);
+            }
+        }
+
+        _suppress = previousSuppress;
+    }
+
+    partial void OnSelectedTargetChanged(AssociationTargetOption? value)
+    {
+        RaiseChanged();
+    }
+
+    private void OnLabelOptionChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(SelectableLabelViewModel.IsSelected))
+        {
+            RaiseChanged();
+        }
+    }
+
+    private void RaiseChanged()
+    {
+        if (_suppress)
+        {
+            return;
+        }
+
+        Changed?.Invoke(this, EventArgs.Empty);
+    }
+}
+
+public partial class SelectableLabelViewModel : ObservableObject
+{
+    public SelectableLabelViewModel(string label, bool isSelected)
+    {
+        Label = label;
+        _isSelected = isSelected;
+    }
+
+    public string Label { get; }
+
+    [ObservableProperty]
+    private bool _isSelected;
+}
+
+public sealed class AssociationTargetOption
+{
+    public AssociationTargetOption(ProfileObjectType type, int index)
+    {
+        Type = type;
+        Index = index;
+        DisplayName = $"{type} Group {index}";
+    }
+
+    public ProfileObjectType Type { get; }
+
+    public int Index { get; }
+
+    public string DisplayName { get; }
+
+    public override string ToString() => DisplayName;
 }
 
 internal static class TransformParser

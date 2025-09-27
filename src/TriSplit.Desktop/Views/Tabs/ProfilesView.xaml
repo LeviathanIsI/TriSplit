@@ -178,13 +178,13 @@
         </ListBox>
 
         <StackPanel Grid.Row="1" Margin="0,16,0,0">
-          <Button Content="➕ New Data Profile"
+          <Button Content="+ New Data Profile"
                   Command="{Binding NewProfileCommand}"
                   Style="{StaticResource SecondaryButton}"
                   FontSize="12"
                   Height="36"
                   Margin="0,0,0,8"/>
-          <Button Content="🗑 Delete Selected Profile"
+          <Button Content="Delete Selected Profile"
                   Command="{Binding DeleteProfileCommand}"
                   Style="{StaticResource SecondaryButton}"
                   FontSize="12"
@@ -202,7 +202,7 @@
             CornerRadius="4">
       <Grid>
         <Grid.RowDefinitions>
-          <RowDefinition Height="Auto"/>
+          <RowDefinition Height="{Binding GroupPanelRowHeight}"/>
           <RowDefinition Height="Auto"/>
           <RowDefinition Height="*"/>
           <RowDefinition Height="Auto"/>
@@ -218,158 +218,192 @@
                     Background="Transparent"
                     BorderBrush="Transparent"
                     ExpandDirection="Down"
-                    Padding="0">
-                        <Expander.Header>
-
-              <TextBlock Text="Contacts - Properties - Phone"
-
+                    Padding="0"
+                    HorizontalContentAlignment="Stretch">
+            <Expander.Header>
+              <TextBlock Text="Contacts - Properties - Phones"
                          Foreground="{StaticResource AccentBrush}"
-
                          FontWeight="SemiBold"
-
                          FontSize="16"/>
-
             </Expander.Header>
-                        <Expander.Content>
-              <ScrollViewer MaxHeight="300" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
-                <StackPanel>
-                  <!-- Missing Header Behavior moved to footer -->
+            <Expander.Content>
+              <ScrollViewer VerticalScrollBarVisibility="Auto"
+                            HorizontalScrollBarVisibility="Disabled"
+                            VerticalAlignment="Stretch">
+                <ItemsControl ItemsSource="{Binding GroupCollections}">
+                  <ItemsControl.ItemsPanel>
+                    <ItemsPanelTemplate>
+                      <UniformGrid Columns="3"/>
+                    </ItemsPanelTemplate>
+                  </ItemsControl.ItemsPanel>
+                  <ItemsControl.ItemContainerStyle>
+                    <Style TargetType="ContentPresenter">
+                      <Setter Property="Margin" Value="0,0,12,12"/>
+                    </Style>
+                  </ItemsControl.ItemContainerStyle>
+                  <ItemsControl.ItemTemplate>
+                    <DataTemplate>
+                      <Border Background="{StaticResource SurfaceBrush}"
+                              BorderBrush="{StaticResource BorderBrush}"
+                              BorderThickness="1"
+                              CornerRadius="4"
+                              Padding="12">
+                        <StackPanel>
+                          <Grid>
+                            <Grid.ColumnDefinitions>
+                              <ColumnDefinition Width="*"/>
+                              <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Grid.Column="0"
+                                       Text="{Binding Header}"
+                                       Foreground="{StaticResource AccentBrush}"
+                                       FontWeight="Bold"/>
+                            <Button Grid.Column="1"
+                                    Content="+ Add Group"
+                                    Command="{Binding AddGroupCommand}"
+                                    Style="{StaticResource SecondaryButton}"
+                                    Padding="10,4"
+                                    Margin="8,0,0,0"/>
+                          </Grid>
 
-                  <ItemsControl ItemsSource="{Binding GroupCollections}"
-                                Margin="0,12,0,0">
-                    <ItemsControl.ItemsPanel>
-                      <ItemsPanelTemplate>
-                        <UniformGrid Columns="3"/>
-                      </ItemsPanelTemplate>
-                    </ItemsControl.ItemsPanel>
-                    <ItemsControl.ItemContainerStyle>
-                      <Style TargetType="ContentPresenter">
-                        <Setter Property="Margin" Value="0,0,12,12"/>
-                      </Style>
-                    </ItemsControl.ItemContainerStyle>
-                    <ItemsControl.ItemTemplate>
-                      <DataTemplate>
-                        <Border Background="{StaticResource SurfaceBrush}"
-                                BorderBrush="{StaticResource BorderBrush}"
-                                BorderThickness="1"
-                                CornerRadius="4"
-                                Padding="12">
-                          <StackPanel>
-                            <Grid>
-                              <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="*"/>
-                                <ColumnDefinition Width="Auto"/>
-                              </Grid.ColumnDefinitions>
-
-                              <TextBlock Grid.Column="0"
-                                         Text="{Binding Header}"
-                                         Foreground="{StaticResource AccentBrush}"
-                                         FontWeight="Bold"
-                                         FontSize="15"/>
-
-                              <Button Grid.Column="1"
-                                      Content="+ Add Group"
-                                      Command="{Binding AddGroupCommand}"
-                                      Style="{StaticResource SecondaryButton}"
-                                      Padding="10,4"/>
-                            </Grid>
-
-                            <ItemsControl ItemsSource="{Binding Groups}"
-                                          Margin="0,8,0,0">
-                              <ItemsControl.ItemTemplate>
-                                <DataTemplate>
-                                  <Border Background="{StaticResource BackgroundBrush}"
-                                          BorderBrush="{StaticResource BorderBrush}"
-                                          BorderThickness="1"
-                                          CornerRadius="4"
-                                          Padding="10"
-                                          Margin="0,8,0,0">
+                          <ItemsControl ItemsSource="{Binding Groups}" Margin="0,8,0,0">
+                            <ItemsControl.ItemTemplate>
+                              <DataTemplate>
+                                <Border Background="{StaticResource BackgroundBrush}"
+                                        BorderBrush="{StaticResource BorderBrush}"
+                                        BorderThickness="1"
+                                        CornerRadius="4"
+                                        Padding="10"
+                                        Margin="0,8,0,0">
+                                  <StackPanel>
                                     <Grid>
-                                      <Grid.RowDefinitions>
-                                        <RowDefinition Height="Auto"/>
-                                        <RowDefinition Height="Auto"/>
-                                        <RowDefinition Height="Auto"/>
-                                        <RowDefinition Height="Auto"/>
-                                        <RowDefinition Height="Auto"/>
-                                      </Grid.RowDefinitions>
                                       <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="*"/>
                                         <ColumnDefinition Width="Auto"/>
                                         <ColumnDefinition Width="Auto"/>
                                       </Grid.ColumnDefinitions>
-
-                                      <TextBlock Grid.Row="0"
-                                                 Grid.Column="0"
+                                      <TextBlock Grid.Column="0"
                                                  Text="{Binding Title}"
                                                  Foreground="{StaticResource AccentBrush}"
                                                  FontWeight="SemiBold"/>
-
-                                      <Button Grid.Row="0"
-                                              Grid.Column="1"
+                                      <Button Grid.Column="1"
                                               Content="Clone"
                                               Command="{Binding DataContext.CloneGroupCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
                                               CommandParameter="{Binding}"
                                               Style="{StaticResource SecondaryButton}"
                                               Padding="8,4"
                                               Margin="8,0,0,0"/>
-
-                                      <Button Grid.Row="0"
-                                              Grid.Column="2"
+                                      <Button Grid.Column="2"
                                               Content="Remove"
                                               Command="{Binding DataContext.RemoveGroupCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
                                               CommandParameter="{Binding}"
                                               Style="{StaticResource SecondaryButton}"
                                               Padding="8,4"
                                               Margin="8,0,0,0"/>
-
-                                      <StackPanel Grid.Row="1"
-                                                  Grid.ColumnSpan="3"
-                                                  Margin="0,8,0,0">
-                                        <TextBlock Text="Association Label"
-                                                   Foreground="{StaticResource SecondaryTextBrush}"/>
-                                        <ComboBox ItemsSource="{Binding AssociationLabelOptions}"
-                                                  SelectedItem="{Binding AssociationLabel, Mode=TwoWay}"
-                                                  Margin="0,4,0,0"
-                                                  IsEditable="False"/>
-                                      </StackPanel>
-
-                                      <StackPanel Grid.Row="2"
-                                                  Grid.ColumnSpan="3"
-                                                  Margin="0,8,0,0">
-                                        <TextBlock Text="Data Source"
-                                                   Foreground="{StaticResource SecondaryTextBrush}"/>
-                                        <TextBox Text="{Binding DataSource}"
-                                                 Margin="0,4,0,0"/>
-                                      </StackPanel>
-
-                                      <StackPanel Grid.Row="3"
-                                                  Grid.ColumnSpan="3"
-                                                  Margin="0,8,0,0">
-                                        <TextBlock Text="Data Type"
-                                                   Foreground="{StaticResource SecondaryTextBrush}"/>
-                                        <TextBox Text="{Binding DataType}"
-                                                 Margin="0,4,0,0"/>
-                                      </StackPanel>
-
-                                      <StackPanel Grid.Row="4"
-                                                  Grid.ColumnSpan="3"
-                                                  Margin="0,8,0,0">
-                                        <TextBlock Text="Tags"
-                                                   Foreground="{StaticResource SecondaryTextBrush}"/>
-                                        <TextBox Text="{Binding Tags}"
-                                                 Margin="0,4,0,0"/>
-                                      </StackPanel>
                                     </Grid>
-                                  </Border>
-                                </DataTemplate>
-                              </ItemsControl.ItemTemplate>
-                            </ItemsControl>
-                          </StackPanel>
-                        </Border>
-                      </DataTemplate>
-                    </ItemsControl.ItemTemplate>
-                  </ItemsControl>
-                </StackPanel>
+
+                                    <ItemsControl x:Name="AssociationItems"
+                                                  ItemsSource="{Binding Associations}"
+                                                  Margin="0,8,0,0">
+                                      <ItemsControl.ItemTemplate>
+                                        <DataTemplate>
+                                          <Border Background="{StaticResource SurfaceBrush}"
+                                                  BorderBrush="{StaticResource BorderBrush}"
+                                                  BorderThickness="1"
+                                                  CornerRadius="4"
+                                                  Padding="10"
+                                                  Margin="0,6,0,0">
+                                            <Grid>
+                                              <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="2*"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                                <ColumnDefinition Width="3*"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                              </Grid.ColumnDefinitions>
+                                              <StackPanel Grid.Column="0">
+                                                <TextBlock Text="Associate to"
+                                                           Foreground="{StaticResource SecondaryTextBrush}"/>
+                                                <ComboBox ItemsSource="{Binding TargetOptions}"
+                                                          SelectedItem="{Binding SelectedTarget, Mode=TwoWay}"
+                                                          DisplayMemberPath="DisplayName"
+                                                          Margin="0,4,0,0"
+                                                          MinWidth="140"/>
+                                              </StackPanel>
+                                              <TextBlock Grid.Column="1"
+                                                         Text="&#x2192;"
+                                                         Margin="12,24,12,0"
+                                                         VerticalAlignment="Top"
+                                                         Foreground="{StaticResource AccentBrush}"
+                                                         FontWeight="Bold"/>
+                                              <StackPanel Grid.Column="2">
+                                                <TextBlock Text="Labels"
+                                                           Foreground="{StaticResource SecondaryTextBrush}"/>
+                                                <ItemsControl ItemsSource="{Binding LabelOptions}"
+                                                              Margin="0,4,0,0">
+                                                  <ItemsControl.ItemsPanel>
+                                                    <ItemsPanelTemplate>
+                                                      <WrapPanel/>
+                                                    </ItemsPanelTemplate>
+                                                  </ItemsControl.ItemsPanel>
+                                                  <ItemsControl.ItemTemplate>
+                                                    <DataTemplate>
+                                                      <CheckBox Content="{Binding Label}"
+                                                                IsChecked="{Binding IsSelected, Mode=TwoWay}"
+                                                                Margin="0,0,12,4"/>
+                                                    </DataTemplate>
+                                                  </ItemsControl.ItemTemplate>
+                                                </ItemsControl>
+                                              </StackPanel>
+                                              <Button Grid.Column="3"
+                                                      Content="Remove"
+                                                      Command="{Binding DataContext.RemoveAssociationCommand, Source={x:Reference AssociationItems}}"
+                                                      CommandParameter="{Binding}"
+                                                      Style="{StaticResource SecondaryButton}"
+                                                      Padding="8,4"
+                                                      Margin="12,0,0,0"
+                                                      VerticalAlignment="Top"/>
+                                            </Grid>
+                                          </Border>
+                                        </DataTemplate>
+                                      </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+
+                                    <Button Content="+ Add association"
+                                            Command="{Binding AddAssociationCommand}"
+                                            Style="{StaticResource SecondaryButton}"
+                                            Padding="10,4"
+                                            Margin="0,8,0,0"/>
+
+                                    <StackPanel Margin="0,8,0,0">
+                                      <TextBlock Text="Data Source"
+                                                 Foreground="{StaticResource SecondaryTextBrush}"/>
+                                      <TextBox Text="{Binding DataSource}"
+                                               Margin="0,4,0,0"/>
+                                    </StackPanel>
+
+                                    <StackPanel Margin="0,8,0,0">
+                                      <TextBlock Text="Data Type"
+                                                 Foreground="{StaticResource SecondaryTextBrush}"/>
+                                      <TextBox Text="{Binding DataType}"
+                                               Margin="0,4,0,0"/>
+                                    </StackPanel>
+
+                                    <StackPanel Margin="0,8,0,0">
+                                      <TextBlock Text="Tags"
+                                                 Foreground="{StaticResource SecondaryTextBrush}"/>
+                                      <TextBox Text="{Binding Tags}"
+                                               Margin="0,4,0,0"/>
+                                    </StackPanel>
+                                  </StackPanel>
+                                </Border>
+                              </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                          </ItemsControl>
+                        </StackPanel>
+                      </Border>
+                    </DataTemplate>
+                  </ItemsControl.ItemTemplate>
+                </ItemsControl>
               </ScrollViewer>
             </Expander.Content>
           </Expander>
@@ -406,7 +440,7 @@
                            FontWeight="SemiBold">
                   <TextBlock.Style>
                     <Style TargetType="TextBlock">
-                      <Setter Property="Text" Value="▲"/>
+                      <Setter Property="Text" Value="&#9650;"/>
                       <Setter Property="Opacity" Value="0.4"/>
                       <Setter Property="Foreground" Value="{StaticResource SecondaryTextBrush}"/>
                       <Style.Triggers>
@@ -415,7 +449,7 @@
                             <Condition Binding="{Binding CurrentSortColumn}" Value="SourceField"/>
                             <Condition Binding="{Binding CurrentSortDirection}" Value="Ascending"/>
                           </MultiDataTrigger.Conditions>
-                          <Setter Property="Text" Value="▲"/>
+                          <Setter Property="Text" Value="&#9650;"/>
                           <Setter Property="Opacity" Value="1"/>
                           <Setter Property="Foreground" Value="{StaticResource AccentBrush}"/>
                         </MultiDataTrigger>
@@ -424,7 +458,7 @@
                             <Condition Binding="{Binding CurrentSortColumn}" Value="SourceField"/>
                             <Condition Binding="{Binding CurrentSortDirection}" Value="Descending"/>
                           </MultiDataTrigger.Conditions>
-                          <Setter Property="Text" Value="▼"/>
+                          <Setter Property="Text" Value="&#9660;"/>
                           <Setter Property="Opacity" Value="1"/>
                           <Setter Property="Foreground" Value="{StaticResource AccentBrush}"/>
                         </MultiDataTrigger>
@@ -453,7 +487,7 @@
                            FontWeight="SemiBold">
                   <TextBlock.Style>
                     <Style TargetType="TextBlock">
-                      <Setter Property="Text" Value="▲"/>
+                      <Setter Property="Text" Value="&#9650;"/>
                       <Setter Property="Opacity" Value="0.4"/>
                       <Setter Property="Foreground" Value="{StaticResource SecondaryTextBrush}"/>
                       <Style.Triggers>
@@ -462,7 +496,7 @@
                             <Condition Binding="{Binding CurrentSortColumn}" Value="Group"/>
                             <Condition Binding="{Binding CurrentSortDirection}" Value="Ascending"/>
                           </MultiDataTrigger.Conditions>
-                          <Setter Property="Text" Value="▲"/>
+                          <Setter Property="Text" Value="&#9650;"/>
                           <Setter Property="Opacity" Value="1"/>
                           <Setter Property="Foreground" Value="{StaticResource AccentBrush}"/>
                         </MultiDataTrigger>
@@ -471,7 +505,7 @@
                             <Condition Binding="{Binding CurrentSortColumn}" Value="Group"/>
                             <Condition Binding="{Binding CurrentSortDirection}" Value="Descending"/>
                           </MultiDataTrigger.Conditions>
-                          <Setter Property="Text" Value="▼"/>
+                          <Setter Property="Text" Value="&#9660;"/>
                           <Setter Property="Opacity" Value="1"/>
                           <Setter Property="Foreground" Value="{StaticResource AccentBrush}"/>
                         </MultiDataTrigger>
@@ -500,7 +534,7 @@
                            FontWeight="SemiBold">
                   <TextBlock.Style>
                     <Style TargetType="TextBlock">
-                      <Setter Property="Text" Value="▲"/>
+                      <Setter Property="Text" Value="&#9650;"/>
                       <Setter Property="Opacity" Value="0.4"/>
                       <Setter Property="Foreground" Value="{StaticResource SecondaryTextBrush}"/>
                       <Style.Triggers>
@@ -509,7 +543,7 @@
                             <Condition Binding="{Binding CurrentSortColumn}" Value="HubSpotHeader"/>
                             <Condition Binding="{Binding CurrentSortDirection}" Value="Ascending"/>
                           </MultiDataTrigger.Conditions>
-                          <Setter Property="Text" Value="▲"/>
+                          <Setter Property="Text" Value="&#9650;"/>
                           <Setter Property="Opacity" Value="1"/>
                           <Setter Property="Foreground" Value="{StaticResource AccentBrush}"/>
                         </MultiDataTrigger>
@@ -518,7 +552,7 @@
                             <Condition Binding="{Binding CurrentSortColumn}" Value="HubSpotHeader"/>
                             <Condition Binding="{Binding CurrentSortDirection}" Value="Descending"/>
                           </MultiDataTrigger.Conditions>
-                          <Setter Property="Text" Value="▼"/>
+                          <Setter Property="Text" Value="&#9660;"/>
                           <Setter Property="Opacity" Value="1"/>
                           <Setter Property="Foreground" Value="{StaticResource AccentBrush}"/>
                         </MultiDataTrigger>

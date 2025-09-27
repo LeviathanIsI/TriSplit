@@ -6,38 +6,6 @@
              mc:Ignorable="d"
              d:DesignHeight="800" d:DesignWidth="1400"
              Background="{StaticResource BackgroundBrush}">
-  <UserControl.Resources>
-    <Style x:Key="TagDateCalendarDayButtonStyle" TargetType="CalendarDayButton" BasedOn="{StaticResource DarkCalendarDayButtonStyle}">
-      <Setter Property="Foreground" Value="{StaticResource TextBrush}"/>
-      <Setter Property="Background" Value="{StaticResource SurfaceBrush}"/>
-      <Setter Property="BorderBrush" Value="{StaticResource BorderBrush}"/>
-      <Setter Property="FontWeight" Value="SemiBold"/>
-      <Style.Triggers>
-        <Trigger Property="IsMouseOver" Value="True">
-          <Setter Property="Background" Value="{StaticResource HoverBrush}"/>
-          <Setter Property="Foreground" Value="{StaticResource BackgroundBrush}"/>
-        </Trigger>
-        <Trigger Property="IsSelected" Value="True">
-          <Setter Property="Background" Value="{StaticResource AccentBrush}"/>
-          <Setter Property="Foreground" Value="{StaticResource BackgroundBrush}"/>
-        </Trigger>
-        <Trigger Property="IsInactive" Value="True">
-          <Setter Property="Foreground" Value="{StaticResource TextBrush}"/>
-          <Setter Property="Opacity" Value="0.85"/>
-        </Trigger>
-        <Trigger Property="IsEnabled" Value="False">
-          <Setter Property="Opacity" Value="0.45"/>
-        </Trigger>
-      </Style.Triggers>
-    </Style>
-    <Style x:Key="TagDateCalendarStyle" TargetType="Calendar" BasedOn="{StaticResource DarkCalendarStyle}">
-      <Setter Property="CalendarDayButtonStyle" Value="{StaticResource TagDateCalendarDayButtonStyle}"/>
-      <Setter Property="Foreground" Value="{StaticResource TextBrush}"/>
-      <Setter Property="Background" Value="{StaticResource SurfaceBrush}"/>
-      <Setter Property="BorderBrush" Value="{StaticResource AccentBrush}"/>
-      <Setter Property="BorderThickness" Value="1"/>
-    </Style>
-  </UserControl.Resources>
 
   <Grid Margin="20">
     <Grid.RowDefinitions>
@@ -66,8 +34,6 @@
             Margin="0,0,0,20">
       <Grid Margin="20">
         <Grid.RowDefinitions>
-          <RowDefinition Height="Auto"/>
-          <RowDefinition Height="Auto"/>
           <RowDefinition Height="Auto"/>
           <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
@@ -195,81 +161,8 @@
 
         </Grid>
 
-        <!-- Tag Builder -->
-        <Grid Grid.Row="2" Margin="0,15,0,0">
-          <Grid.RowDefinitions>
-            <RowDefinition Height="Auto"/>
-            <RowDefinition Height="Auto"/>
-          </Grid.RowDefinitions>
-          <Grid.ColumnDefinitions>
-            <ColumnDefinition Width="120"/>
-            <ColumnDefinition Width="200"/>
-            <ColumnDefinition Width="150"/>
-            <ColumnDefinition Width="*"/>
-            <ColumnDefinition Width="Auto"/>
-          </Grid.ColumnDefinitions>
-
-          <TextBlock Grid.Row="0"
-                     Grid.Column="0"
-                     Text="Tag Date:"
-                     Foreground="{StaticResource TextBrush}"
-                     VerticalAlignment="Center"/>
-
-          <DatePicker Grid.Row="0"
-                      Grid.Column="1"
-                      SelectedDate="{Binding TagDataDate}"
-                      CalendarStyle="{StaticResource TagDateCalendarStyle}"
-                      Foreground="{StaticResource TextBrush}"
-                      Background="{StaticResource SurfaceBrush}"
-                      BorderBrush="{StaticResource AccentBrush}"
-                      BorderThickness="1"
-                      Margin="0,0,10,0"
-                      Height="32"/>
-
-          <Button Grid.Row="0"
-                  Grid.Column="2"
-                  Content="Generate Tags"
-                  Command="{Binding GenerateTagCommand}"
-                  Style="{StaticResource SecondaryButton}"
-                  Margin="0,0,10,0"
-                  Padding="15,6"/>
-
-          <TextBox Grid.Row="0"
-                   Grid.Column="3"
-                   Text="{Binding TagDraft, UpdateSourceTrigger=PropertyChanged}"
-                   Margin="0,0,10,0"
-                   Height="32"
-                   VerticalContentAlignment="Center"/>
-
-          <Button Grid.Row="0"
-                  Grid.Column="4"
-                  Content="Accept"
-                  Command="{Binding AcceptTagCommand}"
-                  Style="{StaticResource PrimaryButton}"
-                  Padding="15,6"/>
-
-          <StackPanel Grid.Row="1"
-                      Grid.Column="1"
-                      Grid.ColumnSpan="4"
-                      Orientation="Vertical"
-                      Margin="0,10,0,0">
-            <TextBlock Text="{Binding TagStatus}"
-                       Foreground="{StaticResource AccentBrush}"
-                       FontStyle="Italic"
-                       Margin="0,0,0,4"/>
-            <TextBlock Foreground="{StaticResource SecondaryTextBrush}"
-                       FontSize="12">
-              <Run Text="Source:"/>
-              <Run Text=" "/>
-              <Run Text="  |  Type:"/>
-              <Run Text=" "/>
-              <Run Text="  |  Note:"/>
-              <Run Text=" "/>
-            </TextBlock>
-          </StackPanel>
-        </Grid>
-
       </Grid>
+
     </Border>
 
     <!-- Processing Log -->

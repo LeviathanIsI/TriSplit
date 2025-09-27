@@ -685,7 +685,14 @@ public partial class TestViewModel : ViewModelBase, IDisposable
         }
 
         var defaults = profile.Groups.GetOrAdd(mapping.ObjectType, mapping.GroupIndex);
-        return defaults.AssociationLabel;
+        var labels = defaults.Associations
+            .SelectMany(a => a.Labels ?? new List<string>())
+            .Where(label => !string.IsNullOrWhiteSpace(label))
+            .Select(label => label.Trim())
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        return labels.Count == 0 ? string.Empty : string.Join(", ", labels);
     }
 
     public void Dispose()

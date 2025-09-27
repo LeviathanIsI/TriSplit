@@ -19,9 +19,21 @@ public class ProfileGroupConfiguration
 
         if (!target.TryGetValue(groupIndex, out var defaults))
         {
-            defaults = new GroupDefaults();
+            defaults = new GroupDefaults
+            {
+                Type = objectType,
+                Index = groupIndex
+            };
             target[groupIndex] = defaults;
         }
+        else
+        {
+            defaults.Type = objectType;
+            defaults.Index = groupIndex;
+        }
+
+        defaults.Tags ??= new List<string>();
+        defaults.Associations ??= new List<GroupAssociation>();
 
         return defaults;
     }
